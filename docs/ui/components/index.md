@@ -10,6 +10,7 @@
 | 添加及管理主题 | `src/components/theme/theme-import-setting.tsx` | ThemeImportSetting 导入；CustomThemeList 列表、当前标记与删除 |
 | 设置卡片分组 | `src/components/settings/appearance-settings.tsx` | AppearanceSettings / WindowSettings，原版左标题右控件布局及编辑器入口 |
 | 语言 | `src/components/language/language-select.tsx` | 原版语言列表及持久选择 |
+| 原生语言同步 | `src/components/language/native-language-sync.tsx` | 根部挂载，按顺序同步 Rust 托盘和后续原生文件对话框语言；消息正文通过 `src/lib/native-message.ts` 在显示时翻译，状态保留原始标识/参数 |
 | 窗口外观 | `src/components/settings/window-appearance-setting.tsx` | Windows opacityOnly；macOS 不透明度/模糊直接跟随主题 Token，支持手动覆盖及重置，无「主题」徽标 |
 | 应用图标 | `src/components/settings/application-icon-setting.tsx`、`application-icon-sync.tsx` | 系统/Light/Dark/Mono；设置只显示图标、保留 title/aria-label，跟随操作系统外观且独立于应用主题；根部同步 Rust 原生图标与错误 Toast |
 | 控件偏好 | `src/components/settings/window-control-setting.tsx` | 样式与位置 |

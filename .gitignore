@@ -6,3 +6,7 @@ outputs/
 *.local
 .DS_Store
 .pnpm-store/
+
+# Local agent state; shared development instructions and docs are tracked.
+/.agents/
+/.codex/
