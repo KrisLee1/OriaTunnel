@@ -15,6 +15,18 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 端口转发桌面工具。通过
 
 **[阅读完整使用指南](docs/USAGE.md)** · [快速上手](#快速上手) · [选择转发方式](#选择转发方式)
 
+## 界面预览
+
+以下截图使用独立演示配置：3 台示例主机、6 条 L / R / D 转发，全部保持停止，不包含真实服务器或凭据。
+
+![连接图](docs/assets/screenshots/connection-map.png)
+
+![转发列表](docs/assets/screenshots/forwards.png)
+
+![SSH 主机](docs/assets/screenshots/hosts.png)
+
+![日志](docs/assets/screenshots/logs.png)
+
 ## 能做什么
 
 - **管理多条隧道**：按主机查看连接图和转发列表，独立或批量启动、停止规则。
@@ -56,6 +68,23 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 端口转发桌面工具。通过
 - **macOS**：下载 `.dmg`，打开后将 `OriaTunnel.app` 拖入「应用程序」文件夹。如果下载的是 `.zip`，先解压出其中的 `.dmg` 再打开。
 
 安装完成后启动 OriaTunnel，按[快速上手](#快速上手)添加 SSH 主机并创建转发。日常使用无需安装 Node.js、pnpm 或 Rust。
+
+## macOS 提示“已损坏，无法打开”
+
+<img src="docs/assets/screenshots/macos-damaged-warning.png" alt="macOS Gatekeeper" width="360">
+
+当前提供的 macOS 构建尚未使用 **Developer ID 签名和 Apple 公证**。从互联网下载后，Gatekeeper 可能阻止打开，并出现下图提示；这不是 SSH 连接错误。不过，仅凭此提示也不能排除文件损坏或被修改。
+
+1. 只从本仓库 Releases 下载适合设备架构的安装包；重新下载并解压，将应用放入「应用程序」，不要直接从压缩包运行。有发布校验值时先核对。
+2. 若提示“无法验证开发者”或“Apple 无法检查”，且确认来源可信，可尝试「系统设置 → 隐私与安全性 → 仍要打开」。参见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
+3. 对确认来自本仓库、完整且未被修改的未公证安装包，若仍因下载隔离标记无法打开，可在终端**只针对 OriaTunnel.app**查看并移除该标记，然后重新打开。下例假设安装到 `/Applications`；安装在个人目录时改成 `"$HOME/Applications/OriaTunnel.app"`：
+
+```sh
+xattr -l "/Applications/OriaTunnel.app"
+sudo xattr -rd com.apple.quarantine /Applications/OriaTunnel.app
+```
+
+移除隔离标记会跳过该副本的下载隔离检查，**不会补上签名、公证，也不会修复损坏**。若来源或完整性存疑、提示包含恶意软件，或处理后仍无法打开，请停止并到 Issues 反馈，附系统版本、芯片架构和安装包名称。不要关闭系统 Gatekeeper，也不要对整个下载目录移除隔离标记。
 
 ## 使用文档
 

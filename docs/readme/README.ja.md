@@ -15,6 +15,18 @@ OriaTunnel は、Windows と macOS 向けの SSH ポート転送デスクトッ�
 
 **[詳しいユーザーガイド（中国語・簡体字）](../USAGE.md)** · [クイックスタート](#クイックスタート) · [転送方式を選ぶ](#転送方式を選ぶ)
 
+## スクリーンショット
+
+独立したデモ設定：ホスト3台、L / R / D 転送6件。すべて停止中で、実際のサーバーや認証情報は含みません。
+
+![接続マップ](../assets/screenshots/connection-map.png)
+
+![転送一覧](../assets/screenshots/forwards.png)
+
+![SSH ホスト](../assets/screenshots/hosts.png)
+
+![ログ](../assets/screenshots/logs.png)
+
 ## できること
 
 - **複数のトンネルを管理：** ホストごとに接続を確認し、ルールを個別または一括で開始・停止できます。
@@ -56,6 +68,23 @@ SSH のアドレス、ポート、ユーザー名、認証方式を準備し、�
 - **macOS：** `.dmg` をダウンロードして開き、`OriaTunnel.app` を **アプリケーション**フォルダーにドラッグしてください。`.zip` をダウンロードした場合は、先に中の `.dmg` を展開してください。
 
 インストール後に OriaTunnel を起動し、[クイックスタート](#クイックスタート)に従って SSH ホストを追加し、転送を作成してください。日常的な利用に Node.js、pnpm、Rust は必要ありません。
+
+## macOS：「壊れているため開けません」
+
+<img src="../assets/screenshots/macos-damaged-warning.png" alt="macOS Gatekeeper" width="360">
+
+現在の macOS ビルドには **Developer ID 署名と Apple の公証がありません**。ダウンロード後に Gatekeeper が下図の警告で起動を拒否する場合があります。SSH のエラーではありませんが、警告だけでは実際の破損や改変も否定できません。
+
+1. このリポジトリの Releases から、デバイスのアーキテクチャに合うパッケージを再ダウンロードし、展開して「アプリケーション」に移動してください。公開チェックサムがあれば照合します。
+2. 開発元を確認できない場合や Apple が検査できない場合は、信頼できる未改変のアプリに限り「システム設定 → プライバシーとセキュリティ → このまま開く」を確認してください。[Apple の説明](https://support.apple.com/102445)も参照してください。
+3. このリポジトリから取得した完全で未改変の未公証パッケージを信頼でき、隔離属性で起動できない場合に限り、ターミナルで **OriaTunnel.app だけ**の属性を確認・削除して再起動できます。個人用フォルダーならパスを `"$HOME/Applications/OriaTunnel.app"` に変更します。
+
+```sh
+xattr -l "/Applications/OriaTunnel.app"
+sudo xattr -rd com.apple.quarantine /Applications/OriaTunnel.app
+```
+
+これは当該コピーのダウンロード隔離チェックを省略します。**署名、公証、破損の修復は行いません**。出所や完全性が不明、マルウェアの警告がある、または解決しない場合は中止し、macOS バージョン、チップ構成、パッケージ名を Issues に報告してください。Gatekeeper 全体を無効化したり、ダウンロードフォルダー全体の隔離属性を削除したりしないでください。
 
 ## ユーザードキュメント
 

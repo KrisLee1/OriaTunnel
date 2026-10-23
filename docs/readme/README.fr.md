@@ -15,6 +15,18 @@ OriaTunnel est une application de bureau de redirection de ports SSH pour Window
 
 **[Guide utilisateur complet (chinois simplifié)](../USAGE.md)** · [Prise en main](#prise-en-main) · [Choisir un mode de redirection](#choisir-un-mode-de-redirection)
 
+## Captures d’écran
+
+Configuration de démonstration isolée : 3 hôtes et 6 redirections L / R / D, toutes arrêtées. Aucun serveur réel ni identifiant de connexion.
+
+![Carte des connexions](../assets/screenshots/connection-map.png)
+
+![Liste des redirections](../assets/screenshots/forwards.png)
+
+![Hôtes SSH](../assets/screenshots/hosts.png)
+
+![Journaux](../assets/screenshots/logs.png)
+
 ## Fonctionnalités
 
 - **Gérer plusieurs tunnels :** affichez les connexions par hôte et démarrez ou arrêtez les règles individuellement ou par lot.
@@ -56,6 +68,23 @@ Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/Ori
 - **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
 
 Lancez OriaTunnel après l’installation, puis suivez la [prise en main](#prise-en-main) pour ajouter un hôte SSH et créer une redirection. L’utilisation quotidienne ne nécessite ni Node.js, ni pnpm, ni Rust.
+
+## macOS : « est endommagé et ne peut pas être ouvert »
+
+<img src="../assets/screenshots/macos-damaged-warning.png" alt="macOS Gatekeeper" width="360">
+
+Les builds macOS actuels n’ont **ni signature Developer ID ni notarisation Apple**. Gatekeeper peut bloquer un téléchargement avec le message ci-dessous. Ce n’est pas une erreur SSH ; le message seul ne permet pas non plus d’écarter une corruption ou une modification réelle.
+
+1. Téléchargez à nouveau le paquet adapté à votre architecture depuis les Releases de ce dépôt uniquement, décompressez-le et placez l’app dans Applications. Comparez les sommes de contrôle publiées lorsqu’elles existent.
+2. Pour un développeur non identifié ou une app qu’Apple ne peut pas vérifier, « Réglages Système → Confidentialité et sécurité → Ouvrir quand même » peut être proposé si l’app est fiable et intacte. Consultez [Apple](https://support.apple.com/102445).
+3. Uniquement pour un paquet complet, intact et fiable provenant de ce dépôt : si l’attribut de quarantaine bloque encore l’app non notarisée, vérifiez puis retirez cet attribut **sur OriaTunnel.app uniquement**, et rouvrez l’app. Pour une installation personnelle, utilisez `"$HOME/Applications/OriaTunnel.app"`.
+
+```sh
+xattr -l "/Applications/OriaTunnel.app"
+sudo xattr -rd com.apple.quarantine /Applications/OriaTunnel.app
+```
+
+Cela contourne le contrôle de quarantaine de cette copie ; cela **ne signe, ne notarise et ne répare pas l’app**. Si l’origine ou l’intégrité est incertaine, si un logiciel malveillant est signalé ou si le problème persiste, arrêtez et indiquez dans Issues la version de macOS, l’architecture et le nom du paquet. Ne désactivez pas Gatekeeper globalement et ne retirez pas la quarantaine de tout le dossier Téléchargements.
 
 ## Documentation utilisateur
 
