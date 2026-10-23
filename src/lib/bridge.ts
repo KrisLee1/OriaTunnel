@@ -51,8 +51,9 @@ export const saveHostMetadata = (host: Host) =>
 export const saveRule = (rule: Rule) => invoke<Snapshot>("save_rule", { rule });
 export const deleteRule = (id: string) =>
   invoke<Snapshot>("delete_rule", { id });
-export const deleteHost = (id: string) =>
-  invoke<Snapshot>("delete_host", { id });
+export const deleteRules = (ids: string[]) => invoke<Snapshot>("delete_rules", { ids });
+export const deleteHost = (id: string, expectedRuleIds: string[]) =>
+  invoke<Snapshot>("delete_host", { id, expectedRuleIds });
 export const hideHost = (id: string, hidden: boolean) =>
   invoke<Snapshot>("hide_host", { id, hidden });
 export const setCloseToTray = (enabled: boolean) =>
@@ -61,8 +62,11 @@ export const quitApp = () => invoke<void>("quit_app");
 export const undoDelete = () => invoke<Snapshot>("undo_delete");
 export const setAutostart = (enabled: boolean) =>
   invoke<Snapshot>("set_autostart", { enabled });
-export const startBatch = (ids: string[], secrets: Record<string, string>) =>
-  invoke<BatchResult[]>("start_batch", { ids, secrets });
+export const startBatch = (ids: string[], secrets: Record<string, string>, rememberHostIds: string[] = []) =>
+  invoke<BatchResult[]>("start_batch", { ids, secrets, rememberHostIds });
+export type PasswordStatus = { id: string; supported: boolean; saved: boolean; error: string | null };
+export const passwordStatus = (ids: string[]) => invoke<PasswordStatus[]>("password_status", { ids });
+export const clearPassword = (id: string) => invoke<void>("clear_password", { id });
 export const stopBatch = (ids: string[]) =>
   invoke<BatchResult[]>("stop_batch", { ids });
 export const exportConfig = (ids: string[]) =>
@@ -76,12 +80,14 @@ export const startRule = (
   id: string,
   secret: string,
   jumpSecrets: Record<string, string> = {},
-) => invoke("start_rule", { id, secret, jumpSecrets });
+  rememberHostIds: string[] = [],
+) => invoke("start_rule", { id, secret, jumpSecrets, rememberHostIds });
 export const stopRule = (id: string) => invoke("stop_rule", { id });
 export const testHost = (
   id: string,
   secret: string,
   jumpSecrets: Record<string, string> = {},
-) => invoke("test_host", { id, secret, jumpSecrets });
+  rememberHostIds: string[] = [],
+) => invoke("test_host", { id, secret, jumpSecrets, rememberHostIds });
 export const trustHost = (id: string, runId: string, fingerprint: string) =>
   invoke("trust_host", { id, runId, fingerprint });

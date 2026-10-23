@@ -20,6 +20,7 @@
 | 外链与说明 | `src/components/ui/external-link.tsx`、`info-tooltip.tsx` | 桌面外链交给系统浏览器；Tooltip 支持悬停/焦点和点击固定，再次点击、Escape 或点外部关闭，可传入图标 |
 | 弹层材质与遮罩 | `src/styles/globals.css`、`dialog.tsx`、`drawer.tsx` | OriaAide 原版半透明弹层与遮罩 CSS 模糊；嵌套弹窗独立显示遮罩 |
 | 业务表单组合 | `src/components/tunnel-form.tsx` | Modal 复用 ResponsiveModal；Field 为关联标签；转发与主机表单共用 |
+| 认证输入与密码保存 | `src/features/hosts/authentication-field.tsx` | 目标、跳板、批量共用；Input/Switch/Button，默认不记住；只查询保存状态、支持清除，已存密码不回填输入框；私钥口令不提供保存 |
 | 参数设置行 | `src/components/parameter-field.tsx` | ParameterTitle/Field/Switch：独立标签与 circle-question-mark 提示，只有实际 SSH 参数才加括号标注；数字输入行 80px 宽，支持单位关联，不把提示按钮嵌入 label |
 | 转发编辑 | `src/features/tunnels/rule-editor.tsx` | L/R/D、主机选择/草稿、高级参数与访问侧；ConnectionFields 由主机与转发复用 |
 | 连接颜色 | `src/features/tunnels/connection-color.tsx` | ConnectionColorPicker 主题/预设/自定义圆形色板；ConnectionColorDot 列表名称前的颜色标识 |
@@ -30,10 +31,12 @@
 | 私钥候选路径 | `src/features/hosts/identity-files-editor.tsx` | 组合 FilePathsEditor，提供私钥标签与选择器错误文案；只修改路径草稿，不读取密钥正文 |
 | 运行诊断与日志 | `src/features/tunnels/runtime-details.tsx`、`activity-view.tsx` | Rust 指标、目标 TCP 证据及采样图；日志配合 `activity-model.ts` 按主机/转发/历史事件状态筛选与分组，不模拟状态或应用健康 |
 | 工作区全部启停 | `src/features/tunnels/workspace-actions.tsx` | 顶栏全部开启/全部停止，标明规则数量与工作区范围，沿用批量认证和 Rust 取消 |
+| 转发列表工具栏 | `src/features/tunnels/rule-toolbar.tsx` | 全选/部分选择、所选启停、有选中项时的批量删除、导入导出与整组删除撤销；危险删除需先确认范围 |
+| 转发操作按钮组 | `src/features/tunnels/rule-actions.tsx` | 列表与连接图卡片共用详情/编辑/从此转发新建/危险删除按钮，组合启停；关联转发可访问名称、弹窗入口及 nodrag/nopan，回调由 App 提供 |
 | 配置包导入 | `src/features/tunnels/import-config.tsx` | 主题导入式单文件上传/拖放、2 MiB 限制，Rust 白名单预览、替换与取消、规则选择、主机复用与明确转为 -N；不恢复运行态 |
 | 主机工具栏 | `src/features/hosts/host-toolbar.tsx` | 紧凑搜索、未测试/通过/具体失败筛选与 shadcn Select 分组，按组换行；不把测试中作为持久筛选类别，不建立连接 |
 | 主机列表与分组 | `src/features/hosts/host-groups.tsx` | 两行名称/状态及端点/认证方式；状态使用 Rust 分类与色调，右侧详情/编辑/删除/测试，详情由 App 的业务 Modal 展示。标签/认证方式/持久状态分组，原生键盘折叠 |
 | 跳板路线 | `src/features/hosts/jump-route-editor.tsx` | 有序稳定主机引用、最多 8 跳；标题右侧添加，逐行选择与移除 |
-| 连接主机分组 | `src/features/tunnels/rule-groups.ts` | 列表与预览共用稳定主机身份分组；同主机 L/R/D 独立状态、连线与操作，主机布局 |
+| 连接主机分组 | `src/features/tunnels/rule-groups.ts` | 列表与连接图共用稳定主机身份分组；同主机 L/R/D 独立状态、连线与操作，主机布局 |
 
-画布、主机页及主机编辑仍为 `src/App.tsx` 的领域组合，不属于公共组件 API。
+连接图、主机页及主机编辑仍为 `src/App.tsx` 的领域组合；`src/features/tunnels/canvas-state.ts` 负责节点测量/交互状态合并与布局坐标保存，不属于公共组件 API。

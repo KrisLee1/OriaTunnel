@@ -3,6 +3,7 @@ mod app;
 pub mod batch;
 mod config_export;
 mod config_import;
+mod credentials;
 mod desktop;
 mod jump_endpoint;
 mod long_running;
@@ -87,12 +88,15 @@ pub fn run() {
             app::save_host_metadata,
             app::save_rule,
             app::start_rule,
+            app::password_status,
+            app::clear_password,
             app::test_host,
             app::stop_rule,
             app::trust_host,
             app::delete_host,
             app::hide_host,
             app::delete_rule,
+            app::delete_rules,
             app::set_close_to_tray,
             app::quit_app,
             app::export_config,

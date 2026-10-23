@@ -53,12 +53,23 @@ impl Metrics {
 }
 
 pub async fn run(
+    request: RunRequest,
+    cancel: CancellationToken,
+    wake: watch::Receiver<u64>,
+    notify: Notify,
+    prompt: TrustPrompt,
+    validate: Validate,
+) {
+    run_with_password_observer(request, cancel, wake, notify, prompt, validate, None).await;
+}
+pub async fn run_with_password_observer(
     mut request: RunRequest,
     cancel: CancellationToken,
     mut wake: watch::Receiver<u64>,
     notify: Notify,
     prompt: TrustPrompt,
     validate: Validate,
+    observer: Option<tunnel::PasswordObserver>,
 ) {
     let policy = request.rule.reconnect.clone();
     let test_only = request.test_only;
@@ -146,7 +157,13 @@ pub async fn run(
                 }
             }
         }
-        let attempt = tunnel::run(request.clone(), attempt_cancel.clone(), output, trust);
+        let attempt = tunnel::run_with_password_observer(
+            request.clone(),
+            attempt_cancel.clone(),
+            output,
+            trust,
+            observer.clone(),
+        );
         tokio::pin!(attempt);
         let resumed = tokio::select! {biased;
             _=cancel.cancelled()=>{attempt_cancel.cancel();attempt.await;false},

@@ -1,7 +1,9 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -17,6 +19,7 @@ import {
   useReactFlow,
   useNodesInitialized,
   useUpdateNodeInternals,
+  applyNodeChanges,
   type NodeProps,
   type Node,
   type Edge,
@@ -26,7 +29,7 @@ import {
   ServerPlusIcon,
   GitPullRequestCreateArrowIcon,
   Settings2Icon,
-  LaptopIcon,
+  MonitorIcon,
   ServerIcon,
   ArrowRightIcon,
   PlayIcon,
@@ -39,7 +42,6 @@ import {
   ShieldCheckIcon,
   KeyRoundIcon,
   InfoIcon,
-  CopyPlusIcon,
   Trash2Icon,
 } from "lucide-react";
 import { WindowHeader } from "./components/window/window-header";
@@ -55,11 +57,13 @@ import { JumpRouteEditor } from "./features/hosts/jump-route-editor";
 import { HostTags } from "./features/hosts/host-tags";
 import { HostToolbar } from "./features/hosts/host-toolbar";
 import { HostTestButton } from "./features/hosts/host-test-button";
+import { AuthenticationField } from "./features/hosts/authentication-field";
 import { IdentityFilesEditor } from "./features/hosts/identity-files-editor";
 import { HostDiscovery } from "./features/hosts/host-discovery";
 import { hostAuthLabels } from "./features/hosts/host-auth";
 import { addedHosts, hostFilterStatus } from "./features/hosts/host-collection";
 import { RuleToolbar } from "./features/tunnels/rule-toolbar";
+import { RuleActions } from "./features/tunnels/rule-actions";
 import { ParameterField, ParameterSwitch, ParameterTitle } from "./components/parameter-field";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "./components/ui/item";
 import { Switch } from "./components/ui/switch";
@@ -72,6 +76,9 @@ import { WorkspaceActions } from "./features/tunnels/workspace-actions";
 import { ImportConfig } from "./features/tunnels/import-config";
 import { ConnectionColorDot } from "./features/tunnels/connection-color";
 import { ConnectionEdge } from "./features/tunnels/connection-edge";
+import { LocalPortHandle } from "./features/tunnels/local-port-handle";
+import { PORT_LAYOUT_KEY, readPortPlacements, type PortPlacement } from "./features/tunnels/port-placement";
+import { canvasLayout, canvasPortId, localPortSide, localCardSize, reconcileCanvasNodes } from "./features/tunnels/canvas-state";
 import {
   connectionPorts,
   connectionVisual,
@@ -161,7 +168,8 @@ export function App() {
   const [page, setPage] = useState("canvas");
   const [settings, setSettings] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [deleting, setDeleting] = useState<Rule | null>(null);
+  const [deleting, setDeleting] = useState<Rule[] | null>(null);
+  const [deletingHost, setDeletingHost] = useState<Host | null>(null);
   const [hostDraft, setHostDraft] = useState<Host | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [addedInSession, setAddedInSession] = useState<string[]>([]);
@@ -179,6 +187,14 @@ export function App() {
   const [inspecting, setInspecting] = useState("");
   const [batchAuth, setBatchAuth] = useState<string[] | null>(null);
   const [batchSecrets, setBatchSecrets] = useState<Record<string, string>>({});
+  const [rememberPasswords, setRememberPasswords] = useState<Record<string, boolean>>({});
+  useEffect(() => { setRememberPasswords({}); }, [authId, batchAuth]);
+  useEffect(() => {
+    if (!bridge.desktop) return;
+    const unlisten = listen<string>("tunnel://password-error", (e) => setError(e.payload));
+    return () => { void unlisten.then((off) => off()).catch(() => {}); };
+  }, [setError]);
+  const rememberHostIds = () => Object.keys(rememberPasswords).filter((id) => rememberPasswords[id]);
   const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
   const [exporting, setExporting] = useState<string[] | null>(null);
   const [exportPath, setExportPath] = useState("");
@@ -222,6 +238,16 @@ export function App() {
   const newRule = (hostId = "") => {
     setRuleSuspended(false);
     setRuleDraft(emptyRule(hostId));
+  };
+  const copyRule = (rule: Rule) => {
+    setRuleSuspended(false);
+    setRuleDraft({
+      ...rule,
+      id: "",
+      name: rule.name + " (copy)",
+      bindPort: 0,
+      autoConnect: false,
+    });
   };
   const saveDraft = async (launch: boolean) => {
     if (!ruleDraft) return;
@@ -295,6 +321,16 @@ export function App() {
   const selection = selectedRules.filter((id) =>
     data.rules.some((r) => r.id === id),
   );
+  const deletingHostRules = deletingHost
+    ? data.rules.filter(
+        (r) =>
+          r.hostId === deletingHost.id ||
+          jumpHosts(
+            data.hosts,
+            data.hosts.find((h) => h.id === r.hostId),
+          ).some((h) => h.id === deletingHost.id),
+      )
+    : [];
   const batchHosts = data.hosts.filter((h) =>
     (batchAuth || []).some((id) => {
       const rule = data.rules.find((r) => r.id === id);
@@ -398,9 +434,11 @@ export function App() {
           <ReactFlowProvider>
             <TunnelCanvas
               data={data}
-              onAdd={() => newRule()}
               onStart={start}
               onStop={stop}
+              onDetails={(rule) => setInspecting(rule.id)}
+              onCopy={copyRule}
+              onDelete={(rule) => setDeleting([rule])}
               onEdit={(rule) => {
                 setRuleSuspended(false);
                 setRuleDraft(rule);
@@ -421,12 +459,7 @@ export function App() {
             onForward={(id) => newRule(id)}
             onTest={startHost}
             onStopTest={(id) => void stop("host-test:" + id)}
-            onDelete={(h) =>
-              void action(() => bridge.deleteHost(h.id)).then((ok) => {
-                if (ok)
-                  setAddedInSession((ids) => ids.filter((id) => id !== h.id));
-              })
-            }
+            onDelete={setDeletingHost}
             onCopy={(h) =>
               setHostDraft({
                 ...h,
@@ -468,6 +501,9 @@ export function App() {
                 void action(async () =>
                   setBatchResults(await bridge.stopBatch(selection)),
                 )
+              }
+              onDelete={() =>
+                setDeleting(data.rules.filter((r) => selection.includes(r.id)))
               }
               onImport={() => setImporting(true)}
               onExport={() => {
@@ -569,62 +605,22 @@ export function App() {
                               t("local"),
                             )}
                           </small>
-                          <div className="rule-actions">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`${t("details")} ${rule.name}`}
-                              title={t("details")}
-                              onClick={() => setInspecting(rule.id)}
-                            >
-                              <InfoIcon />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`${t("edit")} ${rule.name}`}
-                              title={t("edit")}
-                              onClick={() => {
-                                setRuleSuspended(false);
-                                setRuleDraft(rule);
-                              }}
-                            >
-                              <Settings2Icon />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`${t("copyRule")} ${rule.name}`}
-                              title={t("copyRule")}
-                              onClick={() => {
-                                setRuleSuspended(false);
-                                setRuleDraft({
-                                  ...rule,
-                                  id: "",
-                                  name: rule.name + " (copy)",
-                                  bindPort: 0,
-                                  autoConnect: false,
-                                });
-                              }}
-                            >
-                              <CopyPlusIcon />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`${t("delete")} ${rule.name}`}
-                              title={t("delete")}
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20"
-                              onClick={() => setDeleting(rule)}
-                            >
-                              <Trash2Icon />
-                            </Button>
+                          <RuleActions
+                            rule={rule}
+                            onDetails={(item) => setInspecting(item.id)}
+                            onEdit={(item) => {
+                              setRuleSuspended(false);
+                              setRuleDraft(item);
+                            }}
+                            onCopy={copyRule}
+                            onDelete={(item) => setDeleting([item])}
+                          >
                             <RunButton
                               runtime={runtime}
                               start={() => start(rule.id)}
                               stop={() => void stop(rule.id)}
                             />
-                          </div>
+                          </RuleActions>
                         </div>
                       );
                     })}
@@ -679,20 +675,109 @@ export function App() {
         </div>
       )}
       {deleting && (
-        <Modal title={t("confirmDelete")} close={() => setDeleting(null)}>
-          <strong>{deleting.name}</strong>
-          <p className="muted">{t("deleteRuleHint")}</p>
+        <Modal
+          title={t("confirmDelete")}
+          close={() => {
+            if (!busy) setDeleting(null);
+          }}
+        >
+          <p className="muted">
+            {t("deleteRulesHint", { count: deleting.length })}
+          </p>
+          <ul className="delete-targets">
+            {deleting.map((rule) => (
+              <li key={rule.id}>{rule.name}</li>
+            ))}
+          </ul>
           <div className="form-actions">
-            <Button variant="ghost" onClick={() => setDeleting(null)}>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setDeleting(null)}
+            >
               {t("cancel")}
             </Button>
             <Button
+              variant="destructive"
               disabled={busy}
               onClick={() =>
-                void action(() => bridge.deleteRule(deleting.id)).then((ok) => {
-                  if (ok) setDeleting(null);
+                void action(() =>
+                  deleting.length === 1
+                    ? bridge.deleteRule(deleting[0].id)
+                    : bridge.deleteRules(deleting.map((r) => r.id)),
+                ).then((ok) => {
+                  if (ok) {
+                    const removed = new Set(deleting.map((r) => r.id));
+                    setSelectedRules((ids) =>
+                      ids.filter((id) => !removed.has(id)),
+                    );
+                    setBatchResults((items) =>
+                      items.filter((item) => !removed.has(item.id)),
+                    );
+                    setDeleting(null);
+                  }
                 })
               }
+            >
+              {t("delete")}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {deletingHost && (
+        <Modal
+          title={t("confirmDelete")}
+          close={() => {
+            if (!busy) setDeletingHost(null);
+          }}
+        >
+          <strong>{deletingHost.name}</strong>
+          <p className="muted">
+            {t(
+              deletingHostRules.length
+                ? "deleteHostCascadeHint"
+                : "deleteHostOnlyHint",
+              { count: deletingHostRules.length },
+            )}
+          </p>
+          {!!deletingHostRules.length && (
+            <ul className="delete-targets">
+              {deletingHostRules.map((rule) => (
+                <li key={rule.id}>{rule.name}</li>
+              ))}
+            </ul>
+          )}
+          <p className="muted">{t("deleteUndoHint")}</p>
+          <div className="form-actions">
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setDeletingHost(null)}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => {
+                const hostId = deletingHost.id;
+                const ids = deletingHostRules.map((r) => r.id);
+                void action(() => bridge.deleteHost(hostId, ids)).then((ok) => {
+                  if (ok) {
+                    setAddedInSession((items) =>
+                      items.filter((id) => id !== hostId),
+                    );
+                    setSelectedRules((items) =>
+                      items.filter((id) => !ids.includes(id)),
+                    );
+                    setBatchResults((items) =>
+                      items.filter((item) => !ids.includes(item.id)),
+                    );
+                    setSelectedHost((id) => (id === hostId ? "" : id));
+                    setDeletingHost(null);
+                  }
+                });
+              }}
             >
               {t("delete")}
             </Button>
@@ -832,27 +917,19 @@ export function App() {
               e.preventDefault();
               const ids = batchAuth;
               const credentials = batchSecrets;
+              const remember = rememberHostIds();
               setBatchSecrets({});
               setBatchAuth(null);
               void action(async () =>
-                setBatchResults(await bridge.startBatch(ids, credentials)),
+                setBatchResults(await bridge.startBatch(ids, credentials, remember)),
               );
             }}
           >
             {batchHosts.map((host) => (
-              <Field key={host.id} label={`${host.name} · ${t("password")}`}>
-                <Input
-                  type="password"
-                  autoComplete="off"
-                  value={batchSecrets[host.id] || ""}
-                  onChange={(e) =>
-                    setBatchSecrets({
-                      ...batchSecrets,
-                      [host.id]: e.target.value,
-                    })
-                  }
-                />
-              </Field>
+              <AuthenticationField key={host.id} host={host} value={batchSecrets[host.id] || ""}
+                onChange={(value) => setBatchSecrets({ ...batchSecrets, [host.id]: value })}
+                remember={!!rememberPasswords[host.id]}
+                onRemember={(value) => setRememberPasswords((old) => ({ ...old, [host.id]: value }))} />
             ))}
             <p className="muted">{t("batchAcceptedHint")}</p>
             <div className="form-actions">
@@ -1178,36 +1255,26 @@ export function App() {
               const id = authId;
               const once = secret;
               const jumps = jumpSecrets;
+              const remember = rememberHostIds();
               setJumpSecrets({});
               setSecret("");
               setAuthId(null);
               void action(() =>
                 authHostId
-                  ? bridge.testHost(authHostId, once, jumps)
-                  : bridge.startRule(id, once, jumps),
+                  ? bridge.testHost(authHostId, once, jumps, remember)
+                  : bridge.startRule(id, once, jumps, remember),
               );
             }}
           >
             {jumpHosts(data.hosts, authTarget).map((h) => (
-              <Field key={h.id} label={h.name + " · " + t("password")}>
-                <Input
-                  type="password"
-                  autoComplete="off"
-                  value={jumpSecrets[h.id] || ""}
-                  onChange={(e) =>
-                    setJumpSecrets({ ...jumpSecrets, [h.id]: e.target.value })
-                  }
-                />
-              </Field>
+              <AuthenticationField key={h.id} host={h} value={jumpSecrets[h.id] || ""}
+                onChange={(value) => setJumpSecrets({ ...jumpSecrets, [h.id]: value })}
+                remember={!!rememberPasswords[h.id]}
+                onRemember={(value) => setRememberPasswords((old) => ({ ...old, [h.id]: value }))} />
             ))}
-            <Field label={(authTarget?.name || "") + " · " + t("password")}>
-              <Input
-                type="password"
-                autoComplete="off"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-              />
-            </Field>
+            {authTarget && <AuthenticationField host={authTarget} value={secret} onChange={setSecret}
+              remember={!!rememberPasswords[authTarget.id]}
+              onRemember={(value) => setRememberPasswords((old) => ({ ...old, [authTarget.id]: value }))} />}
             <div className="form-actions">
               <Button type="submit" variant="primary-soft">
                 <KeyRoundIcon />
@@ -1384,7 +1451,6 @@ function Hosts({
               !["tested", "failed", "stopped", "needs-attention"].includes(
                 runtime.status,
               );
-            const referenced = hostReferences(h).length > 0;
             const usedAsJump = data.hosts.some(
               (other) =>
                 other.id !== h.id &&
@@ -1417,15 +1483,9 @@ function Hosts({
                   size="icon-sm"
                   variant="ghost"
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20"
-                  disabled={disabled || referenced || usedAsJump || testing}
+                  disabled={disabled || usedAsJump || testing}
                   aria-label={`${t("delete")} ${h.name}`}
-                  title={t(
-                    referenced
-                      ? "deleteHostHint"
-                      : usedAsJump
-                        ? "hostUsedAsJump"
-                        : "delete",
-                  )}
+                  title={t(usedAsJump ? "hostUsedAsJump" : "delete")}
                   onClick={() => onDelete(h)}
                 >
                   <Trash2Icon />
@@ -1586,19 +1646,27 @@ function Hosts({
 }
 
 type CardData = {
+  onPortMove: (
+    id: string,
+    value: PortPlacement | null,
+    commit: boolean,
+  ) => void;
+  onDetails: (rule: Rule) => void;
+  onCopy: (rule: Rule) => void;
+  onDelete: (rule: Rule) => void;
   local: boolean;
   ports: CardPort[];
   rules?: Rule[];
   host?: Host;
   runtimes?: Runtime[];
   count?: number;
-  onAdd: () => void;
   onStart: (id: string) => void;
   onStop: (id: string) => unknown;
   onEdit: (rule: Rule) => void;
 };
 type CardNode = Node<CardData, "card">;
 type CardPort = {
+  custom?: PortPlacement;
   ruleId: string;
   side: Position;
   type: "source" | "target";
@@ -1610,25 +1678,44 @@ function CardPorts({
   ports,
   local = false,
   labels = true,
+  onMove,
+  onDragChange,
 }: {
   ports: CardPort[];
   local?: boolean;
   labels?: boolean;
+  onMove?: CardData["onPortMove"];
+  onDragChange?: (dragging: boolean) => void;
 }) {
   return ports.map((port) => {
     const peers = ports.filter((item) => item.side === port.side);
     const index = peers.indexOf(port);
+    if (local && onMove && onDragChange)
+      return (
+        <LocalPortHandle
+          key={port.ruleId}
+          port={port}
+          offset={port.custom?.offset ?? (index + 1) / (peers.length + 1)}
+          onChange={onMove}
+          onDragChange={onDragChange}
+        />
+      );
+    const horizontal =
+      port.side === Position.Top || port.side === Position.Bottom;
+    const offset = `${((index + 1) / (peers.length + 1)) * 100}%`;
+    const placement: CSSProperties =
+      local && horizontal ? { left: offset } : { top: local ? offset : "50%" };
     return (
       <Handle
         key={port.ruleId}
-        id={`${port.ruleId}-${port.type}-${port.side}`}
+        id={canvasPortId(port.ruleId, port.type)}
         type={port.type}
         position={port.side}
         className="connection-port"
         title={`${port.name} · ${port.label}`}
         style={
           {
-            top: local ? `${((index + 1) / (peers.length + 1)) * 100}%` : "50%",
+            ...placement,
             "--connection-color": port.color,
           } as CSSProperties
         }
@@ -1641,167 +1728,160 @@ function CardPorts({
 function Card({ id, data: d }: NodeProps<CardNode>) {
   const { t } = useTranslation("tunnel");
   const updateInternals = useUpdateNodeInternals();
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => updateInternals(id));
-    return () => cancelAnimationFrame(frame);
-  }, [id, d, updateInternals]);
+  const [portDragSize, setPortDragSize] = useState<ReturnType<
+    typeof localCardSize
+  > | null>(null);
+  const portLayout = d.ports
+    .map(
+      (port) =>
+        `${port.ruleId}:${port.type}:${port.side}:${port.custom?.offset ?? "auto"}`,
+    )
+    .join("|");
+  useLayoutEffect(() => {
+    updateInternals(id);
+  }, [id, portLayout, updateInternals]);
+  if (d.local)
+    return (
+      <article
+        className="tunnel-card themed-surface local-card"
+        style={portDragSize || localCardSize(d.ports)}
+        aria-label={`${t("local")} · ${d.count || 0} ${t("tunnels")}`}
+      >
+        <CardPorts
+          ports={d.ports}
+          local
+          onMove={d.onPortMove}
+          onDragChange={(dragging) =>
+            setPortDragSize(dragging ? localCardSize(d.ports) : null)
+          }
+        />
+        <div className="local-computer" aria-hidden="true">
+          <MonitorIcon strokeWidth={1.3} />
+          <strong>{d.count || 0}</strong>
+        </div>
+        <span className="local-card-title">{t("local")}</span>
+      </article>
+    );
   return (
-    <article
-      className={`tunnel-card themed-surface ${d.local ? "local-card" : "host-card"}`}
-    >
+    <article className="tunnel-card themed-surface host-card">
       <div className="card-heading">
         <span className="card-icon">
-          {d.local ? <LaptopIcon size={21} /> : <ServerIcon size={21} />}
+          <ServerIcon size={21} />
         </span>
-        <div>
-          <span className="eyebrow">
-            {d.local ? "LOCAL DEVICE" : "SSH HOST"}
-          </span>
-          <h2>{d.local ? t("local") : d.host?.name || t("sourceMissing")}</h2>
-        </div>
-        <span className="source-badge">
-          {d.local ? "LOCAL" : `${d.rules?.length || 0} ${t("tunnels")}`}
-        </span>
-      </div>
-      {d.local ? (
-        <>
-          <p className="muted">{t("localCaption")}</p>
-          <div
-            className="local-summary"
-            style={{
-              minHeight: Math.max(
-                76,
-                (Math.max(
-                  ...[Position.Left, Position.Right].map(
-                    (side) => d.ports.filter((p) => p.side === side).length,
-                  ),
-                ) +
-                  1) *
-                  26,
-              ),
-            }}
-          >
-            <div className="local-count">
-              <strong>{d.count || 0}</strong>
-              <span>{t("tunnels")}</span>
-            </div>
-            <CardPorts ports={d.ports} local />
-          </div>
-          <Button
-            className="nodrag nopan w-full"
-            variant="secondary"
-            disabled={!bridge.desktop}
-            onClick={d.onAdd}
-          >
-            <GitPullRequestCreateArrowIcon />
-            {t("add")}
-          </Button>
-        </>
-      ) : (
-        <>
-          {d.host && (
-            <div className="card-endpoint">
-              <code>
+        <div className="host-card-heading-content">
+          <div className="host-card-heading-row">
+            <span className="eyebrow">SSH HOST</span>
+            {d.host && (
+              <code title={`${d.host.user}@${d.host.address}:${d.host.port}`}>
                 {d.host.user}@{d.host.address}:{d.host.port}
               </code>
-            </div>
-          )}
-          <div className="host-card-rules">
-            {d.rules?.map((rule) => {
-              const runtime = d.runtimes?.find(
-                (item) => item.ruleId === rule.id,
-              );
-              return (
-                <section
-                  className="host-card-rule"
-                  key={rule.id}
-                  aria-label={rule.name}
-                  style={
-                    {
-                      "--connection-color":
-                        rule.color || "var(--oria-color-accent)",
-                    } as CSSProperties
-                  }
-                >
-                  <div className="host-rule-heading">
-                    <strong>{rule.name}</strong>
-                    <Status runtime={runtime} />
-                  </div>
-                  <small className="muted">{t(`type${rule.kind}`)}</small>
-                  <div className="port-path">
-                    <CardPorts
-                      ports={d.ports.filter((p) => p.ruleId === rule.id)}
-                      labels={false}
-                    />
-                    <code>
-                      {rule.bindAddress}:
-                      <span
-                        className={
-                          rule.kind === "R"
-                            ? "connection-port-number"
-                            : undefined
-                        }
-                      >
-                        {rule.bindPort}
-                      </span>
-                    </code>
-                    <ArrowRightIcon size={14} />
-                    <code>
-                      {rule.kind === "D" ? (
-                        <>
-                          SOCKS5 · SSH{" "}
-                          <span className="connection-port-number">
-                            {d.host?.port || 22}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          {rule.targetHost}:
-                          <span
-                            className={
-                              rule.kind === "L"
-                                ? "connection-port-number"
-                                : undefined
-                            }
-                          >
-                            {rule.targetPort}
-                          </span>
-                        </>
-                      )}
-                    </code>
-                  </div>
-                  {runtime?.configurationChanged && (
-                    <p className="muted">{t("configUpdated")}</p>
-                  )}
-                  {runtime?.message && (
-                    <p className="inline-error">{runtime.message}</p>
-                  )}
-                  <div className="card-footer">
-                    <small>
-                      ↑ {bytes(runtime?.sent || 0)}　↓{" "}
-                      {bytes(runtime?.received || 0)}
-                    </small>
-                    <Button
-                      className="nodrag nopan"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`${t("edit")} ${rule.name}`}
-                      onClick={() => d.onEdit(rule)}
+            )}
+          </div>
+          <div className="host-card-heading-row">
+            <h2 title={d.host?.name || t("sourceMissing")}>
+              {d.host?.name || t("sourceMissing")}
+            </h2>
+            <span className="source-badge">
+              {d.rules?.length || 0} {t("tunnels")}
+            </span>
+          </div>
+        </div>
+      </div>
+      <>
+        <div className="host-card-rules">
+          {d.rules?.map((rule) => {
+            const runtime = d.runtimes?.find((item) => item.ruleId === rule.id);
+            return (
+              <section
+                className="host-card-rule"
+                key={rule.id}
+                aria-label={rule.name}
+                style={
+                  {
+                    "--connection-color":
+                      rule.color || "var(--oria-color-accent)",
+                  } as CSSProperties
+                }
+              >
+                <div className="host-rule-heading">
+                  <strong>{rule.name}</strong>
+                  <Status runtime={runtime} />
+                </div>
+                <div className="host-rule-meta">
+                  <small title={t(`type${rule.kind}`)}>
+                    {t(`type${rule.kind}`)}
+                  </small>
+                  <small className="host-rule-traffic">
+                    ↑ {bytes(runtime?.sent || 0)}　↓{" "}
+                    {bytes(runtime?.received || 0)}
+                  </small>
+                </div>
+                <div className="port-path">
+                  <CardPorts
+                    ports={d.ports.filter((p) => p.ruleId === rule.id)}
+                    labels={false}
+                  />
+                  <code>
+                    {rule.bindAddress}:
+                    <span
+                      className={
+                        rule.kind === "R" ? "connection-port-number" : undefined
+                      }
                     >
-                      <Settings2Icon size={14} />
-                    </Button>
+                      {rule.bindPort}
+                    </span>
+                  </code>
+                  <ArrowRightIcon size={14} />
+                  <code>
+                    {rule.kind === "D" ? (
+                      <>
+                        SOCKS5 · SSH{" "}
+                        <span className="connection-port-number">
+                          {d.host?.port || 22}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {rule.targetHost}:
+                        <span
+                          className={
+                            rule.kind === "L"
+                              ? "connection-port-number"
+                              : undefined
+                          }
+                        >
+                          {rule.targetPort}
+                        </span>
+                      </>
+                    )}
+                  </code>
+                </div>
+                {runtime?.configurationChanged && (
+                  <p className="muted">{t("configUpdated")}</p>
+                )}
+                {runtime?.message && (
+                  <p className="inline-error">{runtime.message}</p>
+                )}
+                <div className="card-footer">
+                  <RuleActions
+                    rule={rule}
+                    onDetails={d.onDetails}
+                    onEdit={d.onEdit}
+                    onCopy={d.onCopy}
+                    onDelete={d.onDelete}
+                  >
                     <RunButton
                       runtime={runtime}
                       start={() => d.onStart(rule.id)}
                       stop={() => void d.onStop(rule.id)}
                     />
-                  </div>
-                </section>
-              );
-            })}
-          </div>
-        </>
-      )}
+                  </RuleActions>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </>
     </article>
   );
 }
@@ -1809,18 +1889,22 @@ const nodeTypes = { card: Card };
 const edgeTypes = { connection: ConnectionEdge };
 function TunnelCanvas({
   data,
-  onAdd,
   onStart,
   onStop,
   onEdit,
+  onDetails,
+  onCopy,
+  onDelete,
   focusRuleId,
   onFocusDone,
 }: {
   data: Snapshot;
-  onAdd: () => void;
   onStart: (id: string) => void;
   onStop: (id: string) => unknown;
   onEdit: (rule: Rule) => void;
+  onDetails: (rule: Rule) => void;
+  onCopy: (rule: Rule) => void;
+  onDelete: (rule: Rule) => void;
   focusRuleId: string;
   onFocusDone: () => void;
 }) {
@@ -1872,7 +1956,32 @@ function TunnelCanvas({
       return {};
     }
   });
-  const nodes = useMemo<CardNode[]>(() => {
+  const [portPlacements, setPortPlacements] = useState(() => {
+    try {
+      return readPortPlacements(localStorage.getItem(PORT_LAYOUT_KEY));
+    } catch {
+      return {};
+    }
+  });
+  const latestPortPlacements = useRef(portPlacements);
+  const onPortMove = useCallback<CardData["onPortMove"]>(
+    (id, value, commit) => {
+      const next = { ...latestPortPlacements.current };
+      if (value) next[id] = value;
+      else delete next[id];
+      latestPortPlacements.current = next;
+      setPortPlacements(next);
+      if (commit) {
+        try {
+          localStorage.setItem(PORT_LAYOUT_KEY, JSON.stringify(next));
+        } catch (error) {
+          console.error("Unable to save local port layout", error);
+        }
+      }
+    },
+    [],
+  );
+  const projectedNodes = useMemo<CardNode[]>(() => {
     const groups = groupRulesByHost(data.rules, data.hosts);
     const layout = groupPositions(groups, positions);
     const localPorts: CardPort[] = [];
@@ -1886,11 +1995,14 @@ function TunnelCanvas({
         const labels = connectionPorts(rule, group.host?.port);
         const color = rule.color || "var(--oria-color-accent)";
         localPorts.push({
+          custom: portPlacements[rule.id],
           ruleId: rule.id,
           name: rule.name,
           label: labels.local,
           color,
-          side: hostSide === Position.Left ? Position.Right : Position.Left,
+          side:
+            portPlacements[rule.id]?.side ||
+            localPortSide(positions.local || { x: 0, y: 0 }, layout[group.id]),
           type: rule.kind === "R" ? "target" : "source",
         });
         return {
@@ -1910,9 +2022,12 @@ function TunnelCanvas({
         position: positions.local || { x: 0, y: 0 },
         data: {
           local: true,
+          onPortMove,
+          onDetails,
+          onCopy,
+          onDelete,
           ports: localPorts,
           count: data.rules.length,
-          onAdd,
           onStart,
           onStop,
           onEdit,
@@ -1924,41 +2039,57 @@ function TunnelCanvas({
         position: layout[group.id],
         data: {
           local: false,
+          onPortMove,
+          onDetails,
+          onCopy,
+          onDelete,
           ports: hostPorts[group.id],
           rules: group.rules,
           host: group.host,
           runtimes: data.runtimes,
-          onAdd,
           onStart,
           onStop,
           onEdit,
         },
       })),
     ];
-  }, [data, positions, onAdd, onStart, onStop, onEdit]);
-  const edges: Edge[] = data.rules.map((rule) => {
-    const runtime = data.runtimes.find((r) => r.ruleId === rule.id);
-    const hostNode = nodes.find((n) => n.id === `host:${rule.hostId}`)!;
-    const hostSide =
-      hostNode.position.x < nodes[0].position.x
-        ? Position.Right
-        : Position.Left;
-    const localSide =
-      hostSide === Position.Left ? Position.Right : Position.Left;
-    const visual = connectionVisual(rule, runtime);
-    return {
-      id: rule.id,
-      source: rule.kind === "R" ? hostNode.id : "local",
-      target: rule.kind === "R" ? "local" : hostNode.id,
-      sourceHandle: `${rule.id}-source-${rule.kind === "R" ? hostSide : localSide}`,
-      targetHandle: `${rule.id}-target-${rule.kind === "R" ? localSide : hostSide}`,
-      type: "connection",
-      data: { state: visual.state },
-      markerEnd: { type: MarkerType.ArrowClosed, color: visual.color },
-      className: `connection-edge connection-${visual.state}`,
-      style: { strokeWidth: 1.5, stroke: visual.color },
-    };
-  });
+  }, [
+    data,
+    positions,
+    portPlacements,
+    onPortMove,
+    onStart,
+    onStop,
+    onEdit,
+    onDetails,
+    onCopy,
+    onDelete,
+  ]);
+  const [nodes, setNodes] = useState<CardNode[]>(projectedNodes);
+  useLayoutEffect(() => {
+    setNodes((current) => reconcileCanvasNodes(current, projectedNodes));
+  }, [projectedNodes]);
+  const edges = useMemo<Edge[]>(
+    () =>
+      data.rules.map((rule) => {
+        const runtime = data.runtimes.find((r) => r.ruleId === rule.id);
+        const hostId = `host:${rule.hostId}`;
+        const visual = connectionVisual(rule, runtime);
+        return {
+          id: rule.id,
+          source: rule.kind === "R" ? hostId : "local",
+          target: rule.kind === "R" ? "local" : hostId,
+          sourceHandle: canvasPortId(rule.id, "source"),
+          targetHandle: canvasPortId(rule.id, "target"),
+          type: "connection",
+          data: { state: visual.state },
+          markerEnd: { type: MarkerType.ArrowClosed, color: visual.color },
+          className: `connection-edge connection-${visual.state}`,
+          style: { strokeWidth: 1.5, stroke: visual.color },
+        };
+      }),
+    [data.rules, data.runtimes],
+  );
   return (
     <div className="canvas">
       <div className="canvas-mask">
@@ -1979,25 +2110,28 @@ function TunnelCanvas({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={(changes) => {
-            const changed = changes.filter(
-              (c) => c.type === "position" && c.position,
-            );
-            if (changed.length)
-              setPositions((prev) => {
-                const next = { ...prev };
-                for (const c of changed)
-                  if (c.type === "position" && c.position)
-                    next[c.id] = c.position;
-                return next;
-              });
-          }}
-          onNodeDragStop={(_, node) => {
-            const next = { ...positions, [node.id]: node.position };
-            setPositions(next);
-            try {
-              localStorage.setItem("oria-tunnel-layout", JSON.stringify(next));
-            } catch (error) {
-              console.error("Unable to save canvas layout", error);
+            setNodes((current) => applyNodeChanges(changes, current));
+            if (
+              changes.some(
+                (change) =>
+                  change.type === "position" &&
+                  change.position &&
+                  !change.dragging,
+              )
+            ) {
+              const next = canvasLayout(
+                applyNodeChanges(changes, flow.getNodes()),
+                positions,
+              );
+              setPositions(next);
+              try {
+                localStorage.setItem(
+                  "oria-tunnel-layout",
+                  JSON.stringify(next),
+                );
+              } catch (error) {
+                console.error("Unable to save canvas layout", error);
+              }
             }
           }}
           onNodeDoubleClick={(_, node) =>

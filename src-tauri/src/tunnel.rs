@@ -21,12 +21,13 @@ use tokio_util::sync::CancellationToken;
 
 pub type Notify = Arc<dyn Fn(Runtime) + Send + Sync>;
 pub type TrustPrompt = Arc<dyn Fn(String, String, oneshot::Sender<bool>) + Send + Sync>;
+pub type PasswordObserver = Arc<dyn Fn(&Host, &str, AuthMethod) + Send + Sync>;
 // Secrets have no Debug/Serialize implementation and are wiped on every drop path.
 #[derive(Clone, Default)]
-pub struct Secret(zeroize::Zeroizing<String>);
+pub struct Secret(zeroize::Zeroizing<String>, bool);
 impl From<String> for Secret {
     fn from(value: String) -> Self {
-        Self(zeroize::Zeroizing::new(value))
+        Self(zeroize::Zeroizing::new(value), false)
     }
 }
 impl From<&str> for Secret {
@@ -41,6 +42,9 @@ impl std::ops::Deref for Secret {
     }
 }
 impl Secret {
+    pub fn password(value: String) -> Self {
+        Self(zeroize::Zeroizing::new(value), true)
+    }
     fn clear(&mut self) {
         use zeroize::Zeroize;
         self.0.zeroize();
@@ -129,6 +133,15 @@ pub async fn run(
     notify: Notify,
     prompt: TrustPrompt,
 ) {
+    run_with_password_observer(request, cancel, notify, prompt, None).await;
+}
+pub async fn run_with_password_observer(
+    request: RunRequest,
+    cancel: CancellationToken,
+    notify: Notify,
+    prompt: TrustPrompt,
+    observer: Option<PasswordObserver>,
+) {
     let test_only = request.test_only;
     let cancellation = cancel.clone();
     let runtime = Arc::new(Mutex::new(Runtime {
@@ -140,7 +153,15 @@ pub async fn run(
         ..Default::default()
     }));
     update(&runtime, &notify, "connecting", String::new());
-    let result = forward(request, cancel, notify.clone(), prompt, runtime.clone()).await;
+    let result = forward(
+        request,
+        cancel,
+        notify.clone(),
+        prompt,
+        runtime.clone(),
+        observer,
+    )
+    .await;
     runtime.lock().unwrap().connections = 0;
     match result {
         Ok(()) => update(
@@ -187,7 +208,7 @@ fn network_error(error: std::io::Error) -> Failure {
 async fn authenticate(
     ssh: &mut client::Handle<Client>,
     host: &Host,
-    secret: &str,
+    secret: &Secret,
 ) -> Result<AuthMethod, String> {
     let mut authenticated = None;
     if matches!(host.auth_method, AuthMethod::Auto | AuthMethod::PrivateKey) {
@@ -205,7 +226,7 @@ async fn authenticate(
         for identity in identities {
             if let Ok(key) = russh::keys::load_secret_key(
                 identity,
-                if secret.is_empty() {
+                if secret.is_empty() || secret.1 {
                     None
                 } else {
                     Some(secret)
@@ -250,7 +271,7 @@ async fn authenticate(
         && matches!(host.auth_method, AuthMethod::Auto | AuthMethod::Password)
         && !secret.is_empty()
         && ssh
-            .authenticate_password(&host.user, secret)
+            .authenticate_password(&host.user, &**secret)
             .await
             .map_err(|e| format!("认证失败: {e}"))?
             .success()
@@ -377,6 +398,7 @@ async fn forward(
     notify: Notify,
     prompt: TrustPrompt,
     runtime: Arc<Mutex<Runtime>>,
+    observer: Option<PasswordObserver>,
 ) -> Result<(), Failure> {
     let RunRequest {
         host,
@@ -423,6 +445,11 @@ async fn forward(
             let Some(mut ssh)=handshake(config,socket,handler,trust_rx,&cancel,timeout.saturating_sub(started.elapsed())).await? else {return Ok(());};
             update(&runtime,&notify,"authenticating",host.name.clone());
             let auth=tokio::select! {biased; _=cancel.cancelled()=>Ok(None),result=authenticate(&mut ssh,&host,&hop.secret)=>result.map(Some)};
+            if let Ok(Some(method)) = &auth {
+                if *method == AuthMethod::Password && !cancel.is_cancelled() {
+                    if let Some(observer) = &observer { observer(&host, &hop.secret, method.clone()); }
+                }
+            }
             hop.secret.clear();
             sessions.push(Arc::new(ssh));
             match auth {Ok(Some(method))=>{if final_hop {runtime.lock().unwrap().auth_method_used=Some(method);}},Ok(None)=>return Ok(()),Err(_)=>return Err(Failure::new(FailureKind::Authentication,"认证失败：请检查认证方式、私钥或本次密码/私钥口令"))}

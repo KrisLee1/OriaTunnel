@@ -1216,7 +1216,11 @@ async fn isolated_loopback_encrypted_private_key_authentication_and_wrong_passph
         auth_method: oria_tunnel_lib::model::AuthMethod::PrivateKey,
         ..Default::default()
     };
-    for passphrase in ["fixture-passphrase", "wrong"] {
+    for (passphrase, saved) in [
+        ("fixture-passphrase", false),
+        ("wrong", false),
+        ("fixture-passphrase", true),
+    ] {
         let events = Arc::new(Mutex::new(Vec::new()));
         let e = events.clone();
         tunnel::run(
@@ -1231,7 +1235,11 @@ async fn isolated_loopback_encrypted_private_key_authentication_and_wrong_passph
                     target_port: 9,
                     ..Default::default()
                 },
-                secret: passphrase.into(),
+                secret: if saved {
+                    tunnel::Secret::password(passphrase.into())
+                } else {
+                    passphrase.into()
+                },
                 expected: Some(fingerprint.clone()),
                 run_id: "key".into(),
                 jumps: vec![],
@@ -1244,7 +1252,7 @@ async fn isolated_loopback_encrypted_private_key_authentication_and_wrong_passph
         .await;
         assert_eq!(
             events.lock().unwrap().last().unwrap().status,
-            if passphrase == "wrong" {
+            if passphrase == "wrong" || saved {
                 "failed"
             } else {
                 "tested"
@@ -1253,6 +1261,93 @@ async fn isolated_loopback_encrypted_private_key_authentication_and_wrong_passph
         assert!(!format!("{:?}", events.lock().unwrap()).contains(passphrase));
     }
     task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn password_observer_only_receives_successful_trusted_authentication_per_hop() {
+    let (mut target, key, target_server) = isolated_fixture().await;
+    target.id = "target".into();
+    let (mut jump, jump_key, jump_server) = isolated_fixture().await;
+    jump.id = "jump".into();
+    for mode in [
+        "success",
+        "wrong-password",
+        "wrong-key",
+        "cancelled",
+        "jump-success",
+        "target-failure",
+    ] {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let output = observed.clone();
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let statuses = events.clone();
+        let cancel = CancellationToken::new();
+        if mode == "cancelled" {
+            cancel.cancel();
+        }
+        let with_jump = matches!(mode, "jump-success" | "target-failure");
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            tunnel::run_with_password_observer(
+                tunnel::RunRequest {
+                    host: target.clone(),
+                    rule: Rule {
+                        id: "observer".into(),
+                        name: "Observer fixture".into(),
+                        host_id: target.id.clone(),
+                        bind_port: 9,
+                        target_host: "127.0.0.1".into(),
+                        target_port: 9,
+                        ..Default::default()
+                    },
+                    secret: tunnel::Secret::password(
+                        if matches!(mode, "wrong-password" | "target-failure") {
+                            "rejected"
+                        } else {
+                            "test-only"
+                        }
+                        .into(),
+                    ),
+                    expected: Some(if mode == "wrong-key" {
+                        "untrusted".into()
+                    } else {
+                        key.clone()
+                    }),
+                    run_id: mode.into(),
+                    test_only: true,
+                    jumps: if with_jump {
+                        vec![tunnel::HopRequest {
+                            host: jump.clone(),
+                            secret: tunnel::Secret::password("test-only".into()),
+                            expected: Some(jump_key.clone()),
+                        }]
+                    } else {
+                        vec![]
+                    },
+                },
+                cancel,
+                Arc::new(move |r| statuses.lock().unwrap().push(r)),
+                Arc::new(|_, _, _| panic!("known fixture key")),
+                Some(Arc::new(move |host, password, method| {
+                    assert!(password == "test-only");
+                    assert!(method == oria_tunnel_lib::model::AuthMethod::Password);
+                    output.lock().unwrap().push(host.id.clone());
+                })),
+            ),
+        )
+        .await
+        .unwrap();
+        let expected: Vec<&str> = match mode {
+            "success" => vec!["target"],
+            "jump-success" => vec!["jump", "target"],
+            "target-failure" => vec!["jump"],
+            _ => vec![],
+        };
+        assert_eq!(*observed.lock().unwrap(), expected);
+        assert!(!format!("{:?}", events.lock().unwrap()).contains("test-only"));
+    }
+    jump_server.abort();
+    target_server.abort();
 }
 
 #[tokio::test(flavor = "multi_thread")]

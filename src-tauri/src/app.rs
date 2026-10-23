@@ -23,7 +23,26 @@ struct PendingImport {
     base: Vec<u8>,
     package: crate::config_import::Package,
 }
+struct DeletedHost {
+    id: String,
+    manual: Option<Host>,
+    metadata: Option<HostMetadata>,
+    snapshot: Option<Host>,
+    hidden: bool,
+}
+struct DeletedEntry {
+    rules: Vec<Rule>,
+    host: Option<DeletedHost>,
+}
+#[derive(Default)]
+struct LoginCredentials {
+    secret: tunnel::Secret,
+    jumps: BTreeMap<String, tunnel::Secret>,
+    remember: std::collections::BTreeSet<String>,
+}
 pub struct AppState {
+    vault: crate::credentials::Vault,
+    credential_errors: Mutex<BTreeMap<String, String>>,
     config: Mutex<Config>,
     discovery: Mutex<ssh_config::Discovery>,
     runtimes: Mutex<BTreeMap<String, Runtime>>,
@@ -35,7 +54,7 @@ pub struct AppState {
     generations: Mutex<BTreeMap<String, String>>,
     wake: tokio::sync::watch::Sender<u64>,
     activity: Mutex<crate::activity::Activity>,
-    deleted: Mutex<Vec<Rule>>,
+    deleted: Mutex<Vec<DeletedEntry>>,
     import: Mutex<Option<PendingImport>>,
     autostart: Mutex<Result<bool, String>>,
     power_missing: std::sync::atomic::AtomicBool,
@@ -58,6 +77,8 @@ impl AppState {
             Config::default()
         };
         let state = Self {
+            vault: crate::credentials::Vault::new(&path),
+            credential_errors: Mutex::new(BTreeMap::new()),
             config: Mutex::new(config),
             discovery: Mutex::new(discovery),
             runtimes: Mutex::new(BTreeMap::new()),
@@ -300,7 +321,6 @@ impl AppState {
                 false,
                 false,
                 Default::default(),
-                None,
             )
             .await
             {
@@ -388,34 +408,150 @@ impl AppState {
         }
     }
     fn remove_rule(&self, id: &str) -> Result<(), String> {
-        let mut c = self.config.lock().unwrap();
-        let mut next = c.clone();
-        let removed = next
-            .rules
-            .iter()
-            .find(|r| r.id == id)
-            .cloned()
-            .ok_or("规则不存在")?;
-        next.rules.retain(|r| r.id != id);
-        self.persist(&next)?;
-        *c = next;
+        self.remove_rules(&[id.to_string()])
+    }
+    fn remember_deletion(&self, entry: DeletedEntry) {
         let mut deleted = self.deleted.lock().unwrap();
-        deleted.push(removed);
+        deleted.push(entry);
         if deleted.len() > 20 {
             deleted.remove(0);
         }
+    }
+    fn remove_rules(&self, ids: &[String]) -> Result<(), String> {
+        let ids: std::collections::BTreeSet<_> = ids.iter().collect();
+        if ids.is_empty() {
+            return Err("请选择要删除的转发".into());
+        }
+        let mut c = self.config.lock().unwrap();
+        let mut next = c.clone();
+        let removed: Vec<_> = next
+            .rules
+            .iter()
+            .filter(|r| ids.contains(&r.id))
+            .cloned()
+            .collect();
+        if removed.len() != ids.len() {
+            return Err("部分转发已不存在，请重新选择".into());
+        }
+        next.rules.retain(|r| !ids.contains(&r.id));
+        self.persist(&next)?;
+        *c = next;
+        self.remember_deletion(DeletedEntry {
+            rules: removed,
+            host: None,
+        });
         Ok(())
+    }
+    fn remove_host(&self, id: &str, expected_rule_ids: &[String]) -> Result<Vec<String>, String> {
+        let mut c = self.config.lock().unwrap();
+        let mut hosts = self.discovery.lock().unwrap().hosts.clone();
+        hosts.extend(c.hosts.clone());
+        hosts.extend(c.host_snapshots.values().cloned());
+        if hosts.iter().any(|host| {
+            host.id != id
+                && (c.hosts.iter().any(|saved| saved.id == host.id)
+                    || c.host_metadata.contains_key(&host.id))
+                && rule_uses_host(
+                    &Rule {
+                        host_id: host.id.clone(),
+                        ..Default::default()
+                    },
+                    &hosts,
+                    id,
+                )
+        }) {
+            return Err("请先修改引用此主机的跳板路线".into());
+        }
+        if self
+            .runtimes
+            .lock()
+            .unwrap()
+            .get(&format!("host-test:{id}"))
+            .is_some_and(|r| {
+                !matches!(
+                    r.status.as_str(),
+                    "tested" | "failed" | "stopped" | "needs-attention"
+                )
+            })
+        {
+            return Err("请先停止此主机的连接测试".into());
+        }
+        let rules: Vec<_> = c
+            .rules
+            .iter()
+            .filter(|r| rule_uses_host(r, &hosts, id))
+            .cloned()
+            .collect();
+        let ids: Vec<_> = rules.iter().map(|r| r.id.clone()).collect();
+        if ids.iter().collect::<std::collections::BTreeSet<_>>()
+            != expected_rule_ids.iter().collect()
+        {
+            return Err("关联转发已变化，请重新确认删除".into());
+        }
+        if !c.hosts.iter().any(|h| h.id == id)
+            && !c.host_metadata.contains_key(id)
+            && rules.is_empty()
+        {
+            return Err("此主机尚未添加".into());
+        }
+        let host = DeletedHost {
+            id: id.into(),
+            manual: c.hosts.iter().find(|h| h.id == id).cloned(),
+            metadata: c.host_metadata.get(id).cloned(),
+            snapshot: c.host_snapshots.get(id).cloned(),
+            hidden: c.hidden_hosts.iter().any(|h| h == id),
+        };
+        let mut next = c.clone();
+        next.rules.retain(|r| !ids.contains(&r.id));
+        next.hosts.retain(|h| h.id != id);
+        next.host_snapshots.remove(id);
+        next.host_metadata.remove(id);
+        next.hidden_hosts.retain(|host_id| host_id != id);
+        self.persist(&next)?;
+        *c = next;
+        self.remember_deletion(DeletedEntry {
+            rules,
+            host: Some(host),
+        });
+        Ok(ids)
     }
     fn restore_rule(&self) -> Result<(), String> {
         let mut config = self.config.lock().unwrap();
         let mut deleted = self.deleted.lock().unwrap();
-        let mut rule = deleted.last().cloned().ok_or("没有可撤销的删除")?;
-        if config.rules.iter().any(|r| r.id == rule.id) {
+        let entry = deleted.last().ok_or("没有可撤销的删除")?;
+        if config
+            .rules
+            .iter()
+            .any(|r| entry.rules.iter().any(|old| old.id == r.id))
+        {
             return Err("规则标识已被使用".into());
         }
-        rule.auto_connect = false;
         let mut next = config.clone();
-        next.rules.push(rule);
+        if let Some(host) = &entry.host {
+            if next.hosts.iter().any(|h| h.id == host.id)
+                || next.host_metadata.contains_key(&host.id)
+            {
+                return Err("主机标识已被使用".into());
+            }
+            if let Some(manual) = &host.manual {
+                next.hosts.push(manual.clone());
+            }
+            if let Some(metadata) = &host.metadata {
+                next.host_metadata.insert(host.id.clone(), metadata.clone());
+            }
+            if let Some(snapshot) = &host.snapshot {
+                next.host_snapshots
+                    .insert(host.id.clone(), snapshot.clone());
+            }
+            if host.hidden {
+                next.hidden_hosts.push(host.id.clone());
+            }
+        }
+        next.rules
+            .extend(entry.rules.iter().cloned().map(|mut rule| {
+                rule.auto_connect = false;
+                rule
+            }));
         self.persist(&next)?;
         *config = next;
         deleted.pop();
@@ -616,6 +752,7 @@ pub async fn start_rule(
     id: String,
     secret: String,
     jump_secrets: Option<BTreeMap<String, String>>,
+    remember_host_ids: Option<Vec<String>>,
 ) -> Result<(), String> {
     let rule = state
         .snapshot()
@@ -629,10 +766,65 @@ pub async fn start_rule(
         rule,
         false,
         true,
-        secret.into(),
-        jump_secrets.map(|values| values.into_iter().map(|(id, s)| (id, s.into())).collect()),
+        LoginCredentials {
+            secret: secret.into(),
+            jumps: jump_secrets
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(id, s)| (id, s.into()))
+                .collect(),
+            remember: remember_host_ids.unwrap_or_default().into_iter().collect(),
+        },
     )
     .await
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordStatus {
+    id: String,
+    supported: bool,
+    saved: bool,
+    error: Option<String>,
+}
+#[tauri::command]
+pub fn password_status(
+    state: tauri::State<Arc<AppState>>,
+    ids: Vec<String>,
+) -> Vec<PasswordStatus> {
+    state
+        .snapshot()
+        .hosts
+        .iter()
+        .filter(|h| ids.contains(&h.id))
+        .map(|host| {
+            let result = state.vault.read(host);
+            PasswordStatus {
+                id: host.id.clone(),
+                supported: cfg!(windows),
+                saved: result.as_ref().is_ok_and(|s| s.is_some()),
+                error: result.err().or_else(|| {
+                    state
+                        .credential_errors
+                        .lock()
+                        .unwrap()
+                        .get(&host.id)
+                        .cloned()
+                }),
+            }
+        })
+        .collect()
+}
+#[tauri::command]
+pub fn clear_password(state: tauri::State<Arc<AppState>>, id: String) -> Result<(), String> {
+    let host = state
+        .snapshot()
+        .hosts
+        .into_iter()
+        .find(|h| h.id == id)
+        .ok_or("主机不存在")?;
+    state.vault.forget(&host)?;
+    state.credential_errors.lock().unwrap().remove(&id);
+    Ok(())
 }
 // Product action: invoked only after the user clicks Test connection, never by discovery.
 #[tauri::command]
@@ -642,6 +834,7 @@ pub async fn test_host(
     id: String,
     secret: String,
     jump_secrets: Option<BTreeMap<String, String>>,
+    remember_host_ids: Option<Vec<String>>,
 ) -> Result<(), String> {
     let rule = Rule {
         id: format!("host-test:{id}"),
@@ -659,8 +852,15 @@ pub async fn test_host(
         rule,
         true,
         true,
-        secret.into(),
-        jump_secrets.map(|values| values.into_iter().map(|(id, s)| (id, s.into())).collect()),
+        LoginCredentials {
+            secret: secret.into(),
+            jumps: jump_secrets
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(id, s)| (id, s.into()))
+                .collect(),
+            remember: remember_host_ids.unwrap_or_default().into_iter().collect(),
+        },
     )
     .await
 }
@@ -670,8 +870,7 @@ async fn launch(
     rule: Rule,
     test_only: bool,
     interactive: bool,
-    secret: tunnel::Secret,
-    jump_secrets: Option<BTreeMap<String, tunnel::Secret>>,
+    credentials: LoginCredentials,
 ) -> Result<(), String> {
     let id = rule.id.clone();
     let mut workers = state.workers.lock().await;
@@ -687,6 +886,9 @@ async fn launch(
     }
     state.trust.lock().unwrap().remove(&id);
     let snapshot = state.snapshot();
+    if !test_only && !snapshot.rules.iter().any(|saved| saved.id == rule.id) {
+        return Err("规则已被删除".into());
+    }
     let hosts = snapshot.hosts;
     let host = hosts
         .iter()
@@ -712,7 +914,25 @@ async fn launch(
             }
         }
     }
-    let jump_secrets = jump_secrets.unwrap_or_default();
+    let mut saves = BTreeMap::new();
+    let mut prepare = |host: &Host, secret: tunnel::Secret| -> Result<tunnel::Secret, String> {
+        if credentials.remember.contains(&host.id)
+            && !secret.is_empty()
+            && matches!(host.auth_method, AuthMethod::Auto | AuthMethod::Password)
+        {
+            saves.insert(host.id.clone(), state.vault.epoch(&host.id));
+        }
+        if interactive
+            && secret.is_empty()
+            && matches!(host.auth_method, AuthMethod::Auto | AuthMethod::Password)
+        {
+            Ok(state.vault.read(host)?.unwrap_or_default())
+        } else {
+            Ok(secret)
+        }
+    };
+    let secret = prepare(&host, credentials.secret)?;
+    let jump_secrets = credentials.jumps;
     let jumps: Vec<tunnel::HopRequest> = jumps
         .into_iter()
         .map(|host| {
@@ -723,14 +943,17 @@ async fn launch(
                 .trusted_keys
                 .get(&format!("{}:{}", host.address, host.port))
                 .cloned();
-            let secret = jump_secrets.get(&host.id).cloned().unwrap_or_default();
-            tunnel::HopRequest {
+            let secret = prepare(
+                &host,
+                jump_secrets.get(&host.id).cloned().unwrap_or_default(),
+            )?;
+            Ok(tunnel::HopRequest {
                 host,
                 secret,
                 expected,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<_, String>>()?;
     let expected = state
         .config
         .lock()
@@ -838,7 +1061,40 @@ async fn launch(
                 })
         })
     };
-    let join = tauri::async_runtime::spawn(crate::supervisor::run(
+    let observer: tunnel::PasswordObserver = {
+        let state = state.clone();
+        let app = app.clone();
+        let id = id.clone();
+        let run = run_id.clone();
+        Arc::new(move |host, password, method| {
+            let generations = state.generations.lock().unwrap();
+            if generations.get(&id) != Some(&run) {
+                return;
+            }
+            let Some(epoch) = saves.get(&host.id) else {
+                return;
+            };
+            if !state.snapshot().hosts.iter().any(|current| {
+                current.id == host.id
+                    && current.diagnostics.is_empty()
+                    && crate::credentials::binding(current) == crate::credentials::binding(host)
+            }) {
+                return;
+            }
+            let result = state.vault.save(host, password, method, *epoch);
+            let mut errors = state.credential_errors.lock().unwrap();
+            match result {
+                Ok(()) => {
+                    errors.remove(&host.id);
+                }
+                Err(message) => {
+                    let _ = app.emit("tunnel://password-error", &message);
+                    errors.insert(host.id.clone(), message);
+                }
+            }
+        })
+    };
+    let join = tauri::async_runtime::spawn(crate::supervisor::run_with_password_observer(
         tunnel::RunRequest {
             host,
             rule,
@@ -853,6 +1109,7 @@ async fn launch(
         notify,
         prompt,
         validate,
+        Some(observer),
     ));
     // Tauri returns its own JoinHandle, wrap it for a single task type.
     let join = tokio::spawn(async move {
@@ -925,65 +1182,16 @@ pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 #[tauri::command]
-pub fn delete_host(
-    state: tauri::State<Arc<AppState>>,
+pub async fn delete_host(
+    state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
     id: String,
+    expected_rule_ids: Vec<String>,
 ) -> Result<Snapshot, String> {
-    {
-        let mut c = state.config.lock().unwrap();
-        let mut hosts = state.discovery.lock().unwrap().hosts.clone();
-        hosts.extend(c.hosts.clone());
-        hosts.extend(c.host_snapshots.values().cloned());
-        let references: Vec<_> = c
-            .rules
-            .iter()
-            .filter(|r| rule_uses_host(r, &hosts, &id))
-            .map(|r| r.name.clone())
-            .collect();
-        if !references.is_empty() {
-            return Err(format!("请先重新绑定这些转发: {}", references.join("、")));
-        }
-        if hosts.iter().any(|host| {
-            host.id != id
-                && (c.hosts.iter().any(|saved| saved.id == host.id)
-                    || c.host_metadata.contains_key(&host.id))
-                && rule_uses_host(
-                    &Rule {
-                        host_id: host.id.clone(),
-                        ..Default::default()
-                    },
-                    &hosts,
-                    &id,
-                )
-        }) {
-            return Err("请先修改引用此主机的跳板路线".into());
-        }
-        if state
-            .runtimes
-            .lock()
-            .unwrap()
-            .get(&format!("host-test:{id}"))
-            .is_some_and(|r| {
-                !matches!(
-                    r.status.as_str(),
-                    "tested" | "failed" | "stopped" | "needs-attention"
-                )
-            })
-        {
-            return Err("请先停止此主机的连接测试".into());
-        }
-        if !c.hosts.iter().any(|h| h.id == id) && !c.host_metadata.contains_key(&id) {
-            return Err("此主机尚未添加".into());
-        }
-        let mut next = c.clone();
-        next.hosts.retain(|h| h.id != id);
-        next.host_snapshots.remove(&id);
-        next.host_metadata.remove(&id);
-        next.hidden_hosts.retain(|host_id| host_id != &id);
-        state.persist(&next)?;
-        *c = next;
-    }
+    let mut workers = state.workers.lock().await;
+    let mut ids = state.remove_host(&id, &expected_rule_ids)?;
+    ids.push(format!("host-test:{id}"));
+    clear_deleted_sessions(&state, &mut workers, &ids).await;
     state.publish(&app);
     Ok(state.snapshot())
 }
@@ -1015,14 +1223,43 @@ pub async fn delete_rule(
 ) -> Result<Snapshot, String> {
     let mut workers = state.workers.lock().await;
     state.remove_rule(&id)?;
-    if let Some(worker) = workers.remove(&id) {
-        worker.cancel.cancel();
-        let _ = worker.join.await;
-    }
-    state.trust.lock().unwrap().remove(&id);
-    state.runtimes.lock().unwrap().remove(&id);
+    clear_deleted_sessions(&state, &mut workers, &[id]).await;
     state.publish(&app);
     Ok(state.snapshot())
+}
+#[tauri::command]
+pub async fn delete_rules(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    ids: Vec<String>,
+) -> Result<Snapshot, String> {
+    let mut workers = state.workers.lock().await;
+    state.remove_rules(&ids)?;
+    clear_deleted_sessions(&state, &mut workers, &ids).await;
+    state.publish(&app);
+    Ok(state.snapshot())
+}
+async fn clear_deleted_sessions(
+    state: &AppState,
+    workers: &mut BTreeMap<String, Worker>,
+    ids: &[String],
+) {
+    let mut jobs = Vec::new();
+    for id in ids {
+        state.generations.lock().unwrap().remove(id);
+        state.trust.lock().unwrap().remove(id);
+        if let Some(worker) = workers.remove(id) {
+            worker.cancel.cancel();
+            jobs.push(worker);
+        }
+    }
+    for worker in jobs {
+        let _ = worker.join.await;
+    }
+    let mut runtimes = state.runtimes.lock().unwrap();
+    for id in ids {
+        runtimes.remove(id);
+    }
 }
 #[tauri::command]
 pub fn undo_delete(
@@ -1040,18 +1277,24 @@ pub async fn start_batch(
     app: tauri::AppHandle,
     ids: Vec<String>,
     secrets: BTreeMap<String, String>,
+    remember_host_ids: Option<Vec<String>>,
 ) -> Result<Vec<BatchResult>, String> {
     let secrets: BTreeMap<_, tunnel::Secret> = secrets
         .into_iter()
         .map(|(id, value)| (id, value.into()))
         .collect();
     let rules = state.snapshot().rules;
+    let remember = remember_host_ids
+        .unwrap_or_default()
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
     let state = state.inner().clone();
     Ok(crate::batch::start(ids, |id| {
         let state = state.clone();
         let app = app.clone();
         let rule = rules.iter().find(|r| r.id == id).cloned();
         let secrets = &secrets;
+        let remember = remember.clone();
         async move {
             if state
                 .workers
@@ -1064,7 +1307,19 @@ pub async fn start_batch(
             }
             let rule = rule.ok_or("规则不存在")?;
             let secret = secrets.get(&rule.host_id).cloned().unwrap_or_default();
-            launch(state, app, rule, false, true, secret, Some(secrets.clone())).await
+            launch(
+                state,
+                app,
+                rule,
+                false,
+                true,
+                LoginCredentials {
+                    secret,
+                    jumps: secrets.clone(),
+                    remember,
+                },
+            )
+            .await
         }
     })
     .await)
@@ -1191,6 +1446,209 @@ pub fn cancel_import(state: tauri::State<Arc<AppState>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn bulk_delete_is_atomic_and_undo_restores_the_whole_selection_stopped() {
+        let dir = tempfile::tempdir().unwrap();
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap();
+        state.config.lock().unwrap().rules = ["a", "b", "keep"]
+            .into_iter()
+            .map(|id| Rule {
+                id: id.into(),
+                auto_connect: true,
+                ..Default::default()
+            })
+            .collect();
+        assert!(state.remove_rules(&["a".into(), "missing".into()]).is_err());
+        assert_eq!(state.snapshot().rules.len(), 3);
+        assert_eq!(state.snapshot().undo_count, 0);
+        std::fs::create_dir(state.path.with_extension("tmp")).unwrap();
+        assert!(state.remove_rules(&["a".into(), "b".into()]).is_err());
+        assert_eq!(state.snapshot().rules.len(), 3);
+        assert_eq!(state.snapshot().undo_count, 0);
+        std::fs::remove_dir(state.path.with_extension("tmp")).unwrap();
+        state
+            .remove_rules(&["a".into(), "b".into(), "a".into()])
+            .unwrap();
+        assert_eq!(state.snapshot().rules.len(), 1);
+        assert_eq!(state.snapshot().rules[0].id, "keep");
+        assert_eq!(state.snapshot().undo_count, 1);
+        state.config.lock().unwrap().rules.push(Rule {
+            id: "a".into(),
+            ..Default::default()
+        });
+        assert!(state.restore_rule().is_err());
+        assert_eq!(state.snapshot().undo_count, 1);
+        state.config.lock().unwrap().rules.retain(|r| r.id != "a");
+        state.restore_rule().unwrap();
+        assert_eq!(state.snapshot().rules.len(), 3);
+        assert!(state
+            .snapshot()
+            .rules
+            .iter()
+            .filter(|r| r.id != "keep")
+            .all(|r| !r.auto_connect));
+        assert!(
+            state
+                .snapshot()
+                .rules
+                .iter()
+                .find(|r| r.id == "keep")
+                .unwrap()
+                .auto_connect
+        );
+        assert_eq!(state.snapshot().undo_count, 0);
+    }
+    #[tokio::test]
+    async fn host_cascade_delete_checks_confirmation_and_cleans_only_related_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap();
+        {
+            let mut config = state.config.lock().unwrap();
+            config.hosts = ["host", "keep"]
+                .into_iter()
+                .map(|id| Host {
+                    id: id.into(),
+                    name: id.into(),
+                    source: "manual".into(),
+                    ..Default::default()
+                })
+                .collect();
+            config.rules = ["a", "b", "keep"]
+                .into_iter()
+                .map(|id| Rule {
+                    id: id.into(),
+                    host_id: if id == "keep" { "keep" } else { "host" }.into(),
+                    auto_connect: true,
+                    ..Default::default()
+                })
+                .collect();
+        }
+        assert!(state.remove_host("host", &["a".into()]).is_err());
+        assert_eq!(state.snapshot().rules.len(), 3);
+        assert_eq!(state.snapshot().hosts.len(), 2);
+        std::fs::create_dir(state.path.with_extension("tmp")).unwrap();
+        assert!(state
+            .remove_host("host", &["a".into(), "b".into()])
+            .is_err());
+        assert_eq!(state.snapshot().undo_count, 0);
+        std::fs::remove_dir(state.path.with_extension("tmp")).unwrap();
+        let mut tokens = Vec::new();
+        for id in ["a", "b", "host-test:host", "keep"] {
+            let cancel = CancellationToken::new();
+            let waiting = cancel.clone();
+            tokens.push(cancel.clone());
+            state.workers.lock().await.insert(
+                id.into(),
+                Worker {
+                    cancel,
+                    join: tokio::spawn(async move {
+                        waiting.cancelled().await;
+                    }),
+                },
+            );
+            state.runtimes.lock().unwrap().insert(
+                id.into(),
+                Runtime {
+                    rule_id: id.into(),
+                    status: "stopped".into(),
+                    ..Default::default()
+                },
+            );
+            state
+                .generations
+                .lock()
+                .unwrap()
+                .insert(id.into(), "run".into());
+            let (reply, _receiver) = oneshot::channel();
+            state.trust.lock().unwrap().insert(
+                id.into(),
+                PendingTrust {
+                    run_id: "run".into(),
+                    fingerprint: "fixture".into(),
+                    endpoint: "fixture".into(),
+                    reply,
+                },
+            );
+        }
+        let mut ids = state
+            .remove_host("host", &["a".into(), "b".into()])
+            .unwrap();
+        ids.push("host-test:host".into());
+        {
+            let mut workers = state.workers.lock().await;
+            clear_deleted_sessions(&state, &mut workers, &ids).await;
+            assert_eq!(workers.len(), 1);
+            assert!(workers.contains_key("keep"));
+        }
+        assert!(tokens[..3].iter().all(CancellationToken::is_cancelled));
+        assert!(!tokens[3].is_cancelled());
+        assert_eq!(state.runtimes.lock().unwrap().len(), 1);
+        assert_eq!(state.generations.lock().unwrap().len(), 1);
+        assert_eq!(state.trust.lock().unwrap().len(), 1);
+        assert_eq!(state.snapshot().rules.len(), 1);
+        assert_eq!(state.snapshot().hosts.len(), 1);
+        state.restore_rule().unwrap();
+        assert_eq!(state.snapshot().rules.len(), 3);
+        assert_eq!(state.snapshot().hosts.len(), 2);
+        assert!(state
+            .snapshot()
+            .rules
+            .iter()
+            .filter(|r| r.id != "keep")
+            .all(|r| !r.auto_connect));
+        assert_eq!(state.workers.lock().await.len(), 1);
+        state.stop_all().await;
+    }
+    #[test]
+    fn config_host_delete_and_undo_preserve_source_and_added_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("ssh_config");
+        std::fs::write(&source, b"Host fixture\n HostName example.invalid\n").unwrap();
+        let host = Host {
+            id: "ssh:fixture".into(),
+            source: "config".into(),
+            ..Default::default()
+        };
+        let discovery = ssh_config::Discovery {
+            hosts: vec![host.clone()],
+            ..Default::default()
+        };
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), discovery).unwrap();
+        {
+            let mut config = state.config.lock().unwrap();
+            config.host_metadata.insert(
+                host.id.clone(),
+                HostMetadata {
+                    name: "Added".into(),
+                    tags: vec!["tag".into()],
+                },
+            );
+            config.host_snapshots.insert(host.id.clone(), host.clone());
+            config.rules.push(Rule {
+                id: "forward".into(),
+                host_id: host.id.clone(),
+                auto_connect: true,
+                ..Default::default()
+            });
+        }
+        state.remove_host(&host.id, &["forward".into()]).unwrap();
+        assert!(state.snapshot().added_host_ids.is_empty());
+        assert!(state.snapshot().rules.is_empty());
+        assert!(state.config.lock().unwrap().host_metadata.is_empty());
+        state.restore_rule().unwrap();
+        assert_eq!(state.snapshot().added_host_ids, vec![host.id.clone()]);
+        assert_eq!(state.snapshot().hosts[0].name, "Added");
+        assert!(!state.snapshot().rules[0].auto_connect);
+        assert_eq!(
+            std::fs::read(&source).unwrap(),
+            b"Host fixture\n HostName example.invalid\n"
+        );
+    }
     #[test]
     fn added_config_hosts_persist_without_promoting_all_discovered_candidates() {
         let dir = tempfile::tempdir().unwrap();

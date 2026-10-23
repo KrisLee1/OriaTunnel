@@ -4,6 +4,7 @@ import {
   PlayIcon,
   SquareIcon,
   Undo2Icon,
+  Trash2Icon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export function RuleToolbar({
   onToggleAll,
   onStart,
   onStop,
+  onDelete,
   onImport,
   onExport,
   onUndo,
@@ -29,6 +31,7 @@ export function RuleToolbar({
   onToggleAll: (checked: boolean) => void;
   onStart: () => void;
   onStop: () => void;
+  onDelete: () => void;
   onImport: () => void;
   onExport: () => void;
   onUndo: () => void;
@@ -81,6 +84,17 @@ export function RuleToolbar({
             <SquareIcon />
             {t("stop")}
           </Button>
+          {selected > 0 && (
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={disabled}
+              onClick={onDelete}
+            >
+              <Trash2Icon />
+              {t("deleteSelected", { count: selected })}
+            </Button>
+          )}
         </div>
       </div>
       <div className="rule-file-controls">
