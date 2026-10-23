@@ -1,0 +1,571 @@
+@import "tailwindcss";
+@import "@oriatheme/colors/styles.css";
+@import "@oriatheme/colors/tailwind.css";
+@import "@oriatheme/tailwind/oria.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant keyboard-focus (&:where([data-keyboard-navigation="true"] *));
+@custom-variant focus-visible (&:where([data-keyboard-navigation="true"] *):focus-visible);
+
+.combobox-control {
+  position: relative;
+}
+.combobox-trigger {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--oria-color-muted-fg);
+  cursor: pointer;
+}
+.combobox-trigger:hover,
+.combobox-chip-remove:hover {
+  color: var(--oria-color-fg);
+  background: color-mix(in srgb, var(--oria-color-muted-fg) 12%, transparent);
+}
+.combobox-content {
+  width: var(--anchor-width);
+  max-width: var(--available-width);
+  border-radius: var(--oria-radius-lg);
+  overflow: hidden;
+}
+.combobox-list {
+  max-height: min(300px, var(--available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  scrollbar-width: thin;
+}
+.combobox-label {
+  padding: 8px 9px 4px;
+  color: var(--oria-color-muted-fg);
+  font-size: 11px;
+  font-weight: 500;
+}
+.combobox-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 32px 7px 9px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: default;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.combobox-item[data-highlighted] {
+  background: color-mix(in srgb, var(--oria-color-accent) 14%, transparent);
+}
+.combobox-indicator {
+  position: absolute;
+  right: 9px;
+  color: var(--oria-color-accent);
+}
+.combobox-empty {
+  padding: 14px 12px;
+  color: var(--oria-color-muted-fg);
+  font-size: 12px;
+}
+.combobox-empty:empty {
+  display: none;
+}
+.host-option-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.host-option-text strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.host-option-text small {
+  color: var(--oria-color-muted-fg);
+  font-size: 11px;
+}
+.combobox-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 32px;
+  padding: 3px 5px;
+  border: 1px solid var(--oria-color-border);
+  border-radius: var(--oria-radius-lg);
+}
+[data-keyboard-navigation="true"] .combobox-chips:focus-within {
+  border-color: var(--oria-color-accent);
+  outline: 3px solid
+    color-mix(in srgb, var(--oria-color-accent) 30%, transparent);
+}
+.combobox-chips-input {
+  flex: 1;
+  min-width: 120px;
+  width: 0;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+.combobox-chips-input::placeholder {
+  color: var(--oria-color-muted-fg);
+}
+.combobox-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding-left: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--oria-color-accent) 12%, transparent);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.combobox-chip-remove {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--oria-color-muted-fg);
+  cursor: pointer;
+}
+[data-keyboard-navigation="true"]
+  :is(.combobox-trigger, .combobox-chip, .combobox-chip-remove):focus-visible {
+  outline: 2px solid var(--oria-color-accent);
+  outline-offset: 1px;
+}
+
+/* Keep native outlines quiet for mouse and automatic focus, without hiding error states. */
+:root:not([data-keyboard-navigation="true"]) :focus {
+  outline: none;
+}
+
+@theme inline {
+  --color-card: var(--oria-color-surface);
+  --color-card-foreground: var(--oria-color-surface-fg);
+  --color-popover: var(--oria-color-overlay);
+  --color-popover-foreground: var(--oria-color-overlay-fg);
+  --color-destructive: var(--oria-color-danger);
+  --color-destructive-foreground: var(--oria-color-danger-fg);
+}
+
+:root {
+  --window-rounded: 24px;
+  --aide-window-gap: var(--spacing);
+  --aide-workspace-border: var(--oria-color-border);
+  --aide-chrome-top: calc(
+    var(--spacing) * 10 + var(--oria-border-width-default) * 2
+  );
+  --aide-window-background-opacity: 1;
+  --aide-component-surface-opacity: 1;
+  --aide-component-overlay-opacity: 1;
+  --markdown-rich-content-surface-opacity: calc(
+    var(--aide-component-surface-opacity) * 10%
+  );
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  background: transparent;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: transparent;
+  color: var(--oria-color-fg);
+  font-family: var(--oria-font-sans);
+  font-synthesis: style;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
+}
+
+:root,
+:root * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(
+      in srgb,
+      var(--oria-color-muted-fg) 32%,
+      transparent
+    )
+    transparent;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  :root,
+  :root * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+
+:root::-webkit-scrollbar,
+:root *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:root::-webkit-scrollbar-track,
+:root *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:root::-webkit-scrollbar-thumb,
+:root *::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oria-color-muted-fg) 32%, transparent);
+  background-clip: padding-box;
+}
+
+:root::-webkit-scrollbar-thumb:hover,
+:root *::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--oria-color-muted-fg) 52%, transparent);
+  background-clip: padding-box;
+}
+
+:root::-webkit-scrollbar-thumb:active,
+:root *::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-accent) 70%,
+    transparent
+  );
+}
+
+:root::-webkit-scrollbar-corner,
+:root *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:root::-webkit-scrollbar-button,
+:root *::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* ScrollArea owns overlay tracks; the native gutter must stay zero-width. */
+:root [data-slot="scroll-area-viewport"] {
+  scrollbar-width: none;
+}
+:root [data-slot="scroll-area-viewport"]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (forced-colors: active) {
+  :root,
+  :root * {
+    scrollbar-color: auto;
+  }
+  :root::-webkit-scrollbar-thumb,
+  :root *::-webkit-scrollbar-thumb {
+    background-color: CanvasText;
+  }
+}
+
+.splash-screen {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  place-items: start center;
+  overflow: hidden;
+  padding-top: max(64px, calc(38vh - 64px));
+  background: transparent;
+}
+
+.app-shell {
+  isolation: isolate;
+  min-height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: var(--window-rounded);
+  box-shadow: none;
+}
+
+.app-shell::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    var(--oria-pattern-bg, none), var(--oria-gradient-bg, none),
+    var(--oria-color-bg);
+  border-radius: inherit;
+  content: "";
+  opacity: var(--aide-window-background-opacity);
+  pointer-events: none;
+  transition: opacity 140ms ease-out;
+}
+@media (prefers-contrast: more) {
+  .app-shell {
+    border: var(--oria-border-width-default) solid
+      var(--oria-color-border-strong);
+  }
+
+  .titlebar-panel {
+    border-color: var(--oria-color-border-strong);
+  }
+}
+
+::selection {
+  background: var(--oria-color-selection);
+  color: var(--oria-color-selection-fg);
+}
+
+/* Fade every titlebar group together, keeping backdrop blur on each capsule. */
+.app-titlebar {
+  --aide-titlebar-opacity: 1;
+}
+.app-titlebar:has([data-window-active="false"]) {
+  --aide-titlebar-opacity: 0.45;
+}
+.app-titlebar > * {
+  opacity: var(--aide-titlebar-opacity);
+  transition: opacity var(--oria-duration-fast) var(--oria-ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-titlebar > * {
+    transition: none;
+  }
+}
+
+.overlay {
+  color: var(--oria-color-overlay-fg);
+  background-color: color-mix(
+    in srgb,
+    color-mix(
+        in srgb,
+        var(--oria-color-overlay) calc(var(--oria-opacity-overlay) * 65%),
+        transparent
+      )
+      calc(var(--aide-component-overlay-opacity) * 100%),
+    transparent
+  );
+  border: var(--oria-border-width-default) solid
+    color-mix(in srgb, var(--oria-color-border-strong) 28%, transparent);
+  box-shadow: var(--oria-shadow-2xs);
+  -webkit-backdrop-filter: blur(var(--oria-backdrop-blur-md))
+    saturate(var(--oria-backdrop-saturate));
+  backdrop-filter: blur(var(--oria-backdrop-blur-md))
+    saturate(var(--oria-backdrop-saturate));
+  transition: background-color 160ms ease-out;
+}
+
+.app-titlebar .overlay,
+.window-header-panel.overlay {
+  border-color: var(--aide-workspace-border);
+}
+
+.floating-surface,
+.popover-overlay,
+.floating-surface-arrow {
+  --aide-floating-surface-background: color-mix(
+    in srgb,
+    color-mix(
+        in srgb,
+        var(--oria-color-overlay) calc(var(--oria-opacity-overlay) * 100%),
+        transparent
+      )
+      calc(var(--aide-component-overlay-opacity) * 100%),
+    transparent
+  );
+
+  color: var(--oria-color-overlay-fg);
+  background-color: var(--aide-floating-surface-background);
+  transition: background-color 160ms ease-out;
+}
+
+.floating-surface,
+.popover-overlay {
+  border: var(--oria-border-width-default) solid
+    color-mix(in srgb, var(--oria-color-border-strong) 28%, transparent);
+  box-shadow: var(--oria-shadow-md);
+  -webkit-backdrop-filter: blur(var(--oria-backdrop-blur-md))
+    saturate(var(--oria-backdrop-saturate));
+  backdrop-filter: blur(var(--oria-backdrop-blur-md))
+    saturate(var(--oria-backdrop-saturate));
+}
+
+.modal-surface {
+  border-color: color-mix(
+    in srgb,
+    var(--oria-color-border-strong) 20%,
+    transparent
+  );
+}
+
+.responsive-modal-surface {
+  --modal-header-height: calc(var(--spacing) * 14);
+}
+
+.responsive-modal-header {
+  position: absolute;
+  z-index: 10;
+  inset: 0 0 auto;
+  height: var(--modal-header-height);
+  justify-content: center;
+  pointer-events: none;
+}
+
+.responsive-modal-body {
+  --scroll-fade-t-size: calc(var(--modal-header-height) + var(--spacing) * 4);
+  --scroll-fade-b-size: calc(var(--spacing) * 5);
+  --scroll-fade-reveal: calc(var(--spacing) * 12);
+  padding-top: calc(var(--modal-header-height) + var(--spacing) * 2);
+  scroll-padding-block: calc(var(--modal-header-height) + var(--spacing) * 4)
+    calc(var(--spacing) * 5);
+}
+
+.modal-actions {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(
+      in srgb,
+      var(--oria-color-bg) calc(var(--aide-component-surface-opacity) * 42%),
+      transparent
+    )
+  );
+}
+
+.floating-surface-arrow {
+  fill: var(--aide-floating-surface-background);
+}
+
+.themed-surface {
+  --aide-themed-surface-color: var(--oria-color-surface);
+  --aide-themed-surface-fg: var(--oria-color-surface-fg);
+
+  position: relative;
+  isolation: isolate;
+  color: var(--aide-themed-surface-fg);
+  background: transparent;
+}
+
+.themed-surface-raised {
+  --aide-themed-surface-color: var(--oria-color-surface-raised);
+  --aide-themed-surface-fg: var(--oria-color-surface-raised-fg);
+}
+
+.themed-surface::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    var(--oria-pattern-surface, none), var(--oria-gradient-surface, none),
+    color-mix(
+      in srgb,
+      var(--aide-themed-surface-color) 72%,
+      var(--oria-color-bg)
+    );
+  background-clip: padding-box;
+  border-radius: inherit;
+  opacity: var(--aide-component-surface-opacity);
+  pointer-events: none;
+  content: "";
+  transition: opacity 160ms ease-out;
+}
+
+.window-muted-surface {
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-muted) calc(var(--aide-component-surface-opacity) * 100%),
+    transparent
+  );
+  transition: background-color 160ms ease-out;
+}
+
+.settings-section-panel {
+  border: var(--oria-border-width-default) solid var(--aide-workspace-border);
+}
+
+[data-slot="tabs-list"][data-variant="default"]
+  > .window-tab-trigger[data-active] {
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-bg) calc(var(--aide-component-surface-opacity) * 100%),
+    transparent
+  );
+}
+
+.aide-theme-palette {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: calc(var(--spacing) * 5.5);
+  height: calc(var(--spacing) * 5);
+}
+
+.aide-theme-palette i {
+  position: absolute;
+  bottom: calc(var(--spacing) * 0.2);
+  left: calc(var(--spacing) * 1.7);
+  width: calc(var(--spacing) * 2.1);
+  height: calc(var(--spacing) * 4);
+  border: var(--oria-border-width-default) solid var(--oria-color-overlay);
+  border-radius: var(--oria-radius-xs);
+  transform-origin: 50% 88%;
+}
+
+.aide-theme-palette i:nth-child(1) {
+  z-index: 5;
+  transform: rotate(-32deg);
+}
+
+.aide-theme-palette i:nth-child(2) {
+  z-index: 4;
+  transform: rotate(-16deg);
+}
+
+.aide-theme-palette i:nth-child(3) {
+  z-index: 3;
+  transform: none;
+}
+
+.aide-theme-palette i:nth-child(4) {
+  z-index: 2;
+  transform: rotate(16deg);
+}
+
+.aide-theme-palette i:nth-child(5) {
+  z-index: 1;
+  transform: rotate(32deg);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

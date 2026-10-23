@@ -1,0 +1,258 @@
+{
+  "source": "D:/Projects/OriaAide",
+  "files": [
+    {
+      "file": "components/window/window-header.tsx",
+      "sha256": "21a76f4bba76b07041a8b4108c8173f128ebd2394555f4583ce2cd0db63412e7"
+    },
+    {
+      "file": "components/window/window-control.tsx",
+      "sha256": "69a31ea8e814c3a296acdfb001a1309f4a6d166023cdcfee4fa89dc9835bd265"
+    },
+    {
+      "file": "components/ui/button.tsx",
+      "sha256": "779c801250bb2993e764f399e602c342551afd50322ebdd1b545c313dc7e2f4b"
+    },
+    {
+      "file": "lib/utils.ts",
+      "sha256": "74a147991a119f1c4cdc25a4d9b22713632fa32eb136e55ab6939b006d71b9d6"
+    },
+    {
+      "file": "stores/window-control-settings-store.ts",
+      "sha256": "99db935f8c5b74138eab358869aac24dc71f68714169cca6cd950881fe9c625b"
+    },
+    {
+      "file": "components/theme/aide-theme-provider.tsx",
+      "sha256": "b2fd5217425cd857e4e873d8fa2f259d9c7158cc0794fe346e69dcee03c528e5"
+    },
+    {
+      "file": "components/theme/window-appearance.ts",
+      "sha256": "5fd3b4aae9122a7d2e0fd8e0ea1e13eabb502818bb85d3623019b1e3b25da0eb"
+    },
+    {
+      "file": "stores/window-appearance-settings-store.ts",
+      "sha256": "5913d398bba513ab085b3c8945ddf2822cf95befed9d9e27143308f91b71e1dc"
+    },
+    {
+      "file": "components/theme/theme-bootstrap.ts",
+      "sha256": "80673e347fd6a488c765ca87e35a20a631dc3b9fc16ccade8b0fa16dbe9f5c49"
+    },
+    {
+      "file": "components/theme/theme-select.tsx",
+      "sha256": "70f39481be701377c7f017f595e88d25bca3a3dd15c1a5855ad22016505cc898"
+    },
+    {
+      "file": "components/theme/theme-transition.ts",
+      "sha256": "8c0496b8421134f30b4a99d9d1c7d14872cc3a72f362ad1964505631866ad12a"
+    },
+    {
+      "file": "components/ui/select.tsx",
+      "sha256": "10d220bbedeab34fa9f2a74c4aaa39285e53d1823803c9e9e501ca2d1dccc7f5"
+    },
+    {
+      "file": "components/theme/theme-mode-toggle.tsx",
+      "sha256": "6cacbd671ddbf858f07b03b1aed0897658513cde456d48695107577cabf36643"
+    },
+    {
+      "file": "components/ui/dropdown-menu.tsx",
+      "sha256": "3d444c4d7774695ca8a3493aa41da89031c168f3f7e867f31aa0191aa48eade6"
+    },
+    {
+      "file": "components/ui/tabs.tsx",
+      "sha256": "640652bf7b2313da1dc4e56201140baf9064180a16f51b27db9a70836d3e9eaf"
+    },
+    {
+      "file": "components/theme/theme-import-setting.tsx",
+      "sha256": "fed60026911fe2c4e367625ab15368ae29cf539c2068db6a284d888b7bae02d7"
+    },
+    {
+      "file": "components/theme/theme-import.ts",
+      "sha256": "3ee25edc76a0e928bf9dd07709bdf97447d16aa8268fede29e95b87220a92795"
+    },
+    {
+      "file": "components/ui/badge.tsx",
+      "sha256": "d28c229c3f41ad0e17c90b25bc7c409dd960c3d6b077c39be72b6854aee07e48"
+    },
+    {
+      "file": "components/ui/field.tsx",
+      "sha256": "764a5491a8422e0a25a82c739fc018917718a1cc2659311d57b52684a10726df"
+    },
+    {
+      "file": "components/ui/label.tsx",
+      "sha256": "fe0e75f1e02cf47ad9e480426d35f37aca9c8027b6c2c3845db249858a931b7b"
+    },
+    {
+      "file": "components/ui/separator.tsx",
+      "sha256": "6e2a09ed1312235a1da4ee0d1f033ae58a282075f7ac4310f0568a43f5e35dbd"
+    },
+    {
+      "file": "components/ui/input.tsx",
+      "sha256": "010e62d2b7f4f7319f68965a27fe66bb6a3304ff72cf7eaa85707b6e83b24bc7"
+    },
+    {
+      "file": "components/ui/responsive-modal.tsx",
+      "sha256": "a5f1c21735da3a278f1d796b715d6c0cb41acf8c5416cabe8cfd487fa77d54d2"
+    },
+    {
+      "file": "hooks/use-media-query.ts",
+      "sha256": "6452a6809ea49e0df0570b5714b193f273469aa4df1d22a19dead9d5d95dceaf"
+    },
+    {
+      "file": "components/ui/drawer.tsx",
+      "sha256": "d7476f8449ec33aaa1ceb5cc2b8b9c13060766f1f1dbbd679911eae063b38cda"
+    },
+    {
+      "file": "components/ui/dialog.tsx",
+      "sha256": "f0384bd3d8d7df4d907dc1a1f4b5e1d36130682723cffb10c8bd9cb19fb79d38"
+    },
+    {
+      "file": "hooks/use-native-file-drop.ts",
+      "sha256": "6fe3196bd76808bed72752ff20f8ecaebbf8718cce8c535846ea71103f65683e"
+    },
+    {
+      "file": "lib/file-drop.ts",
+      "sha256": "a63e5718a093ad1feeacde6ba614f40057009ad193da74ca01f9615c703c9d02"
+    },
+    {
+      "file": "components/settings/window-appearance-setting.tsx",
+      "sha256": "7654837b43ab8a373e16f20d58315b7500a29d4852f1ceaa7e760e3c332da4d9"
+    },
+    {
+      "file": "components/ui/item.tsx",
+      "sha256": "3b95dd62cdcf6b80e87b8f1a50cc6a62b5b30cc322c1510a36ebfa1d9f0d3ad7"
+    },
+    {
+      "file": "components/ui/slider.tsx",
+      "sha256": "2328880988d9a66bd882b986088b79c2d59f56d23e693887019ae654ae91d8d5"
+    },
+    {
+      "file": "components/ui/switch.tsx",
+      "sha256": "3af33b2bb0c8775d0854762093790571e8ca0c2ae8253eac918e5accd9300e55"
+    },
+    {
+      "file": "components/settings/window-control-setting.tsx",
+      "sha256": "05e8736e887b7d2b8b404ea24687ee92933f4df1b5627aabced18ca61b32cca9"
+    },
+    {
+      "file": "components/language/language-select.tsx",
+      "sha256": "18f36f26d9dd11a34cda51201e181c45acb7275c49d059a6cc71f6969441bd63"
+    },
+    {
+      "file": "lib/keyboard-focus.ts",
+      "sha256": "c1e2891afe5e55bab4e5729dec84c2c53d1b3763dd755cf34b1ff97e4ec52f76"
+    },
+    {
+      "file": "i18n.ts",
+      "sha256": "9e74aba898018a68e9f75586309f7806d74da05e1033977192b2bc912e0f2e68"
+    },
+    {
+      "file": "public/locales/de/common.json",
+      "sha256": "7854da4fd8d4c58c7f425f8693f24e586dc31cd3d4bb7c50861551ac9a41be86"
+    },
+    {
+      "file": "public/locales/en/common.json",
+      "sha256": "ca6e52efcd93ce1587bbfa07eb4adf828990252ecbd1df49bd0e1c6a186cc780"
+    },
+    {
+      "file": "public/locales/fr/common.json",
+      "sha256": "7eebac3fcfe248447aeda536623cf803dc9059a32e3902494d86fa21e1bca722"
+    },
+    {
+      "file": "public/locales/ja/common.json",
+      "sha256": "ef862defc1bdc5a6cbe851a3e2e0407b6a5d424d61b3bcb1d76a3533c4188170"
+    },
+    {
+      "file": "public/locales/ko/common.json",
+      "sha256": "5e14dae9f079303211d7ad8a37b22e6a41e0d5b943fd77d15168f87a96085b04"
+    },
+    {
+      "file": "public/locales/ru/common.json",
+      "sha256": "466c0b7d657c73b2d7f3d256cd1fa4f72ba3a368ed8039358560f60b0ae3ef93"
+    },
+    {
+      "file": "public/locales/zh-CN/common.json",
+      "sha256": "cbfab5a95e5a1acae49af08b210dd5d0b6e56ed2b6ad888a2dc0c87afa521215"
+    },
+    {
+      "file": "public/locales/zh-TW/common.json",
+      "sha256": "d7ed3e77b635d379ad02a380077dcf7d16eed31a856a818cdcb1ed0ea371c787"
+    },
+    {
+      "file": "components/ui/tooltip.tsx",
+      "sha256": "5d50acb973d844f2ad6fb51bbea2e379aaffa03494dc7f9bea80d8c454c26112"
+    },
+    {
+      "file": "components/ui/scroll-area.tsx",
+      "sha256": "372c702b3ead88f12f4f1374f90a37388bbb64ac5639fdcfdf06fcf4bb5d8078"
+    },
+    {
+      "file": "components/ui/external-link.tsx",
+      "sha256": "d756f9fd4262643a8050d86f243e136205b6e875d68c822bf8e6bc7ce0be5185"
+    },
+    {
+      "file": "components/ui/info-tooltip.tsx",
+      "sha256": "9adeff0aa1e4db626c4b35b1102c02c0e19d04b7f09834b0217a3216504f8327"
+    }
+  ],
+  "cssRanges": [
+    "1-133",
+    "1021-1063",
+    "1320-1405"
+  ],
+  "adaptations": [
+    "Application storage/event namespace",
+    "Window close removes Aide avatar dependency",
+    "Bridge/types supplied by OriaTunnel",
+    "Interactive center slot added after migration",
+    "Appearance controls live only in settings; sliders and reset actions share one row",
+    "Controls use theme border tokens across modes; select scroll arrows share the translucent surface",
+    "Nested dialogs/drawers render their own themed backdrops",
+    "CSS backdrop-filter only; modal scrim classes copied verbatim from OriaAide with blur restored at the user's latest request; no custom filter renderer or frame tracking",
+    "Surface pseudo-elements no longer add a second highlight rim; cards and chrome use theme shadow-2xs",
+    "Responsive modals share viewport margins, floating title bars, scroll-fade bodies and themed slim scrollbars; descriptions scroll in the body",
+    "OriaAide material opacity formulas, Positioner isolation and inactive chrome restored; translucent cards and pages retain their original appearance"
+  ],
+  "nativeSource": {
+    "file": "D:\\Projects\\OriaAide\\src-tauri\\src\\platform\\macos\\window.rs",
+    "sha256": "6ab0def435fff6d56f82f6b29f69b288e61fbd030f0b64f86a6e0c5d0a859e41",
+    "migratedFunctions": [
+      "set_native_corner_radius",
+      "set_native_blur_radius",
+      "set_layer_background_blur_radius"
+    ],
+    "windows": "platform/windows/window.rs:apply_windows_window_effect"
+  },
+  "cssSelectors": [
+    ".window-muted-surface",
+    ".settings-section-panel",
+    "[data-slot=\"tabs-list\"][data-variant=\"default\"] > .window-tab-trigger[data-active]",
+    ".aide-theme-palette",
+    ".aide-theme-palette i",
+    ".aide-theme-palette i:nth-child(1)",
+    ".aide-theme-palette i:nth-child(2)",
+    ".aide-theme-palette i:nth-child(3)",
+    ".aide-theme-palette i:nth-child(4)",
+    ".aide-theme-palette i:nth-child(5)",
+    "@layer base"
+  ],
+  "sourceFragments": [
+    {
+      "file": "components/settings/settings-panel.tsx",
+      "sha256": "cf7614ee4142242cffcb08d2026cf93fa9863ee10ba400f56d37195f8816dfbf",
+      "fragments": [
+        "SettingItem",
+        "ThemeSettingsItem",
+        "appearance rows",
+        "window control rows"
+      ]
+    }
+  ],
+  "nativeExternalLink": {
+    "file": "src-tauri/src/commands.rs",
+    "functions": [
+      "open_external_url",
+      "validated_external_url"
+    ],
+    "adapter": "String error type; tauri-plugin-shell same native dispatch"
+  }
+}

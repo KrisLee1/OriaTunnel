@@ -1,0 +1,2067 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
+import { listen } from "@tauri-apps/api/event";
+import { useTranslation } from "react-i18next";
+import {
+  ReactFlow,
+  Background,
+  Handle,
+  Position,
+  MarkerType,
+  ReactFlowProvider,
+  useReactFlow,
+  useNodesInitialized,
+  useUpdateNodeInternals,
+  type NodeProps,
+  type Node,
+  type Edge,
+  type Viewport,
+} from "@xyflow/react";
+import {
+  ServerPlusIcon,
+  GitPullRequestCreateArrowIcon,
+  Settings2Icon,
+  LaptopIcon,
+  ServerIcon,
+  ArrowRightIcon,
+  PlayIcon,
+  SquareIcon,
+  MaximizeIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+  NetworkIcon,
+  XIcon,
+  ShieldCheckIcon,
+  KeyRoundIcon,
+  InfoIcon,
+  CopyPlusIcon,
+  Trash2Icon,
+} from "lucide-react";
+import { WindowHeader } from "./components/window/window-header";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { ScrollArea } from "./components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Field, Modal } from "./components/tunnel-form";
+import { ConnectionFields, RuleEditor } from "./features/tunnels/rule-editor";
+import { HostSourceSettings } from "./features/hosts/source-settings";
+import { HostGroups, type HostGrouping } from "./features/hosts/host-groups";
+import { JumpRouteEditor } from "./features/hosts/jump-route-editor";
+import { HostTags } from "./features/hosts/host-tags";
+import { HostToolbar } from "./features/hosts/host-toolbar";
+import { HostTestButton } from "./features/hosts/host-test-button";
+import { IdentityFilesEditor } from "./features/hosts/identity-files-editor";
+import { HostDiscovery } from "./features/hosts/host-discovery";
+import { hostAuthLabels } from "./features/hosts/host-auth";
+import { addedHosts, hostFilterStatus } from "./features/hosts/host-collection";
+import { RuleToolbar } from "./features/tunnels/rule-toolbar";
+import { ParameterField, ParameterSwitch, ParameterTitle } from "./components/parameter-field";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "./components/ui/item";
+import { Switch } from "./components/ui/switch";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "./components/ui/select";
+import { RuntimeDetails } from "./features/tunnels/runtime-details";
+import { bytes, rate } from "./features/tunnels/runtime-format";
+import { runtimeStatus } from "./features/tunnels/runtime-status";
+import { ActivityView } from "./features/tunnels/activity-view";
+import { WorkspaceActions } from "./features/tunnels/workspace-actions";
+import { ImportConfig } from "./features/tunnels/import-config";
+import { ConnectionColorDot } from "./features/tunnels/connection-color";
+import { ConnectionEdge } from "./features/tunnels/connection-edge";
+import {
+  connectionPorts,
+  connectionVisual,
+} from "./features/tunnels/connection-visual";
+import {
+  emptyHost,
+  emptyRule,
+  rulePath,
+  networkChanged,
+  jumpHosts,
+} from "./features/tunnels/rule-model";
+import {
+  AppearanceSettings,
+  WindowSettings,
+} from "./components/settings/appearance-settings";
+import * as bridge from "./lib/bridge";
+import type {
+  Host,
+  Rule,
+  Runtime,
+  Snapshot,
+  BatchResult,
+} from "./types";
+import "./tunnel-i18n";
+import {
+  groupRulesByHost,
+  groupPositions,
+} from "./features/tunnels/rule-groups";
+
+const initial: Snapshot = {
+  hosts: [],
+  rules: [],
+  runtimes: [],
+  diagnostics: [],
+  revision: -1,
+  closeToTray: true,
+  agentSupported: false,
+  sourceFiles: [],
+  autoSyncHosts: true,
+  activity: [],
+  undoCount: 0,
+  autostart: false,
+  autostartSupported: false,
+};
+function Status({ runtime }: { runtime?: Runtime }) {
+  const { t } = useTranslation("tunnel");
+  const status = runtimeStatus(runtime);
+  return (
+    <span className={`status ${runtime?.status || "stopped"} tone-${status.tone}`} title={runtime?.message || t(status.label)}>
+      <i />
+      {t(status.label)}
+    </span>
+  );
+}
+function useSnapshot() {
+  const [data, setData] = useState(initial);
+  const [error, setError] = useState("");
+  const accept = useCallback(
+    (next: Snapshot) =>
+      setData((prev) => (next.revision >= prev.revision ? next : prev)),
+    [],
+  );
+  useEffect(() => {
+    let disposed = false;
+    const sub = bridge.desktop
+      ? listen<Snapshot>("tunnel://snapshot", (e) => {
+          if (!disposed) accept(e.payload);
+        })
+      : Promise.resolve(() => {});
+    void sub
+      .then(() => bridge.snapshot())
+      .then((next) => {
+        if (!disposed) accept(next);
+      })
+      .catch((e) => setError(String(e)));
+    return () => {
+      disposed = true;
+      void sub.then((stop) => stop());
+    };
+  }, [accept]);
+  return { data, accept, error, setError };
+}
+
+export function App() {
+  const { t } = useTranslation("tunnel");
+  const { data, accept, error, setError } = useSnapshot();
+  const [page, setPage] = useState("canvas");
+  const [settings, setSettings] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [deleting, setDeleting] = useState<Rule | null>(null);
+  const [hostDraft, setHostDraft] = useState<Host | null>(null);
+  const [discovering, setDiscovering] = useState(false);
+  const [addedInSession, setAddedInSession] = useState<string[]>([]);
+  const [ruleDraft, setRuleDraft] = useState<Rule | null>(null);
+  const [focusRuleId, setFocusRuleId] = useState("");
+  const [ruleSuspended, setRuleSuspended] = useState(false);
+  const [hostFromRule, setHostFromRule] = useState(false);
+  const [authHostId, setAuthHostId] = useState<string | null>(null);
+  const [authId, setAuthId] = useState<string | null>(null);
+  const [jumpSecrets, setJumpSecrets] = useState<Record<string, string>>({});
+  const [secret, setSecret] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [selectedHost, setSelectedHost] = useState("");
+  const [selectedRules, setSelectedRules] = useState<string[]>([]);
+  const [inspecting, setInspecting] = useState("");
+  const [batchAuth, setBatchAuth] = useState<string[] | null>(null);
+  const [batchSecrets, setBatchSecrets] = useState<Record<string, string>>({});
+  const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
+  const [exporting, setExporting] = useState<string[] | null>(null);
+  const [exportPath, setExportPath] = useState("");
+  const action = useCallback(
+    async (fn: () => Promise<unknown>) => {
+      setBusy(true);
+      setError("");
+      try {
+        const result = await fn();
+        if (result && typeof result === "object" && "revision" in result)
+          accept(result as Snapshot);
+        return true;
+      } catch (e) {
+        setError(String(e));
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [accept, setError],
+  );
+  const refresh = () => action(bridge.refreshHosts);
+  const managedHosts = addedHosts(data, addedInSession);
+  const managedHostIds = new Set(managedHosts.map((host) => host.id));
+  const openHostDiscovery = (fromRule = false) => {
+    setHostFromRule(fromRule);
+    setDiscovering(true);
+    void refresh();
+  };
+  useEffect(() => {
+    if (!bridge.desktop) return;
+    const focus = () => {
+      void bridge
+        .syncHosts()
+        .then(accept)
+        .catch((e) => setError(String(e)));
+    };
+    window.addEventListener("focus", focus);
+    return () => window.removeEventListener("focus", focus);
+  }, [accept, setError]);
+  const newRule = (hostId = "") => {
+    setRuleSuspended(false);
+    setRuleDraft(emptyRule(hostId));
+  };
+  const saveDraft = async (launch: boolean) => {
+    if (!ruleDraft) return;
+    const rule = { ...ruleDraft, id: ruleDraft.id || crypto.randomUUID() };
+    const old = data.rules.find((r) => r.id === rule.id);
+    const running = data.runtimes.some(
+      (r) =>
+        r.ruleId === rule.id &&
+        !["failed", "stopped", "needs-attention"].includes(r.status),
+    );
+    const reconnect = !!old && running && networkChanged(old, rule);
+    const ok = await action(async () => {
+      const result = await bridge.saveRule(rule);
+      if (reconnect) await bridge.stopRule(rule.id);
+      return result;
+    });
+    if (ok) {
+      setRuleDraft(null);
+      setRuleSuspended(false);
+      setPage("canvas");
+      setFocusRuleId(rule.id);
+      if (launch || reconnect) start(rule.id);
+    }
+  };
+  const stop = (id: string) => action(() => bridge.stopRule(id));
+  const start = (id: string) => {
+    setAuthHostId(null);
+    setSecret("");
+    setJumpSecrets({});
+    setAuthId(id);
+  };
+  const startHost = (id: string) => {
+    setAuthHostId(id);
+    setAuthId("host-test:" + id);
+    setSecret("");
+    setJumpSecrets({});
+  };
+  const closeHost = () => {
+    setHostDraft(null);
+    setHostFromRule(false);
+  };
+  const saveHostDraft = async (test: boolean) => {
+    if (!hostDraft) return;
+    const host = { ...hostDraft, id: hostDraft.id || crypto.randomUUID() };
+    const ok = await action(() =>
+      host.source === "config"
+        ? bridge.saveHostMetadata(host)
+        : bridge.saveHost(host),
+    );
+    if (ok) {
+      if (hostFromRule && ruleDraft)
+        setRuleDraft({ ...ruleDraft, hostId: host.id });
+      closeHost();
+      if (test) startHost(host.id);
+    }
+  };
+  const authTarget = data.hosts.find(
+    (h) =>
+      h.id === (authHostId || data.rules.find((r) => r.id === authId)?.hostId),
+  );
+  const duplicateHost =
+    hostDraft?.source === "manual" &&
+    managedHosts.find(
+      (h) =>
+        h.id !== hostDraft.id &&
+        h.address === hostDraft.address &&
+        h.port === hostDraft.port &&
+        h.user === hostDraft.user,
+    );
+  const pending = data.runtimes.find((r) => r.status === "verifying-host");
+  const selection = selectedRules.filter((id) =>
+    data.rules.some((r) => r.id === id),
+  );
+  const batchHosts = data.hosts.filter((h) =>
+    (batchAuth || []).some((id) => {
+      const rule = data.rules.find((r) => r.id === id);
+      const target = data.hosts.find((host) => host.id === rule?.hostId);
+      return (
+        h.id === target?.id ||
+        jumpHosts(data.hosts, target).some((j) => j.id === h.id)
+      );
+    }),
+  );
+  const inspected = data.rules.find((r) => r.id === inspecting);
+  const active = data.runtimes.filter(
+    (r) =>
+      !r.ruleId.startsWith("host-test:") &&
+      !["failed", "stopped", "tested", "needs-attention"].includes(r.status),
+  ).length;
+  return (
+    <div className="app-shell tunnel-app">
+      <WindowHeader
+        fixedLeftActions={
+          page === "hosts" || page === "canvas" || page === "tunnels" ? (
+            <>
+              {(page === "hosts" || page === "canvas") && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("addHost")}
+                  title={t("addHost")}
+                  disabled={!bridge.desktop}
+                  onClick={() => openHostDiscovery()}
+                >
+                  <ServerPlusIcon />
+                </Button>
+              )}
+              {(page === "canvas" || page === "tunnels") && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("add")}
+                  title={t("add")}
+                  disabled={!bridge.desktop}
+                  onClick={() => newRule()}
+                >
+                  <GitPullRequestCreateArrowIcon />
+                </Button>
+              )}
+            </>
+          ) : null
+        }
+        fixedRightActions={
+          <>
+            <WorkspaceActions
+              count={data.rules.length}
+              busy={busy}
+              available={bridge.desktop}
+              onStartAll={() => {
+                setBatchAuth(data.rules.map((r) => r.id));
+                setBatchSecrets({});
+                setBatchResults([]);
+              }}
+              onStopAll={() => {
+                setBatchResults([]);
+                void action(async () =>
+                  setBatchResults(
+                    await bridge.stopBatch(data.rules.map((r) => r.id)),
+                  ),
+                );
+              }}
+            />
+          </>
+        }
+        centerContent={
+          <Tabs value={page} onValueChange={setPage}>
+            <TabsList className="nav-tabs overlay">
+              <TabsTrigger value="canvas">{t("canvas")}</TabsTrigger>
+              <TabsTrigger value="tunnels">{t("tunnels")}</TabsTrigger>
+              <TabsTrigger value="hosts">{t("hosts")}</TabsTrigger>
+              <TabsTrigger value="activity">{t("activity")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      >
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("settings")}
+          onClick={() => setSettings(true)}
+        >
+          <Settings2Icon />
+        </Button>
+      </WindowHeader>
+      {ruleDraft && ruleSuspended && (
+        <div className="draft-return overlay">
+          <Button size="sm" onClick={() => setRuleSuspended(false)}>
+            {t("resumeDraft")}
+          </Button>
+        </div>
+      )}
+      <main>
+        {page === "canvas" ? (
+          <ReactFlowProvider>
+            <TunnelCanvas
+              data={data}
+              onAdd={() => newRule()}
+              onStart={start}
+              onStop={stop}
+              onEdit={(rule) => {
+                setRuleSuspended(false);
+                setRuleDraft(rule);
+              }}
+              focusRuleId={focusRuleId}
+              onFocusDone={() => setFocusRuleId("")}
+            />
+          </ReactFlowProvider>
+        ) : page === "activity" ? (
+          <ActivityView data={data} />
+        ) : page === "hosts" ? (
+          <Hosts
+            data={{ ...data, hosts: managedHosts }}
+            busy={busy}
+            selected={selectedHost}
+            setSelected={setSelectedHost}
+            onEdit={setHostDraft}
+            onForward={(id) => newRule(id)}
+            onTest={startHost}
+            onStopTest={(id) => void stop("host-test:" + id)}
+            onDelete={(h) =>
+              void action(() => bridge.deleteHost(h.id)).then((ok) => {
+                if (ok)
+                  setAddedInSession((ids) => ids.filter((id) => id !== h.id));
+              })
+            }
+            onCopy={(h) =>
+              setHostDraft({
+                ...h,
+                id: "",
+                source: "manual",
+                sourceFile: undefined,
+                fieldSources: {},
+                configuredForwards: [],
+                hidden: false,
+                diagnostics: [],
+                name: h.name + " (copy)",
+              })
+            }
+          />
+        ) : (
+          <ScrollArea
+            className="page-scroll-area"
+            viewportClassName="page tunnels-page scroll-fade"
+          >
+            <header className="tunnels-page-heading">
+              <h1>{t("tunnels")}</h1>
+              <span>{t("currentWorkspace")}</span>
+            </header>
+            <RuleToolbar
+              count={data.rules.length}
+              selected={selection.length}
+              undoCount={data.undoCount}
+              busy={busy}
+              available={bridge.desktop}
+              onToggleAll={(checked) =>
+                setSelectedRules(checked ? data.rules.map((r) => r.id) : [])
+              }
+              onStart={() => {
+                setBatchAuth(selection);
+                setBatchSecrets({});
+                setBatchResults([]);
+              }}
+              onStop={() =>
+                void action(async () =>
+                  setBatchResults(await bridge.stopBatch(selection)),
+                )
+              }
+              onImport={() => setImporting(true)}
+              onExport={() => {
+                setExporting(
+                  selection.length ? selection : data.rules.map((r) => r.id),
+                );
+              }}
+              onUndo={() => void action(bridge.undoDelete)}
+            />
+            {!!batchResults.length && (
+              <div className="batch-results" role="status">
+                <p className="muted">{t("batchAcceptedHint")}</p>
+                {batchResults.map((result) => (
+                  <p
+                    key={result.id}
+                    className={result.accepted ? "muted" : "inline-error"}
+                  >
+                    {data.rules.find((r) => r.id === result.id)?.name ||
+                      result.id}{" "}
+                    · {result.accepted ? t("requestAccepted") : result.error}
+                  </p>
+                ))}
+              </div>
+            )}
+            {exportPath && (
+              <p className="muted" role="status">
+                {t("exported")} {exportPath}
+              </p>
+            )}
+            {!data.rules.length ? (
+              <Empty title={t("noRules")} body={t("emptyBody")} />
+            ) : (
+              <div className="rule-list">
+                {groupRulesByHost(data.rules, data.hosts).map((group) => (
+                  <section className="rule-host-group" key={group.id}>
+                    <header className="rule-group-heading">
+                      <ServerIcon size={17} />
+                      <div>
+                        <h2>{group.host?.name || t("sourceMissing")}</h2>
+                        {group.host && (
+                          <code>
+                            {group.host.user}@{group.host.address}:
+                            {group.host.port}
+                          </code>
+                        )}
+                      </div>
+                      <span className="source-badge">
+                        {group.rules.length} {t("tunnels")}
+                      </span>
+                    </header>
+                    {group.rules.map((rule) => {
+                      const host = group.host,
+                        runtime = data.runtimes.find(
+                          (r) => r.ruleId === rule.id,
+                        );
+                      return (
+                        <div className="rule-row themed-surface" key={rule.id}>
+                          <input
+                            className="rule-select"
+                            type="checkbox"
+                            aria-label={t("selectRule", { name: rule.name })}
+                            checked={selection.includes(rule.id)}
+                            onChange={(e) =>
+                              setSelectedRules(
+                                e.target.checked
+                                  ? [...selection, rule.id]
+                                  : selection.filter((id) => id !== rule.id),
+                              )
+                            }
+                          />
+                          <div className="rule-summary">
+                            <strong className="rule-name">
+                              <ConnectionColorDot color={rule.color} />
+                              <span title={rule.name}>{rule.name}</span>
+                            </strong>
+                            <Status runtime={runtime} />
+                          </div>
+                          <small className="rule-metrics">
+                            {runtime && (
+                              <>
+                                ↑ {rate(runtime.sentPerSecond)} · ↓{" "}
+                                {rate(runtime.receivedPerSecond)} ·{" "}
+                                {runtime.connections} {t("connections")}
+                              </>
+                            )}
+                          </small>
+                          <small
+                            className="rule-route"
+                            title={rulePath(
+                              rule,
+                              host?.name || t("sourceMissing"),
+                              t("local"),
+                            )}
+                          >
+                            {rule.kind} ·{" "}
+                            {rulePath(
+                              rule,
+                              host?.name || t("sourceMissing"),
+                              t("local"),
+                            )}
+                          </small>
+                          <div className="rule-actions">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`${t("details")} ${rule.name}`}
+                              title={t("details")}
+                              onClick={() => setInspecting(rule.id)}
+                            >
+                              <InfoIcon />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`${t("edit")} ${rule.name}`}
+                              title={t("edit")}
+                              onClick={() => {
+                                setRuleSuspended(false);
+                                setRuleDraft(rule);
+                              }}
+                            >
+                              <Settings2Icon />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`${t("copyRule")} ${rule.name}`}
+                              title={t("copyRule")}
+                              onClick={() => {
+                                setRuleSuspended(false);
+                                setRuleDraft({
+                                  ...rule,
+                                  id: "",
+                                  name: rule.name + " (copy)",
+                                  bindPort: 0,
+                                  autoConnect: false,
+                                });
+                              }}
+                            >
+                              <CopyPlusIcon />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`${t("delete")} ${rule.name}`}
+                              title={t("delete")}
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20"
+                              onClick={() => setDeleting(rule)}
+                            >
+                              <Trash2Icon />
+                            </Button>
+                            <RunButton
+                              runtime={runtime}
+                              start={() => start(rule.id)}
+                              stop={() => void stop(rule.id)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </section>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        )}
+      </main>
+      <div className="app-footnote">
+        <NetworkIcon size={13} />
+        <span>
+          {active} {t("active")}
+        </span>
+        <span className="footnote-divider" />
+        <span>OriaTunnel</span>
+        {!!batchResults.length && page !== "tunnels" && (
+          <Button
+            className="batch-result-link"
+            variant="ghost"
+            size="sm"
+            onClick={() => setPage("tunnels")}
+          >
+            <span role="status">
+              {t("viewBatchResults", {
+                accepted: batchResults.filter((r) => r.accepted).length,
+                count: batchResults.length,
+              })}
+            </span>
+          </Button>
+        )}
+      </div>
+      {!!data.diagnostics.length && (
+        <div className="diagnostics overlay">
+          {data.diagnostics.map((d, i) => (
+            <div key={i}>{d === "browserPreview" ? t(d) : d}</div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="error-toast floating-surface" role="alert">
+          <div>{error}</div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("cancel")}
+            onClick={() => setError("")}
+          >
+            <XIcon />
+          </Button>
+        </div>
+      )}
+      {deleting && (
+        <Modal title={t("confirmDelete")} close={() => setDeleting(null)}>
+          <strong>{deleting.name}</strong>
+          <p className="muted">{t("deleteRuleHint")}</p>
+          <div className="form-actions">
+            <Button variant="ghost" onClick={() => setDeleting(null)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void action(() => bridge.deleteRule(deleting.id)).then((ok) => {
+                  if (ok) setDeleting(null);
+                })
+              }
+            >
+              {t("delete")}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {importing && (
+        <ImportConfig
+          previewFile={bridge.previewImport}
+          cancelPreview={bridge.cancelImport}
+          hosts={data.hosts}
+          busy={busy}
+          close={() => {
+            if (!busy) {
+              setImporting(false);
+              void bridge.cancelImport().catch((e) => setError(String(e)));
+            }
+          }}
+          submit={async (token, choices) => {
+            const ok = await action(() => bridge.commitImport(token, choices));
+            if (ok) setImporting(false);
+            return ok;
+          }}
+        />
+      )}
+      {settings && (
+        <Modal
+          title={t("settings")}
+          close={() => setSettings(false)}
+          className="max-w-3xl sm:max-w-3xl"
+        >
+          <h3>{t("appearance")}</h3>
+          <AppearanceSettings />
+          <h3>{t("window")}</h3>
+          <WindowSettings />
+          <h3>{t("discovery")}</h3>
+          <HostSourceSettings
+            data={data}
+            busy={busy || !bridge.desktop}
+            save={(files, autoSync) =>
+              action(() => bridge.setHostSources(files, autoSync))
+            }
+          />
+          <h3>{t("trayAndStartup")}</h3>
+          <ItemGroup className="settings-section-panel themed-surface gap-0 divide-y divide-border-strong/15 overflow-hidden rounded-xl">
+            <Item className="rounded-none border-0 px-3 py-2.5">
+              <ItemContent className="min-w-0">
+                <ItemTitle>
+                  <ParameterTitle
+                    label={t("closeToTray")}
+                    description={t("closeToTrayHint")}
+                    htmlFor="settings-close-to-tray"
+                  />
+                </ItemTitle>
+              </ItemContent>
+              <ItemActions>
+                <Switch
+                  id="settings-close-to-tray"
+                  checked={data.closeToTray}
+                  disabled={busy || !bridge.desktop}
+                  onCheckedChange={(checked) =>
+                    void action(() => bridge.setCloseToTray(checked))
+                  }
+                />
+              </ItemActions>
+            </Item>
+            <Item className="rounded-none border-0 px-3 py-2.5">
+              <ItemContent className="min-w-0">
+                <ItemTitle>
+                  <ParameterTitle
+                    label={t("autostart")}
+                    description={t("autostartHint")}
+                    htmlFor="settings-autostart"
+                  />
+                </ItemTitle>
+                {!data.autostartSupported && (
+                  <ItemDescription className="line-clamp-none text-xs">
+                    {t("autostartUnavailable")}
+                  </ItemDescription>
+                )}
+                {data.autostartError && (
+                  <ItemDescription
+                    className="line-clamp-none text-xs text-destructive"
+                    role="alert"
+                  >
+                    {data.autostartError}
+                  </ItemDescription>
+                )}
+              </ItemContent>
+              <ItemActions>
+                <Switch
+                  id="settings-autostart"
+                  checked={data.autostart}
+                  disabled={busy || !bridge.desktop || !data.autostartSupported}
+                  onCheckedChange={(checked) =>
+                    void action(() => bridge.setAutostart(checked))
+                  }
+                />
+              </ItemActions>
+            </Item>
+            <Item className="justify-end rounded-none border-0 px-3 py-2.5">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!bridge.desktop}
+                onClick={() => void action(bridge.quitApp)}
+              >
+                {t("quit")}
+              </Button>
+            </Item>
+          </ItemGroup>
+        </Modal>
+      )}
+      {inspected && (
+        <Modal title={inspected.name} close={() => setInspecting("")}>
+          <RuntimeDetails
+            rule={inspected}
+            runtime={data.runtimes.find((r) => r.ruleId === inspected.id)}
+            hostName={
+              data.hosts.find((h) => h.id === inspected.hostId)?.name ||
+              t("sourceMissing")
+            }
+          />
+        </Modal>
+      )}
+      {batchAuth && (
+        <Modal
+          title={t("batchStartTitle", { count: batchAuth.length })}
+          description={t("batchAuthHint")}
+          close={() => {
+            setBatchAuth(null);
+            setBatchSecrets({});
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ids = batchAuth;
+              const credentials = batchSecrets;
+              setBatchSecrets({});
+              setBatchAuth(null);
+              void action(async () =>
+                setBatchResults(await bridge.startBatch(ids, credentials)),
+              );
+            }}
+          >
+            {batchHosts.map((host) => (
+              <Field key={host.id} label={`${host.name} · ${t("password")}`}>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={batchSecrets[host.id] || ""}
+                  onChange={(e) =>
+                    setBatchSecrets({
+                      ...batchSecrets,
+                      [host.id]: e.target.value,
+                    })
+                  }
+                />
+              </Field>
+            ))}
+            <p className="muted">{t("batchAcceptedHint")}</p>
+            <div className="form-actions">
+              <Button type="submit" variant="primary-soft" disabled={busy}>
+                {t("startSelected")}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {exporting && (
+        <Modal
+          title={t("exportTitle", { count: exporting.length })}
+          close={() => setExporting(null)}
+        >
+          <p className="muted">{t("exportHint")}</p>
+          <div className="form-actions">
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void action(async () => {
+                  const path = await bridge.exportConfig(exporting);
+                  if (path) setExportPath(path);
+                  setExporting(null);
+                })
+              }
+            >
+              {t("chooseExportFile")}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {ruleDraft && !ruleSuspended && (
+        <Modal
+          title={t(ruleDraft.id ? "editForward" : "add")}
+          close={() => setRuleDraft(null)}
+        >
+          <RuleEditor
+            draft={ruleDraft}
+            hosts={managedHosts}
+            busy={busy}
+            reconnect={
+              !!data.rules.find(
+                (r) => r.id === ruleDraft.id && networkChanged(r, ruleDraft),
+              ) &&
+              data.runtimes.some(
+                (r) =>
+                  r.ruleId === ruleDraft.id &&
+                  !["failed", "stopped", "needs-attention"].includes(r.status),
+              )
+            }
+            onChange={setRuleDraft}
+            onCancel={() => setRuleDraft(null)}
+            onAddHost={() => openHostDiscovery(true)}
+            onManageHosts={() => {
+              setRuleSuspended(true);
+              setPage("hosts");
+            }}
+            onSave={(launch) => void saveDraft(launch)}
+          />
+        </Modal>
+      )}
+      {discovering && (
+        <HostDiscovery
+          hosts={data.hosts.filter((host) => !managedHostIds.has(host.id))}
+          diagnostics={data.diagnostics}
+          busy={busy}
+          available={bridge.desktop}
+          close={() => {
+            if (!busy) {
+              setDiscovering(false);
+              setHostFromRule(false);
+            }
+          }}
+          refresh={() => void refresh()}
+          manual={() => {
+            setDiscovering(false);
+            setHostDraft(emptyHost());
+          }}
+          select={async (id) => {
+            const candidate = data.hosts.find(
+              (host) => host.id === id && host.source === "config",
+            );
+            if (!candidate || busy) return;
+            const ok = await action(() => bridge.saveHostMetadata(candidate));
+            if (!ok) return;
+            setAddedInSession((ids) => (ids.includes(id) ? ids : [...ids, id]));
+            if (hostFromRule && ruleDraft)
+              setRuleDraft((current) => current && { ...current, hostId: id });
+            else {
+              setPage("hosts");
+              setSelectedHost(id);
+            }
+            setDiscovering(false);
+            setHostFromRule(false);
+          }}
+        />
+      )}
+      {hostDraft && (
+        <Modal
+          title={hostDraft.id ? t("edit") : t("newHost")}
+          close={closeHost}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveHostDraft(false);
+            }}
+          >
+            <Field label={t("name")}>
+              <Input
+                required
+                value={hostDraft.name}
+                onChange={(e) =>
+                  setHostDraft({ ...hostDraft, name: e.target.value })
+                }
+              />
+            </Field>
+            <Field label={t("address")}>
+              <Input
+                required
+                disabled={hostDraft.source === "config"}
+                value={hostDraft.address}
+                onChange={(e) =>
+                  setHostDraft({ ...hostDraft, address: e.target.value })
+                }
+              />
+            </Field>
+            <fieldset disabled={hostDraft.source === "config"}>
+              <div className="form-grid">
+                <Field label={t("port")}>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    required
+                    value={hostDraft.port}
+                    onChange={(e) =>
+                      setHostDraft({
+                        ...hostDraft,
+                        port: Number(e.target.value),
+                      })
+                    }
+                  />
+                </Field>
+                <Field label={t("user")}>
+                  <Input
+                    required
+                    value={hostDraft.user}
+                    onChange={(e) =>
+                      setHostDraft({ ...hostDraft, user: e.target.value })
+                    }
+                  />
+                </Field>
+              </div>
+              <IdentityFilesEditor
+                value={hostDraft.identityFiles}
+                disabled={busy || hostDraft.source === "config"}
+                pickFile={bridge.desktop ? bridge.pickIdentityFile : undefined}
+                onChange={(identityFiles) =>
+                  setHostDraft(
+                    (current) => current && { ...current, identityFiles },
+                  )
+                }
+              />
+              <Field label={t("authMethod")}>
+                <Select
+                  items={[
+                    { value: "auto", label: t("authAuto") },
+                    { value: "password", label: t("authPassword") },
+                    { value: "privateKey", label: t("authPrivateKey") },
+                    { value: "agent", label: t("authAgent") },
+                  ]}
+                  value={hostDraft.authMethod}
+                  onValueChange={(authMethod) =>
+                    authMethod &&
+                    setHostDraft({
+                      ...hostDraft,
+                      authMethod: authMethod as Host["authMethod"],
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectItem value="auto">{t("authAuto")}</SelectItem>
+                    <SelectItem value="password">
+                      {t("authPassword")}
+                    </SelectItem>
+                    <SelectItem value="privateKey">
+                      {t("authPrivateKey")}
+                    </SelectItem>
+                    <SelectItem value="agent" disabled={!data.agentSupported}>
+                      {t("authAgent")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <details className="advanced-fields">
+                <summary>{t("advanced")}</summary>
+                <div className="advanced-content">
+                  <ConnectionFields
+                    value={hostDraft.connection}
+                    onChange={(connection) =>
+                      setHostDraft({ ...hostDraft, connection })
+                    }
+                  />
+                  <div
+                    className="field"
+                    role="group"
+                    aria-label={t("proxyJump")}
+                  >
+                    <JumpRouteEditor
+                      hosts={managedHosts}
+                      hostId={hostDraft.id}
+                      value={hostDraft.proxyJump}
+                      disabled={busy || hostDraft.source === "config"}
+                      onChange={(proxyJump) =>
+                        setHostDraft({ ...hostDraft, proxyJump })
+                      }
+                    />
+                  </div>
+                  <ParameterField
+                    label={t("identityAgentTitle")}
+                    parameter="-o IdentityAgent"
+                    description={t("identityAgentHint")}
+                  >
+                    <Input
+                      value={hostDraft.identityAgent || ""}
+                      placeholder={t("systemDefault")}
+                      onChange={(e) =>
+                        setHostDraft({
+                          ...hostDraft,
+                          identityAgent: e.target.value || null,
+                        })
+                      }
+                    />
+                  </ParameterField>
+                  <ParameterSwitch
+                    label={t("identitiesOnlyTitle")}
+                    parameter="-o IdentitiesOnly"
+                    description={t("identitiesOnlyHint")}
+                    checked={hostDraft.identitiesOnly}
+                    onCheckedChange={(checked) =>
+                      setHostDraft({
+                        ...hostDraft,
+                        identitiesOnly: checked,
+                      })
+                    }
+                  />
+                </div>
+              </details>
+            </fieldset>
+            <HostTags
+              hosts={managedHosts}
+              value={hostDraft.tags}
+              onChange={(tags) => setHostDraft({ ...hostDraft, tags })}
+            />
+            {hostDraft.source === "config" && (
+              <p className="muted">{t("metadataHint")}</p>
+            )}
+            {duplicateHost && (
+              <div className="path-preview">
+                <p className="muted">
+                  {t("duplicateHost")} {duplicateHost.name}
+                </p>
+                {hostFromRule && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      if (ruleDraft)
+                        setRuleDraft({
+                          ...ruleDraft,
+                          hostId: duplicateHost.id,
+                        });
+                      closeHost();
+                    }}
+                  >
+                    {t("useExistingHost")}
+                  </Button>
+                )}
+              </div>
+            )}
+            <div className="form-actions">
+              <Button type="button" variant="ghost" onClick={closeHost}>
+                {t("cancel")}
+              </Button>
+              <Button
+                type="submit"
+                variant="primary-soft"
+                disabled={busy}
+                onClick={(e) => {
+                  if (e.currentTarget.form?.reportValidity()) {
+                    e.preventDefault();
+                    void saveHostDraft(true);
+                  }
+                }}
+              >
+                {t("saveTest")}
+              </Button>
+              <Button type="submit" disabled={busy}>
+                {t("save")}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {authId && (
+        <Modal
+          title={t("auth")}
+          description={t("authHelp")}
+          close={() => {
+            setAuthId(null);
+            setSecret("");
+            setJumpSecrets({});
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const id = authId;
+              const once = secret;
+              const jumps = jumpSecrets;
+              setJumpSecrets({});
+              setSecret("");
+              setAuthId(null);
+              void action(() =>
+                authHostId
+                  ? bridge.testHost(authHostId, once, jumps)
+                  : bridge.startRule(id, once, jumps),
+              );
+            }}
+          >
+            {jumpHosts(data.hosts, authTarget).map((h) => (
+              <Field key={h.id} label={h.name + " · " + t("password")}>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={jumpSecrets[h.id] || ""}
+                  onChange={(e) =>
+                    setJumpSecrets({ ...jumpSecrets, [h.id]: e.target.value })
+                  }
+                />
+              </Field>
+            ))}
+            <Field label={(authTarget?.name || "") + " · " + t("password")}>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+              />
+            </Field>
+            <div className="form-actions">
+              <Button type="submit" variant="primary-soft">
+                <KeyRoundIcon />
+                {t("start")}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {pending && (
+        <Modal
+          title={t("trust")}
+          description={t("trustHelp")}
+          close={() => void stop(pending.ruleId)}
+        >
+          <ShieldCheckIcon className="trust-icon" />
+          <strong>{pending.verificationEndpoint}</strong>
+          <code className="fingerprint">{pending.fingerprint}</code>
+          <div className="form-actions">
+            <Button
+              variant="destructive"
+              onClick={() => void stop(pending.ruleId)}
+            >
+              {t("trustReject")}
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void action(() =>
+                  bridge.trustHost(
+                    pending.ruleId,
+                    pending.runId,
+                    pending.fingerprint!,
+                  ),
+                )
+              }
+            >
+              {t("trustAccept")}
+            </Button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function Empty({ title, body }: { title: string; body?: string }) {
+  return (
+    <div className="empty">
+      <NetworkIcon size={36} strokeWidth={1} />
+      <h2>{title}</h2>
+      {body && <p>{body}</p>}
+    </div>
+  );
+}
+function RunButton({
+  runtime,
+  start,
+  stop,
+}: {
+  runtime?: Runtime;
+  start: () => void;
+  stop: () => void;
+}) {
+  const { t } = useTranslation("tunnel");
+  const active =
+    runtime &&
+    !["stopped", "failed", "needs-attention"].includes(runtime.status);
+  return (
+    <Button
+      className="nodrag nopan"
+      variant={active ? "destructive" : "primary-soft"}
+      size="sm"
+      onClick={active ? stop : start}
+      aria-label={t(active ? "stop" : "start")}
+    >
+      {active ? <SquareIcon size={14} /> : <PlayIcon size={14} />}{" "}
+      {t(active ? "stop" : "start")}
+    </Button>
+  );
+}
+function Hosts({
+  data,
+  busy,
+  selected,
+  setSelected,
+  onEdit,
+  onForward,
+  onDelete,
+  onCopy,
+  onTest,
+  onStopTest,
+}: {
+  data: Snapshot;
+  busy: boolean;
+  selected: string;
+  setSelected: (s: string) => void;
+  onEdit: (h: Host) => void;
+  onForward: (id: string) => void;
+  onTest: (id: string) => void;
+  onStopTest: (id: string) => void;
+  onDelete: (h: Host) => void;
+  onCopy: (h: Host) => void;
+}) {
+  const { t } = useTranslation("tunnel");
+  const [query, setQuery] = useState(""),
+    [filter, setFilter] = useState("all");
+  const [grouping, setGrouping] = useState<HostGrouping>("tags");
+  const list = data.hosts.filter(
+    (h) =>
+      (filter === "all" ||
+        (filter === "errors"
+          ? hostFilterStatus(
+              h,
+              data.runtimes.find(
+                (runtime) => runtime.ruleId === `host-test:${h.id}`,
+              ),
+            )?.startsWith("status-")
+          : hostFilterStatus(
+              h,
+              data.runtimes.find(
+                (runtime) => runtime.ruleId === `host-test:${h.id}`,
+              ),
+            ) === filter)) &&
+      `${h.name} ${h.address} ${h.port} ${h.user} ${h.tags.join(" ")}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+  );
+  const host = data.hosts.find((h) => h.id === selected);
+  const hostReferences = (h: Host) =>
+    data.rules.filter(
+      (r) =>
+        r.hostId === h.id ||
+        jumpHosts(
+          data.hosts,
+          data.hosts.find((h) => h.id === r.hostId),
+        ).some((jump) => jump.id === h.id),
+    );
+  const references = host ? hostReferences(host) : [];
+  const testRuntime = data.runtimes.find(
+    (r) => r.ruleId === "host-test:" + host?.id,
+  );
+  return (
+    <ScrollArea
+      className="page-scroll-area"
+      viewportClassName="page hosts-page scroll-fade"
+    >
+      <header className="hosts-page-heading">
+        <h1>{t("hosts")}</h1>
+        <span aria-live="polite">{t("hostCount", { count: list.length })}</span>
+      </header>
+      <HostToolbar
+        query={query}
+        filter={filter}
+        grouping={grouping}
+        onQuery={setQuery}
+        onFilter={setFilter}
+        onGrouping={setGrouping}
+      />
+      {!list.length ? (
+        <Empty
+          title={t(data.hosts.length ? "emptyResult" : "noHosts")}
+          body={t("noHostsBody")}
+        />
+      ) : (
+        <HostGroups
+          hosts={list}
+          runtimes={data.runtimes}
+          grouping={grouping}
+          selected={host?.id}
+          actions={(h, runtime) => {
+            const testing =
+              !!runtime &&
+              !["tested", "failed", "stopped", "needs-attention"].includes(
+                runtime.status,
+              );
+            const referenced = hostReferences(h).length > 0;
+            const usedAsJump = data.hosts.some(
+              (other) =>
+                other.id !== h.id &&
+                jumpHosts(data.hosts, other).some((jump) => jump.id === h.id),
+            );
+            const disabled = busy || !bridge.desktop;
+            return (
+              <>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={`${t("details")} ${h.name}`}
+                  aria-haspopup="dialog"
+                  title={t("details")}
+                  onClick={() => setSelected(h.id)}
+                >
+                  <InfoIcon />
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={disabled}
+                  aria-label={`${t("edit")} ${h.name}`}
+                  title={t("edit")}
+                  onClick={() => onEdit(h)}
+                >
+                  <Settings2Icon />
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20"
+                  disabled={disabled || referenced || usedAsJump || testing}
+                  aria-label={`${t("delete")} ${h.name}`}
+                  title={t(
+                    referenced
+                      ? "deleteHostHint"
+                      : usedAsJump
+                        ? "hostUsedAsJump"
+                        : "delete",
+                  )}
+                  onClick={() => onDelete(h)}
+                >
+                  <Trash2Icon />
+                </Button>
+                <HostTestButton
+                  hostName={h.name}
+                  runtime={runtime}
+                  disabled={disabled || (!!h.diagnostics.length && !testing)}
+                  onTest={() => onTest(h.id)}
+                  onStop={() => onStopTest(h.id)}
+                />
+              </>
+            );
+          }}
+        />
+      )}
+      {host && (
+        <Modal title={host.name} close={() => setSelected("")}>
+          <div className="host-detail">
+            <div className="host-detail-badges">
+              <span className="source-badge">
+                {t(hostAuthLabels[host.authMethod])}
+              </span>
+              {testRuntime ? (
+                <Status runtime={testRuntime} />
+              ) : (
+                <span className="status">
+                  <i />
+                  {t("untested")}
+                </span>
+              )}
+            </div>
+            {testRuntime?.message && (
+              <p
+                className={
+                  testRuntime.status === "tested"
+                    ? "host-test-success"
+                    : "inline-error"
+                }
+              >
+                {testRuntime.message}
+              </p>
+            )}
+            <dl>
+              <dt>{t("address")}</dt>
+              <dd>
+                {host.address}:{host.port}
+              </dd>
+              <dt>{t("user")}</dt>
+              <dd>{host.user}</dd>
+              <dt>{t("authMethod")}</dt>
+              <dd>
+                {t(
+                  {
+                    auto: "authAuto",
+                    password: "authPassword",
+                    privateKey: "authPrivateKey",
+                    agent: "authAgent",
+                  }[host.authMethod],
+                )}
+              </dd>
+              <dt>{t("proxyJump")}</dt>
+              <dd>
+                {jumpHosts(data.hosts, host)
+                  .map((h) => h.name)
+                  .join(" → ") ||
+                  host.proxyJump ||
+                  t("directConnection")}
+              </dd>
+              <dt>{t("identityAgentTitle")}</dt>
+              <dd>{host.identityAgent || t("systemDefault")}</dd>
+              <dt>{t("tags")}</dt>
+              <dd>{host.tags.join(", ") || "—"}</dd>
+              <dt>{t("connectTimeout")}</dt>
+              <dd>{host.connection.connectTimeoutSecs}</dd>
+              <dt>{t("keepaliveInterval")}</dt>
+              <dd>{host.connection.keepaliveIntervalSecs}</dd>
+              <dt>{t("keepaliveMax")}</dt>
+              <dd>{host.connection.keepaliveMax}</dd>
+              <dt>{t("identity")}</dt>
+              <dd>{host.identityFiles.join("\n") || "—"}</dd>
+              {host.sourceFile && (
+                <>
+                  <dt>{t("source")}</dt>
+                  <dd>{host.sourceFile}</dd>
+                </>
+              )}
+            </dl>
+            {!!Object.keys(host.fieldSources || {}).length && (
+              <details className="advanced-fields">
+                <summary>{t("fieldSources")}</summary>
+                <dl>
+                  {Object.entries(host.fieldSources || {}).map(
+                    ([field, source]) => (
+                      <div key={field}>
+                        <dt>{field}</dt>
+                        <dd>{source}</dd>
+                      </div>
+                    ),
+                  )}
+                </dl>
+              </details>
+            )}
+            {!!host.configuredForwards?.length && (
+              <details className="advanced-fields">
+                <summary>{t("sourceForwards")}</summary>
+                <p className="muted">{t("sourceForwardsHint")}</p>
+                {host.configuredForwards.map((forward, index) => (
+                  <p key={index} className="muted">
+                    {forward}
+                  </p>
+                ))}
+              </details>
+            )}
+            {host.source === "config" && (
+              <p className="muted">{t("sourceHint")}</p>
+            )}
+            {host.diagnostics.map((d, i) => (
+              <p className="inline-error" key={i}>
+                {d}
+              </p>
+            ))}
+            {!!references.length && (
+              <p className="muted">
+                {t("deleteHostHint")} {references.map((r) => r.name).join("、")}
+              </p>
+            )}
+            <div className="host-detail-actions">
+              {host.source === "config" && (
+                <Button
+                  variant="ghost"
+                  disabled={
+                    busy ||
+                    !bridge.desktop ||
+                    host.diagnostics.some((d) => !d.includes("来源已失效"))
+                  }
+                  onClick={() => onCopy(host)}
+                >
+                  {t("copyHost")}
+                </Button>
+              )}
+              <Button
+                disabled={busy || !bridge.desktop || !!host.diagnostics.length}
+                onClick={() => {
+                  onForward(host.id);
+                  setSelected("");
+                }}
+              >
+                <GitPullRequestCreateArrowIcon />
+                {t("createForward")}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </ScrollArea>
+  );
+}
+
+type CardData = {
+  local: boolean;
+  ports: CardPort[];
+  rules?: Rule[];
+  host?: Host;
+  runtimes?: Runtime[];
+  count?: number;
+  onAdd: () => void;
+  onStart: (id: string) => void;
+  onStop: (id: string) => unknown;
+  onEdit: (rule: Rule) => void;
+};
+type CardNode = Node<CardData, "card">;
+type CardPort = {
+  ruleId: string;
+  side: Position;
+  type: "source" | "target";
+  label: string;
+  name: string;
+  color: string;
+};
+function CardPorts({
+  ports,
+  local = false,
+  labels = true,
+}: {
+  ports: CardPort[];
+  local?: boolean;
+  labels?: boolean;
+}) {
+  return ports.map((port) => {
+    const peers = ports.filter((item) => item.side === port.side);
+    const index = peers.indexOf(port);
+    return (
+      <Handle
+        key={port.ruleId}
+        id={`${port.ruleId}-${port.type}-${port.side}`}
+        type={port.type}
+        position={port.side}
+        className="connection-port"
+        title={`${port.name} · ${port.label}`}
+        style={
+          {
+            top: local ? `${((index + 1) / (peers.length + 1)) * 100}%` : "50%",
+            "--connection-color": port.color,
+          } as CSSProperties
+        }
+      >
+        {labels && <span className="connection-port-label">{port.label}</span>}
+      </Handle>
+    );
+  });
+}
+function Card({ id, data: d }: NodeProps<CardNode>) {
+  const { t } = useTranslation("tunnel");
+  const updateInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => updateInternals(id));
+    return () => cancelAnimationFrame(frame);
+  }, [id, d, updateInternals]);
+  return (
+    <article
+      className={`tunnel-card themed-surface ${d.local ? "local-card" : "host-card"}`}
+    >
+      <div className="card-heading">
+        <span className="card-icon">
+          {d.local ? <LaptopIcon size={21} /> : <ServerIcon size={21} />}
+        </span>
+        <div>
+          <span className="eyebrow">
+            {d.local ? "LOCAL DEVICE" : "SSH HOST"}
+          </span>
+          <h2>{d.local ? t("local") : d.host?.name || t("sourceMissing")}</h2>
+        </div>
+        <span className="source-badge">
+          {d.local ? "LOCAL" : `${d.rules?.length || 0} ${t("tunnels")}`}
+        </span>
+      </div>
+      {d.local ? (
+        <>
+          <p className="muted">{t("localCaption")}</p>
+          <div
+            className="local-summary"
+            style={{
+              minHeight: Math.max(
+                76,
+                (Math.max(
+                  ...[Position.Left, Position.Right].map(
+                    (side) => d.ports.filter((p) => p.side === side).length,
+                  ),
+                ) +
+                  1) *
+                  26,
+              ),
+            }}
+          >
+            <div className="local-count">
+              <strong>{d.count || 0}</strong>
+              <span>{t("tunnels")}</span>
+            </div>
+            <CardPorts ports={d.ports} local />
+          </div>
+          <Button
+            className="nodrag nopan w-full"
+            variant="secondary"
+            disabled={!bridge.desktop}
+            onClick={d.onAdd}
+          >
+            <GitPullRequestCreateArrowIcon />
+            {t("add")}
+          </Button>
+        </>
+      ) : (
+        <>
+          {d.host && (
+            <div className="card-endpoint">
+              <code>
+                {d.host.user}@{d.host.address}:{d.host.port}
+              </code>
+            </div>
+          )}
+          <div className="host-card-rules">
+            {d.rules?.map((rule) => {
+              const runtime = d.runtimes?.find(
+                (item) => item.ruleId === rule.id,
+              );
+              return (
+                <section
+                  className="host-card-rule"
+                  key={rule.id}
+                  aria-label={rule.name}
+                  style={
+                    {
+                      "--connection-color":
+                        rule.color || "var(--oria-color-accent)",
+                    } as CSSProperties
+                  }
+                >
+                  <div className="host-rule-heading">
+                    <strong>{rule.name}</strong>
+                    <Status runtime={runtime} />
+                  </div>
+                  <small className="muted">{t(`type${rule.kind}`)}</small>
+                  <div className="port-path">
+                    <CardPorts
+                      ports={d.ports.filter((p) => p.ruleId === rule.id)}
+                      labels={false}
+                    />
+                    <code>
+                      {rule.bindAddress}:
+                      <span
+                        className={
+                          rule.kind === "R"
+                            ? "connection-port-number"
+                            : undefined
+                        }
+                      >
+                        {rule.bindPort}
+                      </span>
+                    </code>
+                    <ArrowRightIcon size={14} />
+                    <code>
+                      {rule.kind === "D" ? (
+                        <>
+                          SOCKS5 · SSH{" "}
+                          <span className="connection-port-number">
+                            {d.host?.port || 22}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {rule.targetHost}:
+                          <span
+                            className={
+                              rule.kind === "L"
+                                ? "connection-port-number"
+                                : undefined
+                            }
+                          >
+                            {rule.targetPort}
+                          </span>
+                        </>
+                      )}
+                    </code>
+                  </div>
+                  {runtime?.configurationChanged && (
+                    <p className="muted">{t("configUpdated")}</p>
+                  )}
+                  {runtime?.message && (
+                    <p className="inline-error">{runtime.message}</p>
+                  )}
+                  <div className="card-footer">
+                    <small>
+                      ↑ {bytes(runtime?.sent || 0)}　↓{" "}
+                      {bytes(runtime?.received || 0)}
+                    </small>
+                    <Button
+                      className="nodrag nopan"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`${t("edit")} ${rule.name}`}
+                      onClick={() => d.onEdit(rule)}
+                    >
+                      <Settings2Icon size={14} />
+                    </Button>
+                    <RunButton
+                      runtime={runtime}
+                      start={() => d.onStart(rule.id)}
+                      stop={() => void d.onStop(rule.id)}
+                    />
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+const nodeTypes = { card: Card };
+const edgeTypes = { connection: ConnectionEdge };
+function TunnelCanvas({
+  data,
+  onAdd,
+  onStart,
+  onStop,
+  onEdit,
+  focusRuleId,
+  onFocusDone,
+}: {
+  data: Snapshot;
+  onAdd: () => void;
+  onStart: (id: string) => void;
+  onStop: (id: string) => unknown;
+  onEdit: (rule: Rule) => void;
+  focusRuleId: string;
+  onFocusDone: () => void;
+}) {
+  const { t } = useTranslation("tunnel");
+  const flow = useReactFlow<CardNode>();
+  const nodesReady = useNodesInitialized();
+  useEffect(() => {
+    if (
+      focusRuleId &&
+      nodesReady &&
+      data.rules.some((r) => r.id === focusRuleId)
+    ) {
+      void flow
+        .fitView({
+          nodes: [
+            {
+              id: `host:${data.rules.find((r) => r.id === focusRuleId)!.hostId}`,
+            },
+          ],
+          padding: 0.5,
+          maxZoom: 1,
+          duration: 200,
+        })
+        .then(onFocusDone);
+    }
+  }, [focusRuleId, nodesReady, data.rules, flow, onFocusDone]);
+  const [initialViewport] = useState<Viewport | undefined>(() => {
+    try {
+      const value = JSON.parse(
+        localStorage.getItem("oria-tunnel-viewport") || "null",
+      );
+      return value &&
+        Number.isFinite(value.x) &&
+        Number.isFinite(value.y) &&
+        value.zoom >= 0.2 &&
+        value.zoom <= 2
+        ? value
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+  const [positions, setPositions] = useState<
+    Record<string, { x: number; y: number }>
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("oria-tunnel-layout") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const nodes = useMemo<CardNode[]>(() => {
+    const groups = groupRulesByHost(data.rules, data.hosts);
+    const layout = groupPositions(groups, positions);
+    const localPorts: CardPort[] = [];
+    const hostPorts: Record<string, CardPort[]> = {};
+    for (const group of groups) {
+      const hostSide =
+        layout[group.id].x < (positions.local?.x || 0)
+          ? Position.Right
+          : Position.Left;
+      hostPorts[group.id] = group.rules.map((rule) => {
+        const labels = connectionPorts(rule, group.host?.port);
+        const color = rule.color || "var(--oria-color-accent)";
+        localPorts.push({
+          ruleId: rule.id,
+          name: rule.name,
+          label: labels.local,
+          color,
+          side: hostSide === Position.Left ? Position.Right : Position.Left,
+          type: rule.kind === "R" ? "target" : "source",
+        });
+        return {
+          ruleId: rule.id,
+          name: rule.name,
+          label: labels.host,
+          color,
+          side: hostSide,
+          type: rule.kind === "R" ? "source" : "target",
+        };
+      });
+    }
+    return [
+      {
+        id: "local",
+        type: "card",
+        position: positions.local || { x: 0, y: 0 },
+        data: {
+          local: true,
+          ports: localPorts,
+          count: data.rules.length,
+          onAdd,
+          onStart,
+          onStop,
+          onEdit,
+        },
+      },
+      ...groups.map((group) => ({
+        id: group.id,
+        type: "card" as const,
+        position: layout[group.id],
+        data: {
+          local: false,
+          ports: hostPorts[group.id],
+          rules: group.rules,
+          host: group.host,
+          runtimes: data.runtimes,
+          onAdd,
+          onStart,
+          onStop,
+          onEdit,
+        },
+      })),
+    ];
+  }, [data, positions, onAdd, onStart, onStop, onEdit]);
+  const edges: Edge[] = data.rules.map((rule) => {
+    const runtime = data.runtimes.find((r) => r.ruleId === rule.id);
+    const hostNode = nodes.find((n) => n.id === `host:${rule.hostId}`)!;
+    const hostSide =
+      hostNode.position.x < nodes[0].position.x
+        ? Position.Right
+        : Position.Left;
+    const localSide =
+      hostSide === Position.Left ? Position.Right : Position.Left;
+    const visual = connectionVisual(rule, runtime);
+    return {
+      id: rule.id,
+      source: rule.kind === "R" ? hostNode.id : "local",
+      target: rule.kind === "R" ? "local" : hostNode.id,
+      sourceHandle: `${rule.id}-source-${rule.kind === "R" ? hostSide : localSide}`,
+      targetHandle: `${rule.id}-target-${rule.kind === "R" ? localSide : hostSide}`,
+      type: "connection",
+      data: { state: visual.state },
+      markerEnd: { type: MarkerType.ArrowClosed, color: visual.color },
+      className: `connection-edge connection-${visual.state}`,
+      style: { strokeWidth: 1.5, stroke: visual.color },
+    };
+  });
+  return (
+    <div className="canvas">
+      <div className="canvas-mask">
+        <ReactFlow<CardNode>
+          nodes={nodes}
+          defaultViewport={initialViewport}
+          onMoveEnd={(_, viewport) => {
+            try {
+              localStorage.setItem(
+                "oria-tunnel-viewport",
+                JSON.stringify(viewport),
+              );
+            } catch (error) {
+              console.error("Unable to save canvas viewport", error);
+            }
+          }}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={(changes) => {
+            const changed = changes.filter(
+              (c) => c.type === "position" && c.position,
+            );
+            if (changed.length)
+              setPositions((prev) => {
+                const next = { ...prev };
+                for (const c of changed)
+                  if (c.type === "position" && c.position)
+                    next[c.id] = c.position;
+                return next;
+              });
+          }}
+          onNodeDragStop={(_, node) => {
+            const next = { ...positions, [node.id]: node.position };
+            setPositions(next);
+            try {
+              localStorage.setItem("oria-tunnel-layout", JSON.stringify(next));
+            } catch (error) {
+              console.error("Unable to save canvas layout", error);
+            }
+          }}
+          onNodeDoubleClick={(_, node) =>
+            void flow.fitView({
+              nodes: [{ id: node.id }],
+              padding: 0.5,
+              duration: 200,
+              maxZoom: 1,
+            })
+          }
+          onEdgeClick={(_, edge) => {
+            const rule = data.rules.find((r) => r.id === edge.id);
+            if (rule) onEdit(rule);
+          }}
+          zoomOnDoubleClick={false}
+          onDoubleClick={(e) => {
+            if (
+              (e.target as HTMLElement).classList.contains("react-flow__pane")
+            )
+              void flow.fitView({ padding: 0.25, duration: 200, maxZoom: 1 });
+          }}
+          nodesConnectable={false}
+          proOptions={{ hideAttribution: true }}
+          deleteKeyCode={null}
+          minZoom={0.2}
+          maxZoom={2}
+          fitView={!initialViewport}
+          fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+        >
+          <Background gap={24} size={1} />
+        </ReactFlow>
+      </div>
+      {!data.rules.length && (
+        <div className="canvas-hint">
+          <span className="eyebrow">OriaTunnel</span>
+          <p>{t("empty")}</p>
+        </div>
+      )}
+      <div className="canvas-controls overlay">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("zoomOut")}
+          onClick={() => void flow.zoomOut()}
+        >
+          <ZoomOutIcon />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("fit")}
+          onClick={() => void flow.fitView({ padding: 0.25, maxZoom: 1 })}
+        >
+          <MaximizeIcon />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("zoomIn")}
+          onClick={() => void flow.zoomIn()}
+        >
+          <ZoomInIcon />
+        </Button>
+      </div>
+    </div>
+  );
+}

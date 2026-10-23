@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OriaTunnel",
+  "version": "0.1.0",
+  "identifier": "com.oria-tunnel",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "OriaTunnel",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 760,
+        "minHeight": 520,
+        "transparent": true,
+        "decorations": false,
+        "shadow": true,
+        "center": true,
+        "visible": false,
+        "acceptFirstMouse": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": { "active": false }
+}
