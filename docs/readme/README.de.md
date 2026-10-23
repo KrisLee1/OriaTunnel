@@ -48,18 +48,14 @@ Beispiel für den Zugriff auf eine Web-App auf dem SSH-Server: Wählen Sie **L**
 
 **Listener bereit** bedeutet, dass der Weiterleitungsendpunkt bereit ist. Die Verfügbarkeit des Dienstes hängt auch von der Zielanwendung, dem Netzwerk und den Berechtigungen ab. Bei Bedarf hilft der Abschnitt [Status und Fehlerbehebung (Chinesisch)](../USAGE.md#查看状态与排查问题).
 
-## OriaTunnel beziehen und starten
+## Herunterladen und installieren
 
-Der Quellcode für Windows und macOS ist verfügbar; in diesem Repository wurden noch keine Installationspakete veröffentlicht. Zum Starten aus dem Quellcode werden Node.js 22.12+, pnpm und Rust benötigt. Windows benötigt zusätzlich MSVC-C++-Buildtools und die WebView2 Runtime; macOS benötigt die Xcode Command Line Tools oder eine eingerichtete Xcode-Installation.
+Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
 
-Führen Sie diese Befehle im Stammverzeichnis des Repositorys aus:
+- **Windows:** Laden Sie das `.exe`-Installationsprogramm herunter und folgen Sie dem Installationsassistenten.
+- **macOS:** Laden Sie die `.dmg`-Datei herunter, öffnen Sie sie und ziehen Sie `OriaTunnel.app` in den Ordner **Programme (Applications)**. Wenn Sie eine `.zip`-Datei herunterladen, entpacken Sie zuerst die darin enthaltene `.dmg`-Datei.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
-
-`pnpm dev` öffnet nur eine Browservorschau. SSH-Verbindungen und das dauerhafte Speichern der Konfiguration erfordern die Desktop-App.
+Starten Sie OriaTunnel nach der Installation und folgen Sie dem [Schnellstart](#schnellstart), um einen SSH-Host hinzuzufügen und eine Weiterleitung zu erstellen. Für den täglichen Einsatz werden Node.js, pnpm und Rust nicht benötigt.
 
 ## Benutzerdokumentation
 

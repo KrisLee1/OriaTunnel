@@ -48,18 +48,14 @@ Par exemple, pour accéder à une application web sur votre serveur SSH, choisis
 
 L’état **En écoute** signifie que le point d’accès de la redirection est prêt. La disponibilité du service dépend aussi de l’application cible, du réseau et des autorisations. Au besoin, consultez la rubrique [État et dépannage (chinois)](../USAGE.md#查看状态与排查问题).
 
-## Obtenir et lancer OriaTunnel
+## Télécharger et installer
 
-Le code source pour Windows et macOS est disponible ; ce dépôt n’a pas encore publié de paquets d’installation. Pour lancer l’application depuis les sources, installez Node.js 22.12+, pnpm et Rust. Windows nécessite aussi les outils de compilation MSVC C++ et WebView2 Runtime ; macOS nécessite les Xcode Command Line Tools ou une installation de Xcode configurée.
+Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
 
-Exécutez ces commandes à la racine du dépôt :
+- **Windows :** téléchargez le programme d’installation `.exe` et suivez l’assistant d’installation.
+- **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
-
-`pnpm dev` ouvre uniquement un aperçu dans le navigateur. Les connexions SSH et l’enregistrement persistant de la configuration nécessitent l’application de bureau.
+Lancez OriaTunnel après l’installation, puis suivez la [prise en main](#prise-en-main) pour ajouter un hôte SSH et créer une redirection. L’utilisation quotidienne ne nécessite ni Node.js, ni pnpm, ni Rust.
 
 ## Documentation utilisateur
 

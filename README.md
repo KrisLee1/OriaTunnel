@@ -48,18 +48,14 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 端口转发桌面工具。通过
 
 「监听中」说明转发入口已就绪，服务是否可用还取决于目标服务、网络和访问权限。遇到问题请查看[状态与排错](docs/USAGE.md#查看状态与排查问题)。
 
-## 获取与运行
+## 下载与安装
 
-当前提供 Windows / macOS 源码，仓库尚未发布安装包。若要从源码运行，需要 Node.js 22.12+、pnpm 和 Rust；Windows 还需 MSVC C++ 构建工具及 WebView2 Runtime，macOS 需 Xcode Command Line Tools 或完成配置的 Xcode。
+前往 [Releases 下载页面](https://github.com/KrisLee1/OriaTunnel/releases)，选择适合操作系统和设备架构的安装包。
 
-在仓库根目录执行：
+- **Windows**：下载 `.exe` 安装程序，双击后按向导完成安装。
+- **macOS**：下载 `.dmg`，打开后将 `OriaTunnel.app` 拖入「应用程序」文件夹。如果下载的是 `.zip`，先解压出其中的 `.dmg` 再打开。
 
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
-
-`pnpm dev` 只提供浏览器预览；实际 SSH 连接和配置保存需要桌面应用。
+安装完成后启动 OriaTunnel，按[快速上手](#快速上手)添加 SSH 主机并创建转发。日常使用无需安装 Node.js、pnpm 或 Rust。
 
 ## 使用文档
 

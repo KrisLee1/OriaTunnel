@@ -2,7 +2,7 @@
 
 OriaTunnel 是用于管理 SSH 端口转发的桌面应用。你可以在连接图或转发列表中管理多个服务，分别启动、停止和查看连接状态。
 
-本指南面向日常使用，包含添加主机、创建转发、常见场景、配置迁移和问题排查。从源码运行的方法见 [README](../README.md#获取与运行)。当前提供 Windows / macOS 源码，仓库尚未发布安装包。
+本指南面向日常使用，包含添加主机、创建转发、常见场景、配置迁移和问题排查。下载安装说明见 [README](../README.md#下载与安装)；如需从源码运行或继续开发，请阅读[开发指南](DEVELOPMENT.md)。
 
 项目介绍：[简体中文](../README.md) · [繁體中文](readme/README.zh-TW.md) · [English](readme/README.en.md) · [日本語](readme/README.ja.md) · [한국어](readme/README.ko.md) · [Deutsch](readme/README.de.md) · [Français](readme/README.fr.md) · [Русский](readme/README.ru.md)
 

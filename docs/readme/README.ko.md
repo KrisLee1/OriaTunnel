@@ -48,18 +48,14 @@ SSH 주소, 포트, 사용자 이름, 인증 방식을 준비하세요. 접근�
 
 **수신 대기 중**은 포워딩 입구가 준비되었다는 뜻입니다. 실제 서비스 사용 가능 여부는 대상 애플리케이션, 네트워크, 접근 권한에도 달려 있습니다. 필요하면 [상태 확인 및 문제 해결(중국어)](../USAGE.md#查看状态与排查问题)을 참고하세요.
 
-## OriaTunnel 받기 및 실행
+## 다운로드 및 설치
 
-현재 Windows와 macOS 소스 코드를 제공하며, 이 저장소에서는 아직 설치 패키지를 배포하지 않았습니다. 소스에서 실행하려면 Node.js 22.12+, pnpm, Rust를 설치하세요. Windows에는 MSVC C++ 빌드 도구와 WebView2 Runtime이, macOS에는 Xcode Command Line Tools 또는 설정을 마친 Xcode가 추가로 필요합니다.
+[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
 
-저장소 루트에서 다음 명령을 실행하세요.
+- **Windows:** `.exe` 설치 프로그램을 다운로드하고 설치 마법사의 안내를 따르세요.
+- **macOS:** `.dmg`를 다운로드하여 연 다음 `OriaTunnel.app`을 **응용 프로그램** 폴더로 드래그하세요. `.zip`을 다운로드했다면 먼저 안에 있는 `.dmg`를 추출하세요.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
-
-`pnpm dev`는 브라우저 미리 보기만 제공합니다. SSH 연결과 설정 저장에는 데스크톱 앱이 필요합니다.
+설치 후 OriaTunnel을 실행하고 [빠른 시작](#빠른-시작)에 따라 SSH 호스트를 추가하고 포워딩을 만드세요. 일상적인 사용에는 Node.js, pnpm, Rust가 필요하지 않습니다.
 
 ## 사용자 문서
 

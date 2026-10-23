@@ -48,18 +48,14 @@ For example, to reach a web app on your SSH server, choose **L**, listen on `127
 
 **Listening** means the forwarding endpoint is ready. Service availability also depends on the target application, network, and permissions. See [status and troubleshooting (Chinese)](../USAGE.md#查看状态与排查问题) if needed.
 
-## Get and run OriaTunnel
+## Download and install
 
-Windows and macOS source code is available; this repository has not yet published installation packages. To run from source, install Node.js 22.12+, pnpm, and Rust. Windows also requires MSVC C++ build tools and the WebView2 Runtime; macOS requires Xcode Command Line Tools or a configured Xcode installation.
+Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases) and choose the package for your operating system and device architecture.
 
-Run these commands from the repository root:
+- **Windows:** download the `.exe` installer and follow the installation wizard.
+- **macOS:** download and open the `.dmg`, then drag `OriaTunnel.app` into **Applications**. If you download a `.zip`, extract the `.dmg` inside it first.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
-
-`pnpm dev` only opens a browser preview. SSH connections and configuration persistence require the desktop app.
+Launch OriaTunnel after installation, then follow the [quick start](#quick-start) to add an SSH host and create a forward. Everyday use does not require Node.js, pnpm, or Rust.
 
 ## User documentation
 
