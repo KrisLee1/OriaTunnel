@@ -92,22 +92,16 @@ export function themeWindowAppearance(
   variables: Record<string, string>,
   rootFontSize = 16,
 ): WindowAppearance {
-  const material = windowMaterialForSurfaceColor(
-    variables["--oria-color-surface-raised"] ?? "",
+  const opacity = Math.round(
+    (parseOpacity(variables["--oria-opacity-overlay"] ?? "") ?? 0.82) * 100,
   )
-  const translucent = material === "translucent"
-  const opacity = translucent
-    ? Math.round((parseOpacity(variables["--oria-opacity-overlay"] ?? "") ?? 0.82) * 100)
-    : 100
-  const blurRadius = translucent
-    ? Math.round(
-        clamp(
-          parseUnit(variables["--oria-backdrop-blur-2xl"] ?? "", rootFontSize) ?? 0,
-          0,
-          64,
-        ),
-      )
-    : 0
+  const blurRadius = Math.round(
+    clamp(
+      parseUnit(variables["--oria-backdrop-blur-2xl"] ?? "", rootFontSize) ?? 0,
+      0,
+      64,
+    ),
+  )
   const innerRadius = parseUnit(variables["--oria-radius-xl"] ?? "", rootFontSize) ?? 12
   const edgeInset =
     (parseUnit(variables["--oria-space"] ?? "", rootFontSize) ?? 4)

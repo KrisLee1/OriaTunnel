@@ -1,6 +1,7 @@
 //! Strict portable-package boundary. No trust, runtime, command, or credential input.
 use crate::model::{
-    AuthMethod, ConnectionOptions, ForwardKind, Host, ReconnectPolicy, Rule, Snapshot,
+    AuthMethod, ConnectionOptions, ForwardKind, Host, ReconnectPolicy, Rule, RuleIcon,
+    ServiceProtocol, Snapshot,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -95,9 +96,13 @@ struct PortableHost {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PortableRule {
+    #[serde(default)]
+    icon: Option<RuleIcon>,
     id: String,
     name: String,
     color: Option<String>,
+    #[serde(default)]
+    service_protocol: Option<ServiceProtocol>,
     host_id: String,
     kind: ForwardKind,
     bind_address: String,
@@ -299,6 +304,8 @@ impl PortableRule {
             name: self.name.clone(),
             kind: self.kind,
             color: self.color.clone(),
+            icon: self.icon.clone(),
+            service_protocol: self.service_protocol,
             bind_address: self.bind_address.clone(),
             bind_port: self.bind_port,
             target_host: self.target_host.clone(),
@@ -575,6 +582,7 @@ mod tests {
             id: "rule".into(),
             name: "Forward".into(),
             color: Some("#7c3aed".into()),
+            service_protocol: Some(ServiceProtocol::Https),
             host_id: "host".into(),
             bind_port: 15432,
             target_host: "localhost".into(),
@@ -594,6 +602,92 @@ mod tests {
     }
     fn parsed(value: &serde_json::Value) -> Result<Package, String> {
         parse(&serde_json::to_vec(value).unwrap())
+    }
+    #[test]
+    fn icons_round_trip_and_invalid_icons_are_rejected() {
+        for icon in [
+            serde_json::Value::Null,
+            serde_json::json!({"kind":"builtin", "value":"database"}),
+            serde_json::json!({"kind":"emoji", "value":"👩🏽‍💻"}),
+        ] {
+            let mut value = fixture();
+            value["rules"][0]["icon"] = icon.clone();
+            let package = parsed(&value).unwrap();
+            let plan = package
+                .prepare(
+                    &Snapshot::default(),
+                    &Choices {
+                        rule_ids: vec!["rule".into()],
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            assert_eq!(serde_json::to_value(&plan.rules[0].icon).unwrap(), icon);
+            let exported_ids = plan
+                .rules
+                .iter()
+                .map(|rule| rule.id.clone())
+                .collect::<Vec<_>>();
+            let exported = crate::config_export::package(
+                &Snapshot {
+                    hosts: plan.hosts,
+                    rules: plan.rules,
+                    ..Default::default()
+                },
+                &exported_ids,
+                false,
+            )
+            .unwrap();
+            assert_eq!(exported["rules"][0]["icon"], icon);
+        }
+        let mut value = fixture();
+        value["rules"][0].as_object_mut().unwrap().remove("icon");
+        assert!(parsed(&value).unwrap().rules[0].icon.is_none());
+        for icon in [
+            serde_json::json!({"kind":"builtin", "value":"missing"}),
+            serde_json::json!({"kind":"url", "value":"https://example.invalid/icon.svg"}),
+            serde_json::json!({"kind":"emoji", "value":"🚀🚀"}),
+            serde_json::json!({"kind":"emoji", "value":"🚀", "extra":"rejected"}),
+        ] {
+            value["rules"][0]["icon"] = icon;
+            assert!(parsed(&value).is_err());
+        }
+    }
+    #[test]
+    fn service_protocols_round_trip_and_missing_protocol_stays_unselected() {
+        for protocol in [
+            serde_json::Value::Null,
+            "http".into(),
+            "https".into(),
+            "vnc".into(),
+        ] {
+            let mut value = fixture();
+            value["rules"][0]["serviceProtocol"] = protocol.clone();
+            let package = parsed(&value).unwrap();
+            let plan = package
+                .prepare(
+                    &Snapshot::default(),
+                    &Choices {
+                        rule_ids: vec!["rule".into()],
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            assert_eq!(
+                serde_json::to_value(plan.rules[0].service_protocol).unwrap(),
+                protocol
+            );
+        }
+        let mut value = fixture();
+        value["rules"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("serviceProtocol");
+        assert!(parsed(&value).unwrap().rules[0].service_protocol.is_none());
+        for invalid in ["ftp", "javascript", "https://example.invalid", "VNC"] {
+            value["rules"][0]["serviceProtocol"] = invalid.into();
+            assert!(parsed(&value).is_err());
+        }
     }
     #[test]
     fn round_trip_remaps_dependencies_and_cannot_restore_startup_trust_or_commands() {
@@ -625,6 +719,7 @@ mod tests {
         assert_eq!(plan.hosts.len(), 2);
         assert_eq!(plan.rules.len(), 1);
         assert_eq!(plan.rules[0].color.as_deref(), Some("#7c3aed"));
+        assert_eq!(plan.rules[0].service_protocol, Some(ServiceProtocol::Https));
         let mut invalid_color = value.clone();
         invalid_color["rules"][0]["color"] = "url(secret)".into();
         assert!(parsed(&invalid_color).is_err());

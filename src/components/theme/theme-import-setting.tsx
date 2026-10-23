@@ -14,6 +14,7 @@ import { ThemePaletteIcon } from "@/components/theme/theme-select"
 import { themeTransitionOptionsFromAnchor } from "@/components/theme/theme-transition"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/toast"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -89,7 +90,7 @@ export function ThemeImportSetting() {
       setImportedFile({ fileName: file.name, theme: result.theme })
       setName(result.theme.name)
     } catch {
-      setError(t("theme.import.errors.readFailed"))
+      toast.add({ title: t("theme.import.errors.readFailed"), type: "error", timeout: 6000 })
     } finally {
       if (inputRef.current) inputRef.current.value = ""
     }
@@ -97,7 +98,7 @@ export function ThemeImportSetting() {
 
   useNativeFileDrop(dropRef, open, paths => {
     if (paths[0]) void readNativeDroppedFile(paths[0], MAX_THEME_FILE_BYTES, "application/json")
-      .then(loadFile).catch(() => setError(t("theme.import.errors.readFailed")))
+      .then(loadFile).catch(() => toast.add({ title: t("theme.import.errors.readFailed"), type: "error", timeout: 6000 }))
   }, setDragging)
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -147,7 +148,7 @@ export function ThemeImportSetting() {
       )
       handleOpenChange(false)
     } catch {
-      setError(t("theme.import.errors.addFailed"))
+      toast.add({ title: t("theme.import.errors.addFailed"), type: "error", timeout: 6000 })
     }
   }
 

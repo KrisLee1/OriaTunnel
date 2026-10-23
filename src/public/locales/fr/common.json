@@ -1512,7 +1512,8 @@
     "system": "Système",
     "light": "Lumière",
     "dark": "Dans le noir",
-    "mono": "Mono"
+    "mono": "Mono",
+    "applyFailed": "Impossible de modifier l’icône de l’application"
   },
   "theme": {
     "label": "Thème",

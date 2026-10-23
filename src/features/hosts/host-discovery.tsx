@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import {
   CheckIcon,
   LoaderCircleIcon,
@@ -12,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Host } from "@/types";
 import { hostAuthLabels } from "./host-auth";
+
+const AnimatedRefreshIcon = motion.create(RefreshCwIcon);
 
 export function discoveredHosts(hosts: Host[], query: string) {
   const term = query.trim().toLocaleLowerCase();
@@ -46,6 +49,8 @@ export function HostDiscovery({
   const { t } = useTranslation("tunnel");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("");
+  const [refreshTurns, setRefreshTurns] = useState(0);
+  const reducedMotion = useReducedMotion();
   const list = discoveredHosts(hosts, query);
   const choice = list.find((host) => host.id === selected);
   return (
@@ -136,12 +141,16 @@ export function HostDiscovery({
           aria-label={t("refresh")}
           title={t("refresh")}
           disabled={busy || !available}
-          onClick={refresh}
+          onClick={() => {
+            setRefreshTurns((turns) => turns + 1);
+            refresh();
+          }}
         >
-          <RefreshCwIcon
-            className={
-              busy ? "animate-spin motion-reduce:animate-none" : undefined
-            }
+          <AnimatedRefreshIcon
+            aria-hidden="true"
+            initial={false}
+            animate={{ rotate: refreshTurns * 360 }}
+            transition={{ duration: reducedMotion ? 0 : 0.45, ease: "easeInOut" }}
           />
         </Button>
         <Button

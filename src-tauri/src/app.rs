@@ -9,6 +9,7 @@ use tokio::{sync::oneshot, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 struct Worker {
+    rule: Rule,
     cancel: CancellationToken,
     join: JoinHandle<()>,
 }
@@ -278,13 +279,13 @@ impl AppState {
             },
             revision: self.revision.load(std::sync::atomic::Ordering::SeqCst),
             close_to_tray: config.close_to_tray,
-            agent_supported: cfg!(windows),
+            agent_supported: cfg!(any(windows, target_os = "macos")),
             source_files: config.source_files.clone(),
             auto_sync_hosts: config.auto_sync_hosts,
             activity: self.activity.lock().unwrap().records(),
             undo_count: self.deleted.lock().unwrap().len(),
             autostart: startup.as_ref().copied().unwrap_or(false),
-            autostart_supported: cfg!(windows) && !cfg!(dev),
+            autostart_supported: crate::long_running::AUTOSTART_SUPPORTED,
             autostart_error: startup.err(),
         }
     }
@@ -800,7 +801,7 @@ pub fn password_status(
             let result = state.vault.read(host);
             PasswordStatus {
                 id: host.id.clone(),
-                supported: cfg!(windows),
+                supported: crate::credentials::SUPPORTED,
                 saved: result.as_ref().is_ok_and(|s| s.is_some()),
                 error: result.err().or_else(|| {
                     state
@@ -1094,6 +1095,7 @@ async fn launch(
             }
         })
     };
+    let active_rule = rule.clone();
     let join = tauri::async_runtime::spawn(crate::supervisor::run_with_password_observer(
         tunnel::RunRequest {
             host,
@@ -1115,8 +1117,49 @@ async fn launch(
     let join = tokio::spawn(async move {
         let _ = join.await;
     });
-    workers.insert(id, Worker { cancel, join });
+    workers.insert(
+        id,
+        Worker {
+            rule: active_rule,
+            cancel,
+            join,
+        },
+    );
     Ok(())
+}
+// Use the existing native shell opener, with a dedicated fixed-scheme boundary.
+#[allow(deprecated)]
+#[tauri::command]
+pub async fn open_service(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+    let workers = state.workers.lock().await;
+    let worker = workers.get(&id).ok_or("请先启动转发")?;
+    let snapshot = state.snapshot();
+    let rule = snapshot
+        .rules
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or("转发不存在")?;
+    if !rule.same_connection(&worker.rule) {
+        return Err("转发配置已更改，请重新连接后打开服务".into());
+    }
+    let runtime = snapshot
+        .runtimes
+        .iter()
+        .find(|r| r.rule_id == id)
+        .ok_or("请先启动转发")?;
+    let host = runtime
+        .host_snapshot
+        .as_ref()
+        .ok_or("缺少运行中的主机信息")?;
+    let url = crate::service::service_url(rule, host, runtime)?;
+    app.shell()
+        .open(url, None)
+        .map_err(|e| format!("无法打开服务：{e}"))
 }
 #[tauri::command]
 pub async fn stop_rule(
@@ -1407,8 +1450,8 @@ pub fn set_autostart(
     app: tauri::AppHandle,
     enabled: bool,
 ) -> Result<Snapshot, String> {
-    if !cfg!(windows) || cfg!(dev) {
-        return Err("登录启动仅在 Windows 发布构建可用，开发构建依赖本地开发服务器".into());
+    if !crate::long_running::AUTOSTART_SUPPORTED {
+        return Err("当前无法开启开机自启".into());
     }
     crate::long_running::set(enabled)?;
     let actual = crate::long_running::read();
@@ -1544,6 +1587,7 @@ mod tests {
             state.workers.lock().await.insert(
                 id.into(),
                 Worker {
+                    rule: Rule::default(),
                     cancel,
                     join: tokio::spawn(async move {
                         waiting.cancelled().await;
@@ -1846,6 +1890,7 @@ mod tests {
             state.workers.lock().await.insert(
                 id.into(),
                 Worker {
+                    rule: Rule::default(),
                     cancel: token,
                     join: tokio::spawn(async move {
                         c.cancelled().await;

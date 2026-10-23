@@ -4,3 +4,5 @@ src-tauri/target/
 src-tauri/gen/
 outputs/
 *.local
+.DS_Store
+.pnpm-store/

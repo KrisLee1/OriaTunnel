@@ -1,0 +1,646 @@
+{
+  "icons": [
+    {
+      "id": "server",
+      "zh": "服务器",
+      "en": "Server"
+    },
+    {
+      "id": "database",
+      "zh": "数据库",
+      "en": "Database"
+    },
+    {
+      "id": "globe",
+      "zh": "网站",
+      "en": "Website"
+    },
+    {
+      "id": "terminal",
+      "zh": "终端",
+      "en": "Terminal"
+    },
+    {
+      "id": "code",
+      "zh": "代码",
+      "en": "Code"
+    },
+    {
+      "id": "braces",
+      "zh": "接口 API",
+      "en": "API"
+    },
+    {
+      "id": "monitor",
+      "zh": "桌面",
+      "en": "Desktop"
+    },
+    {
+      "id": "laptop",
+      "zh": "笔记本",
+      "en": "Laptop"
+    },
+    {
+      "id": "smartphone",
+      "zh": "手机",
+      "en": "Phone"
+    },
+    {
+      "id": "network",
+      "zh": "网络",
+      "en": "Network"
+    },
+    {
+      "id": "router",
+      "zh": "路由器",
+      "en": "Router"
+    },
+    {
+      "id": "wifi",
+      "zh": "无线网络",
+      "en": "Wi-Fi"
+    },
+    {
+      "id": "cable",
+      "zh": "连接线",
+      "en": "Cable"
+    },
+    {
+      "id": "plug",
+      "zh": "插头",
+      "en": "Plug"
+    },
+    {
+      "id": "cloud",
+      "zh": "云服务",
+      "en": "Cloud"
+    },
+    {
+      "id": "container",
+      "zh": "容器 Docker",
+      "en": "Container Docker"
+    },
+    {
+      "id": "boxes",
+      "zh": "集群",
+      "en": "Cluster"
+    },
+    {
+      "id": "hard-drive",
+      "zh": "硬盘",
+      "en": "Hard drive"
+    },
+    {
+      "id": "folder",
+      "zh": "文件夹",
+      "en": "Folder"
+    },
+    {
+      "id": "file",
+      "zh": "文件",
+      "en": "File"
+    },
+    {
+      "id": "archive",
+      "zh": "归档",
+      "en": "Archive"
+    },
+    {
+      "id": "shield",
+      "zh": "安全",
+      "en": "Security"
+    },
+    {
+      "id": "lock",
+      "zh": "锁",
+      "en": "Lock"
+    },
+    {
+      "id": "key",
+      "zh": "密钥",
+      "en": "Key"
+    },
+    {
+      "id": "fingerprint",
+      "zh": "指纹",
+      "en": "Fingerprint"
+    },
+    {
+      "id": "eye",
+      "zh": "监控",
+      "en": "Monitoring"
+    },
+    {
+      "id": "activity",
+      "zh": "状态监测",
+      "en": "Activity"
+    },
+    {
+      "id": "chart",
+      "zh": "仪表盘",
+      "en": "Dashboard"
+    },
+    {
+      "id": "gauge",
+      "zh": "性能",
+      "en": "Performance"
+    },
+    {
+      "id": "cpu",
+      "zh": "处理器",
+      "en": "CPU"
+    },
+    {
+      "id": "memory",
+      "zh": "内存",
+      "en": "Memory"
+    },
+    {
+      "id": "bot",
+      "zh": "机器人 AI",
+      "en": "Bot AI"
+    },
+    {
+      "id": "brain",
+      "zh": "人工智能",
+      "en": "Artificial intelligence"
+    },
+    {
+      "id": "search",
+      "zh": "搜索",
+      "en": "Search"
+    },
+    {
+      "id": "mail",
+      "zh": "邮件",
+      "en": "Mail"
+    },
+    {
+      "id": "message",
+      "zh": "消息",
+      "en": "Message"
+    },
+    {
+      "id": "video",
+      "zh": "视频",
+      "en": "Video"
+    },
+    {
+      "id": "music",
+      "zh": "音乐",
+      "en": "Music"
+    },
+    {
+      "id": "image",
+      "zh": "图片",
+      "en": "Image"
+    },
+    {
+      "id": "gamepad",
+      "zh": "游戏",
+      "en": "Game"
+    },
+    {
+      "id": "git-branch",
+      "zh": "分支 Git",
+      "en": "Git branch"
+    },
+    {
+      "id": "git-pull",
+      "zh": "合并请求",
+      "en": "Pull request"
+    },
+    {
+      "id": "package",
+      "zh": "软件包",
+      "en": "Package"
+    },
+    {
+      "id": "wrench",
+      "zh": "工具",
+      "en": "Tools"
+    },
+    {
+      "id": "settings",
+      "zh": "设置",
+      "en": "Settings"
+    },
+    {
+      "id": "flask",
+      "zh": "测试环境",
+      "en": "Testing"
+    },
+    {
+      "id": "rocket",
+      "zh": "发布",
+      "en": "Deploy"
+    },
+    {
+      "id": "zap",
+      "zh": "快速",
+      "en": "Fast"
+    },
+    {
+      "id": "star",
+      "zh": "收藏",
+      "en": "Favorite"
+    },
+    {
+      "id": "heart",
+      "zh": "喜爱",
+      "en": "Heart"
+    },
+    {
+      "id": "home",
+      "zh": "家庭",
+      "en": "Home"
+    },
+    {
+      "id": "building",
+      "zh": "办公",
+      "en": "Office"
+    },
+    {
+      "id": "coffee",
+      "zh": "咖啡",
+      "en": "Coffee"
+    },
+    {
+      "id": "leaf",
+      "zh": "开发环境",
+      "en": "Development"
+    },
+    {
+      "id": "layers",
+      "zh": "分层",
+      "en": "Layers"
+    },
+    {
+      "id": "workflow",
+      "zh": "工作流",
+      "en": "Workflow"
+    }
+  ],
+  "emojis": [
+    {
+      "value": "🖥️",
+      "zh": "桌面",
+      "en": "Desktop"
+    },
+    {
+      "value": "💻",
+      "zh": "电脑",
+      "en": "Computer"
+    },
+    {
+      "value": "📱",
+      "zh": "手机",
+      "en": "Phone"
+    },
+    {
+      "value": "🌐",
+      "zh": "网站",
+      "en": "Web"
+    },
+    {
+      "value": "🗄️",
+      "zh": "数据库",
+      "en": "Database"
+    },
+    {
+      "value": "📦",
+      "zh": "容器",
+      "en": "Container"
+    },
+    {
+      "value": "🐳",
+      "zh": "Docker 鲸鱼",
+      "en": "Docker whale"
+    },
+    {
+      "value": "☁️",
+      "zh": "云",
+      "en": "Cloud"
+    },
+    {
+      "value": "🚀",
+      "zh": "火箭 发布",
+      "en": "Rocket deploy"
+    },
+    {
+      "value": "⚡",
+      "zh": "闪电 快速",
+      "en": "Lightning fast"
+    },
+    {
+      "value": "🔒",
+      "zh": "锁 安全",
+      "en": "Lock security"
+    },
+    {
+      "value": "🔑",
+      "zh": "钥匙",
+      "en": "Key"
+    },
+    {
+      "value": "🛡️",
+      "zh": "盾牌",
+      "en": "Shield"
+    },
+    {
+      "value": "🔐",
+      "zh": "加密",
+      "en": "Encryption"
+    },
+    {
+      "value": "🔗",
+      "zh": "链接",
+      "en": "Link"
+    },
+    {
+      "value": "🔌",
+      "zh": "插头",
+      "en": "Plug"
+    },
+    {
+      "value": "📡",
+      "zh": "天线 网络",
+      "en": "Antenna network"
+    },
+    {
+      "value": "🛰️",
+      "zh": "卫星",
+      "en": "Satellite"
+    },
+    {
+      "value": "🏠",
+      "zh": "家庭",
+      "en": "Home"
+    },
+    {
+      "value": "🏢",
+      "zh": "办公",
+      "en": "Office"
+    },
+    {
+      "value": "🧪",
+      "zh": "测试",
+      "en": "Test"
+    },
+    {
+      "value": "🛠️",
+      "zh": "工具",
+      "en": "Tools"
+    },
+    {
+      "value": "⚙️",
+      "zh": "设置",
+      "en": "Settings"
+    },
+    {
+      "value": "🔧",
+      "zh": "扳手",
+      "en": "Wrench"
+    },
+    {
+      "value": "🤖",
+      "zh": "机器人 AI",
+      "en": "Robot AI"
+    },
+    {
+      "value": "🧠",
+      "zh": "大脑",
+      "en": "Brain"
+    },
+    {
+      "value": "📊",
+      "zh": "图表",
+      "en": "Chart"
+    },
+    {
+      "value": "📈",
+      "zh": "趋势",
+      "en": "Trend"
+    },
+    {
+      "value": "🔍",
+      "zh": "搜索",
+      "en": "Search"
+    },
+    {
+      "value": "📁",
+      "zh": "文件夹",
+      "en": "Folder"
+    },
+    {
+      "value": "📂",
+      "zh": "打开文件夹",
+      "en": "Open folder"
+    },
+    {
+      "value": "📝",
+      "zh": "笔记",
+      "en": "Notes"
+    },
+    {
+      "value": "📚",
+      "zh": "文档",
+      "en": "Documentation"
+    },
+    {
+      "value": "💾",
+      "zh": "保存",
+      "en": "Save"
+    },
+    {
+      "value": "🗃️",
+      "zh": "归档",
+      "en": "Archive"
+    },
+    {
+      "value": "📬",
+      "zh": "邮件",
+      "en": "Mail"
+    },
+    {
+      "value": "💬",
+      "zh": "聊天",
+      "en": "Chat"
+    },
+    {
+      "value": "🔔",
+      "zh": "通知",
+      "en": "Notification"
+    },
+    {
+      "value": "🎮",
+      "zh": "游戏",
+      "en": "Game"
+    },
+    {
+      "value": "🎵",
+      "zh": "音乐",
+      "en": "Music"
+    },
+    {
+      "value": "🎬",
+      "zh": "视频",
+      "en": "Video"
+    },
+    {
+      "value": "📷",
+      "zh": "相机",
+      "en": "Camera"
+    },
+    {
+      "value": "🎨",
+      "zh": "设计",
+      "en": "Design"
+    },
+    {
+      "value": "🧩",
+      "zh": "插件",
+      "en": "Plugin"
+    },
+    {
+      "value": "🌍",
+      "zh": "地球",
+      "en": "Earth"
+    },
+    {
+      "value": "🌙",
+      "zh": "月亮",
+      "en": "Moon"
+    },
+    {
+      "value": "☀️",
+      "zh": "太阳",
+      "en": "Sun"
+    },
+    {
+      "value": "⭐",
+      "zh": "星星",
+      "en": "Star"
+    },
+    {
+      "value": "🔥",
+      "zh": "火 热门",
+      "en": "Fire"
+    },
+    {
+      "value": "💎",
+      "zh": "钻石",
+      "en": "Diamond"
+    },
+    {
+      "value": "❤️",
+      "zh": "爱心",
+      "en": "Heart"
+    },
+    {
+      "value": "✅",
+      "zh": "完成",
+      "en": "Done"
+    },
+    {
+      "value": "🎯",
+      "zh": "目标",
+      "en": "Target"
+    },
+    {
+      "value": "🚦",
+      "zh": "信号灯",
+      "en": "Traffic light"
+    },
+    {
+      "value": "🏷️",
+      "zh": "标签",
+      "en": "Tag"
+    },
+    {
+      "value": "🧭",
+      "zh": "指南针",
+      "en": "Compass"
+    },
+    {
+      "value": "🌱",
+      "zh": "开发",
+      "en": "Development"
+    },
+    {
+      "value": "🌲",
+      "zh": "生产",
+      "en": "Production"
+    },
+    {
+      "value": "🐧",
+      "zh": "Linux 企鹅",
+      "en": "Linux penguin"
+    },
+    {
+      "value": "🍎",
+      "zh": "苹果 macOS",
+      "en": "Apple macOS"
+    },
+    {
+      "value": "🪟",
+      "zh": "Windows 窗口",
+      "en": "Windows"
+    },
+    {
+      "value": "☕",
+      "zh": "Java 咖啡",
+      "en": "Java coffee"
+    },
+    {
+      "value": "🐍",
+      "zh": "Python 蛇",
+      "en": "Python snake"
+    },
+    {
+      "value": "🦀",
+      "zh": "Rust 螃蟹",
+      "en": "Rust crab"
+    },
+    {
+      "value": "🐘",
+      "zh": "PostgreSQL 大象",
+      "en": "PostgreSQL elephant"
+    },
+    {
+      "value": "🍃",
+      "zh": "MongoDB 叶子",
+      "en": "MongoDB leaf"
+    },
+    {
+      "value": "🍓",
+      "zh": "树莓派",
+      "en": "Raspberry Pi"
+    },
+    {
+      "value": "🦊",
+      "zh": "狐狸",
+      "en": "Fox"
+    },
+    {
+      "value": "🐱",
+      "zh": "猫",
+      "en": "Cat"
+    },
+    {
+      "value": "🐶",
+      "zh": "狗",
+      "en": "Dog"
+    },
+    {
+      "value": "🐰",
+      "zh": "兔子",
+      "en": "Rabbit"
+    },
+    {
+      "value": "🦄",
+      "zh": "独角兽",
+      "en": "Unicorn"
+    }
+  ]
+}

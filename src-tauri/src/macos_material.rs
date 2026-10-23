@@ -8,11 +8,13 @@ use objc2_app_kit::{NSColor, NSWindow};
 use objc2_foundation::{NSRect, NSString};
 static BACKDROP_LAYER_ASSOCIATION_KEY: u8 = 0;
 static BACKDROP_HOST_ASSOCIATION_KEY: u8 = 0;
-pub fn apply(window: tauri::WebviewWindow, blur: u32, radius: f64) -> Result<(), String> {
+pub async fn apply(window: tauri::WebviewWindow, blur: u32, radius: f64) -> Result<(), String> {
     let handle = window.clone();
+    let (sender, receiver) = tokio::sync::oneshot::channel();
     window
         .run_on_main_thread(move || {
-            if let Ok(pointer) = handle.ns_window() {
+            let result = (|| {
+                let pointer = handle.ns_window().map_err(|e| e.to_string())?;
                 // SAFETY: Tauri owns the live NSWindow; all AppKit operations run on its main thread.
                 let native = unsafe { &*(pointer as *const NSWindow) };
                 native.setHasShadow(false);
@@ -23,13 +25,22 @@ pub fn apply(window: tauri::WebviewWindow, blur: u32, radius: f64) -> Result<(),
                     NSColor::colorWithWhite_alpha(1.0, 0.001)
                 };
                 native.setBackgroundColor(Some(&color));
-                set_native_blur_radius(native, blur, radius);
+                let applied = set_layer_background_blur_radius(native, blur, radius);
                 set_native_corner_radius(native, radius);
                 native.setHasShadow(true);
                 native.invalidateShadow();
-            }
+                if applied {
+                    Ok(())
+                } else {
+                    Err("macOS 背景模糊初始化失败".to_string())
+                }
+            })();
+            let _ = sender.send(result);
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    receiver
+        .await
+        .map_err(|_| "macOS 窗口材质更新已取消".to_string())?
 }
 fn set_native_corner_radius(native_window: &NSWindow, radius: f64) {
     let Some(content_view) = native_window.contentView() else {
@@ -50,10 +61,6 @@ fn set_native_corner_radius(native_window: &NSWindow, radius: f64) {
         let _: () = msg_send![layer, setMasksToBounds: radius > 0.0];
     }
     native_window.invalidateShadow();
-}
-
-fn set_native_blur_radius(native_window: &NSWindow, radius: u32, corner_radius: f64) {
-    let _ = set_layer_background_blur_radius(native_window, radius, corner_radius);
 }
 
 fn set_layer_background_blur_radius(

@@ -27,7 +27,7 @@ pub fn package(
         "connectionBlocked":!h.diagnostics.is_empty(),
     })).collect();
     let rules:Vec<_>=rules.iter().map(|r|json!({
-        "id":r.id,"name":r.name,"color":r.color,"hostId":r.host_id,"kind":r.kind,"bindAddress":r.bind_address,"bindPort":r.bind_port,
+        "id":r.id,"name":r.name,"color":r.color,"icon":r.icon,"serviceProtocol":r.service_protocol,"hostId":r.host_id,"kind":r.kind,"bindAddress":r.bind_address,"bindPort":r.bind_port,
         "targetHost":r.target_host,"targetPort":r.target_port,"connection":r.connection,"background":r.background,
         "reconnect":r.reconnect,"noRemoteCommand":r.no_remote_command,"remoteCommandOmitted":!r.no_remote_command,
         "autoConnect":false,"repeatCommandOnReconnect":false,

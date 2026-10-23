@@ -1,4 +1,46 @@
 use serde::{Deserialize, Serialize};
+use unicode_segmentation::UnicodeSegmentation;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "camelCase",
+    deny_unknown_fields
+)]
+pub enum RuleIcon {
+    Builtin(String),
+    Emoji(String),
+}
+impl RuleIcon {
+    pub fn validate(&self) -> Result<(), String> {
+        let valid = match self {
+            Self::Builtin(value) => {
+                static CATALOG: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+                let catalog = CATALOG.get_or_init(|| serde_json::from_str(include_str!(
+                    "../../src/features/tunnels/connection-icon-catalog.json"
+                )).expect("embedded icon catalog"));
+                catalog["icons"].as_array().is_some_and(|icons|
+                    icons.iter().any(|icon| icon["id"].as_str() == Some(value.as_str())))
+            }
+            Self::Emoji(value) => {
+                !value.is_empty() && value.chars().count() <= 16 &&
+                value.graphemes(true).count() == 1 &&
+                !value.chars().any(|c| c.is_control() || c.is_whitespace() ||
+                    matches!(c, '\u{00ad}' | '\u{061c}' | '\u{180e}' | '\u{200b}' | '\u{200c}' |
+                        '\u{200e}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}' |
+                        '\u{feff}' | '\u{fff9}'..='\u{fffb}' | '\u{e0001}')) &&
+                value.chars().any(|c| c != '\u{200d}' && !(0xe0020..=0xe007f).contains(&(c as u32)) &&
+                    !(0xfe00..=0xfe0f).contains(&(c as u32)))
+            }
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err("请选择内置图标，或输入单个 emoji / 符号（最多 16 个 Unicode 字符）".into())
+        }
+    }
+}
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Host {
@@ -20,6 +62,10 @@ pub struct Host {
     pub proxy_jump: Option<String>,
     pub field_sources: std::collections::BTreeMap<String, String>,
     pub configured_forwards: Vec<String>,
+    /// Session-only source options do not affect -N forwarding. Commands must not
+    /// silently omit them; only directive names are retained, never environment values.
+    #[serde(default)]
+    pub unsupported_session_options: Vec<String>,
 }
 impl Host {
     pub fn same_connection(&self, other: &Self) -> bool {
@@ -33,6 +79,7 @@ impl Host {
             && self.identities_only == other.identities_only
             && self.proxy_jump == other.proxy_jump
             && self.diagnostics == other.diagnostics
+            && self.unsupported_session_options == other.unsupported_session_options
     }
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -78,9 +125,20 @@ pub enum ForwardKind {
     R,
     D,
 }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ServiceProtocol {
+    Http,
+    Https,
+    Vnc,
+}
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Rule {
+    #[serde(default)]
+    pub icon: Option<RuleIcon>,
+    #[serde(default)]
+    pub service_protocol: Option<ServiceProtocol>,
     pub id: String,
     pub name: String,
     pub color: Option<String>,
@@ -106,6 +164,8 @@ impl Default for Rule {
             name: String::new(),
             host_id: String::new(),
             color: None,
+            icon: None,
+            service_protocol: None,
             bind_address: "127.0.0.1".into(),
             bind_port: 0,
             target_host: String::new(),
@@ -127,8 +187,12 @@ impl Rule {
         let mut after = other.clone();
         before.name.clear();
         after.name.clear();
+        before.service_protocol = None;
+        after.service_protocol = None;
         before.color = None;
         after.color = None;
+        before.icon = None;
+        after.icon = None;
         before.background = true;
         after.background = true;
         before.auto_connect = false;
@@ -137,6 +201,9 @@ impl Rule {
     }
     pub fn validate(&self) -> Result<(), String> {
         self.reconnect.validate()?;
+        if let Some(icon) = &self.icon {
+            icon.validate()?;
+        }
         if let Some(color) = &self.color {
             if color.len() != 7
                 || !color.starts_with('#')
@@ -434,6 +501,94 @@ mod tests {
         assert!(rule.connection.is_none());
         assert!(c.close_to_tray);
         assert!(rule.validate().is_ok());
+    }
+    #[test]
+    fn service_protocol_is_optional_persisted_metadata() {
+        let rule = Rule::default();
+        assert!(rule.service_protocol.is_none());
+        for protocol in [
+            ServiceProtocol::Http,
+            ServiceProtocol::Https,
+            ServiceProtocol::Vnc,
+        ] {
+            let selected = Rule {
+                service_protocol: Some(protocol),
+                ..rule.clone()
+            };
+            assert!(rule.same_connection(&selected));
+            let mut value = serde_json::to_value(&selected).unwrap();
+            let reloaded: Rule = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(reloaded.service_protocol, Some(protocol));
+            value.as_object_mut().unwrap().remove("serviceProtocol");
+            assert!(serde_json::from_value::<Rule>(value.clone())
+                .unwrap()
+                .service_protocol
+                .is_none());
+            value["serviceProtocol"] = "javascript".into();
+            assert!(serde_json::from_value::<Rule>(value).is_err());
+        }
+    }
+    #[test]
+    fn icons_are_validated_persisted_and_do_not_change_transport() {
+        let rule = Rule {
+            name: "icon fixture".into(),
+            host_id: "h".into(),
+            bind_port: 15432,
+            target_host: "localhost".into(),
+            target_port: 5432,
+            ..Default::default()
+        };
+        let catalog: serde_json::Value = serde_json::from_str(include_str!(
+            "../../src/features/tunnels/connection-icon-catalog.json"
+        ))
+        .unwrap();
+        let icons = catalog["icons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| RuleIcon::Builtin(item["id"].as_str().unwrap().into()))
+            .chain(
+                catalog["emojis"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| RuleIcon::Emoji(item["value"].as_str().unwrap().into())),
+            )
+            .chain([
+                RuleIcon::Emoji("👩🏽‍💻".into()),
+                RuleIcon::Emoji("🇨🇳".into()),
+                RuleIcon::Emoji("★".into()),
+            ]);
+        for icon in icons {
+            let selected = Rule {
+                icon: Some(icon),
+                ..rule.clone()
+            };
+            assert!(selected.validate().is_ok(), "{:?}", selected.icon);
+            assert!(rule.same_connection(&selected));
+            let reloaded: Rule =
+                serde_json::from_value(serde_json::to_value(&selected).unwrap()).unwrap();
+            assert_eq!(reloaded.icon, selected.icon);
+        }
+        for icon in [
+            RuleIcon::Builtin("unknown".into()),
+            RuleIcon::Emoji("".into()),
+            RuleIcon::Emoji("🚀🚀".into()),
+            RuleIcon::Emoji("\n".into()),
+            RuleIcon::Emoji("\u{202e}".into()),
+            RuleIcon::Emoji("\u{200d}".into()),
+            RuleIcon::Emoji("https://example.invalid/icon.svg".into()),
+        ] {
+            assert!(Rule {
+                icon: Some(icon),
+                ..rule.clone()
+            }
+            .validate()
+            .is_err());
+        }
+        let mut old = serde_json::to_value(&rule).unwrap();
+        old.as_object_mut().unwrap().remove("icon");
+        assert!(serde_json::from_value::<Rule>(old).unwrap().icon.is_none());
     }
     #[test]
     fn connection_color_is_validated_persisted_and_does_not_change_transport() {

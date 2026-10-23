@@ -1512,7 +1512,8 @@
     "system": "시스템",
     "light": "빛",
     "dark": "어둠",
-    "mono": "모노"
+    "mono": "모노",
+    "applyFailed": "앱 아이콘을 업데이트하지 못했습니다"
   },
   "theme": {
     "label": "테마",

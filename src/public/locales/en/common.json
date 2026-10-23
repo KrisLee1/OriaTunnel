@@ -1512,7 +1512,8 @@
     "system": "System",
     "light": "Light",
     "dark": "Dark",
-    "mono": "Mono"
+    "mono": "Mono",
+    "applyFailed": "Could not update the app icon"
   },
   "theme": {
     "label": "Theme",

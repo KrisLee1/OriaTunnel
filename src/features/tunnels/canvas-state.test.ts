@@ -31,6 +31,29 @@ describe("canvas state across dragging and runtime snapshots", () => {
     expect(size.width / 9).toBeGreaterThanOrEqual(64);
     expect(size.height / 9).toBeGreaterThanOrEqual(30);
   });
+  it("grows independently for hundreds of ports on any side and shrinks after removal", () => {
+    const ports = (side: Position, count: number) =>
+      Array.from({ length: count }, () => ({ side }));
+    for (const count of [1, 50, 100, 500]) {
+      for (const side of [Position.Top, Position.Bottom]) {
+        const size = localCardSize(ports(side, count));
+        expect(size.width / (count + 1)).toBeGreaterThanOrEqual(64);
+        expect(size.height).toBe(164);
+      }
+      for (const side of [Position.Left, Position.Right]) {
+        const size = localCardSize(ports(side, count));
+        expect(size.height / (count + 1)).toBeGreaterThanOrEqual(30);
+        expect(size.width).toBe(200);
+      }
+    }
+    const mixed = localCardSize([
+      ...ports(Position.Top, 120),
+      ...ports(Position.Right, 200),
+    ]);
+    expect(mixed.width / 121).toBeGreaterThanOrEqual(64);
+    expect(mixed.height / 201).toBeGreaterThanOrEqual(30);
+    expect(localCardSize([])).toEqual({ width: 200, height: 164 });
+  });
   it("retains measured dimensions and selection throughout a long drag with fresh runtime data", () => {
     let nodes = applyNodeChanges(
       [

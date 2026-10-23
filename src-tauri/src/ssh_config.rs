@@ -307,6 +307,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             }
         }
         let mut configured_forwards = Vec::new();
+        let mut unsupported_session_options = Vec::new();
         let local_user = std::env::var("USERNAME")
             .or_else(|_| std::env::var("USER"))
             .unwrap_or_default();
@@ -372,6 +373,17 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
                 let value = entry.values.join(" ");
                 match entry.key.as_str() {
                     "canonicalizehostname" if value == "no" => {}
+                    "sendenv" => {
+                        field_sources
+                            .entry(entry.key.clone())
+                            .or_insert(entry.file.clone());
+                        if !unsupported_session_options
+                            .iter()
+                            .any(|name| name == "SendEnv")
+                        {
+                            unsupported_session_options.push("SendEnv".into());
+                        }
+                    }
                     "identityfile" => {
                         if keys.contains(&value) {
                             continue;
@@ -549,6 +561,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             proxy_jump,
             field_sources,
             configured_forwards,
+            unsupported_session_options,
             ..Default::default()
         });
     }
@@ -599,6 +612,22 @@ pub fn discover_with(additional: &[String]) -> Discovery {
 mod tests {
     use super::*;
     #[test]
+    fn macos_default_sendenv_is_session_only_and_never_reads_environment_values() {
+        let directory = tempfile::tempdir().unwrap();
+        let config = directory.path().join("config");
+        std::fs::write(
+            &config,
+            "Host fixture\n HostName 127.0.0.1\n User tester\nHost *\n SendEnv LANG LC_*\n",
+        )
+        .unwrap();
+        let discovery = discover_files(&[config], directory.path());
+        let host = &discovery.hosts[0];
+        assert!(host.diagnostics.is_empty());
+        assert_eq!(host.unsupported_session_options, ["SendEnv"]);
+        assert!(host.field_sources.contains_key("sendenv"));
+        assert!(!serde_json::to_string(host).unwrap().contains("LC_*"));
+    }
+    #[test]
     fn inline_and_uri_jumps_apply_per_hop_overrides_before_match_without_target_inheritance() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("config");
@@ -621,7 +650,7 @@ mod tests {
         assert_eq!(original.user, "base-user");
         assert_eq!(original.port, 22);
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn controlled_static_match_fixture_agrees_with_openssh_without_execution_or_network() {
         // This exact generated fixture contains no exec, ProxyCommand, LocalCommand,
@@ -630,8 +659,11 @@ mod tests {
         let root = dir.path().join("config");
         let text="Host service\n HostName actual.internal\n User deploy\nMatch originalhost service host actual.* user deploy\n Port 2222\nMatch final originalhost service\n ServerAliveInterval 17\nMatch all\n ConnectTimeout 24\n";
         std::fs::write(&root, text).unwrap();
+        #[cfg(windows)]
         let exe = std::path::PathBuf::from(std::env::var_os("WINDIR").unwrap())
             .join("System32/OpenSSH/ssh.exe");
+        #[cfg(target_os = "macos")]
+        let exe = std::path::PathBuf::from("/usr/bin/ssh");
         let output = std::process::Command::new(exe)
             .args(["-G", "-F"])
             .arg(&root)

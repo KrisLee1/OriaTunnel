@@ -923,16 +923,21 @@ async fn isolated_loopback_ordered_inline_jumps_check_each_key_authentication_an
     echo_task.abort();
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, unix))]
 #[tokio::test(flavor = "multi_thread")]
-async fn isolated_windows_named_pipe_agent_signs_and_obeys_identities_only() {
+async fn isolated_platform_agent_signs_and_obeys_identities_only() {
     use russh::keys::agent::{client::AgentClient, server::serve};
+    let dir = tempfile::tempdir().unwrap();
+    #[cfg(windows)]
     use tokio::net::windows::named_pipe::ServerOptions;
+    #[cfg(windows)]
     let pipe = format!(r"\\.\pipe\oriatunnel-fixture-{}", uuid::Uuid::new_v4());
+    #[cfg(windows)]
     let first = ServerOptions::new()
         .first_pipe_instance(true)
         .create(&pipe)
         .unwrap();
+    #[cfg(windows)]
     let incoming =
         futures_util::stream::unfold((first, pipe.clone()), |(server, path)| async move {
             if server.connect().await.is_err() {
@@ -941,9 +946,22 @@ async fn isolated_windows_named_pipe_agent_signs_and_obeys_identities_only() {
             let next = ServerOptions::new().create(&path).unwrap();
             Some((Ok(server), (next, path)))
         });
+    #[cfg(unix)]
+    let pipe = dir.path().join("agent.sock").to_string_lossy().into_owned();
+    #[cfg(unix)]
+    let incoming = futures_util::stream::unfold(
+        tokio::net::UnixListener::bind(&pipe).unwrap(),
+        |listener| async move {
+            let result = listener.accept().await.map(|(stream, _)| stream);
+            Some((result, listener))
+        },
+    );
     let agent_task = tokio::spawn(serve(Box::pin(incoming), ()));
     let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+    #[cfg(windows)]
     let mut agent = AgentClient::connect_named_pipe(&pipe).await.unwrap();
+    #[cfg(unix)]
+    let mut agent = AgentClient::connect_uds(&pipe).await.unwrap();
     agent.add_identity(&key, &[]).await.unwrap();
     drop(agent);
     let socket = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -964,7 +982,6 @@ async fn isolated_windows_named_pipe_agent_signs_and_obeys_identities_only() {
         let mut server = server;
         server.run_on_socket(config, &socket).await.unwrap();
     });
-    let dir = tempfile::tempdir().unwrap();
     let public_path = dir.path().join("fixture.pub");
     std::fs::write(&public_path, key.public_key().to_openssh().unwrap()).unwrap();
     for allow in [true, false] {
@@ -1065,6 +1082,57 @@ async fn isolated_fixture() -> (Host, String, tokio::task::JoinHandle<()>) {
         task,
     )
 }
+#[tokio::test(flavor = "multi_thread")]
+async fn sendenv_source_allows_forwarding_but_never_silently_drops_command_environment() {
+    let (mut host, fingerprint, server) = isolated_fixture().await;
+    host.unsupported_session_options = vec!["SendEnv".into()];
+    for no_remote_command in [true, false] {
+        let reserve = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = reserve.local_addr().unwrap().port();
+        drop(reserve);
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let captured = events.clone();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn(tunnel::run(
+            tunnel::RunRequest {
+                host: host.clone(),
+                rule: Rule {
+                    id: "sendenv-fixture".into(),
+                    name: "sendenv-fixture".into(),
+                    host_id: host.id.clone(),
+                    bind_port: port,
+                    target_host: "127.0.0.1".into(),
+                    target_port: 9,
+                    no_remote_command,
+                    remote_command: if no_remote_command { "" } else { "true" }.into(),
+                    ..Default::default()
+                },
+                secret: "test-only".into(),
+                expected: Some(fingerprint.clone()),
+                run_id: "sendenv-fixture".into(),
+                jumps: vec![],
+                test_only: false,
+            },
+            cancel.clone(),
+            Arc::new(move |runtime| captured.lock().unwrap().push(runtime)),
+            Arc::new(|_, _, _| panic!("known isolated host key")),
+        ));
+        if no_remote_command {
+            wait_for(&events, "listening").await;
+            cancel.cancel();
+        } else {
+            wait_for(&events, "failed").await;
+            assert!(events.lock().unwrap().iter().any(|runtime| {
+                runtime.error_kind == Some(oria_tunnel_lib::model::FailureKind::Configuration)
+                    && runtime.message.contains("SendEnv")
+            }));
+        }
+        task.await.unwrap();
+        assert!(TcpListener::bind(("127.0.0.1", port)).await.is_ok());
+    }
+    server.abort();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn isolated_loopback_remote_refusals_and_socks_ipv6_protocol_errors() {
     let (host, fingerprint, server) = isolated_fixture().await;

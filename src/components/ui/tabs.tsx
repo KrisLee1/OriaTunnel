@@ -1,7 +1,9 @@
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
 import { cva, type VariantProps } from "class-variance-authority"
+import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { interactionSpring } from "@/components/ui/motion"
 
 function Tabs({
   className,
@@ -28,6 +30,7 @@ const tabsListVariants = cva(
       variant: {
         default: "window-muted-surface",
         line: "gap-1 bg-transparent",
+        soft: "overlay",
       },
     },
     defaultVariants: {
@@ -39,15 +42,33 @@ const tabsListVariants = cva(
 function TabsList({
   className,
   variant = "default",
+  children,
   ...props
 }: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
+  const reducedMotion = useReducedMotion()
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       data-variant={variant}
       className={cn(tabsListVariants({ variant }), "select-none", className)}
       {...props}
-    />
+    >
+      {children}
+      {variant === "soft" && (
+        <TabsPrimitive.Indicator
+          data-slot="tabs-indicator"
+          aria-hidden="true"
+          className="soft-tabs-indicator"
+          render={
+            <motion.span
+              layout
+              initial={false}
+              transition={reducedMotion ? { duration: 0 } : interactionSpring}
+            />
+          }
+        />
+      )}
+    </TabsPrimitive.List>
   )
 }
 

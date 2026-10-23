@@ -1512,7 +1512,8 @@
     "system": "跟隨系統",
     "light": "Light",
     "dark": "Dark",
-    "mono": "Mono"
+    "mono": "Mono",
+    "applyFailed": "應用程式圖示更新失敗"
   },
   "theme": {
     "label": "主題",

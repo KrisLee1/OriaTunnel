@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useOriaTheme } from "@oriatheme/react";
 
 import { themeWindowAppearance } from "@/components/theme/window-appearance";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Item,
@@ -166,11 +165,6 @@ function AppearanceSlider({
         </ItemTitle>
       </ItemContent>
       <ItemActions className="w-1/2 min-w-40 max-w-xs gap-3">
-        {!custom && (
-          <Badge variant="secondary" className="shrink-0">
-            {t("windowAppearance.themeValue")}
-          </Badge>
-        )}
         <Slider
           className="min-w-0 flex-1"
           value={[value]}

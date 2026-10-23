@@ -27,17 +27,15 @@ export function WindowControlStyleSetting() {
 
   return (
     <Tabs value={style} onValueChange={(value) => setStyle(value as WindowControlStyle)}>
-      <TabsList className="h-8 p-0">
+      <TabsList variant="soft">
         {choices.map(({ value, label, icon: Icon }) => (
           <TabsTrigger
             key={value}
             value={value}
             aria-label={label}
             title={label}
-            className="px-2"
           >
             <Icon aria-hidden="true" />
-            <span className="hidden sm:inline">{label}</span>
           </TabsTrigger>
         ))}
       </TabsList>
@@ -63,7 +61,7 @@ export function WindowControlPositionSetting() {
       value={displayedPosition}
       onValueChange={(value) => setPosition(value as WindowControlPosition)}
     >
-      <TabsList className="h-8 p-0">
+      <TabsList variant="soft">
         {choices.map(({ value, label, icon: Icon }) => (
           <TabsTrigger
             key={value}
@@ -71,13 +69,11 @@ export function WindowControlPositionSetting() {
             aria-label={label}
             title={label}
             disabled={followsSystem}
-            className="px-2"
           >
             <Icon
               aria-hidden="true"
               className={value === "right" ? "-scale-x-100" : undefined}
             />
-            <span>{label}</span>
           </TabsTrigger>
         ))}
       </TabsList>

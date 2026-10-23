@@ -1,4 +1,8 @@
 //! User opt-in OS integration; loading the app never changes login registration.
+pub const AUTOSTART_SUPPORTED: bool = cfg!(any(windows, target_os = "macos")) && !cfg!(dev);
+#[cfg(target_os = "macos")]
+#[path = "macos_lifecycle.rs"]
+mod platform;
 #[cfg(windows)]
 mod platform {
     use std::{ffi::c_void, sync::OnceLock};
@@ -170,16 +174,17 @@ mod platform {
         }
     }
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub use platform::{read, set, subscribe};
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn read() -> Result<bool, String> {
     Ok(false)
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn set(_: bool) -> Result<(), String> {
     Err("当前平台尚未支持登录启动".into())
 }
+#[cfg(any(windows, test))]
 pub fn startup_command(path: &std::path::Path) -> Result<String, String> {
     let path = path.to_str().ok_or("应用路径无法用于登录启动")?;
     if path.contains(['"', '\0', '\n', '\r']) {

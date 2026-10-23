@@ -210,7 +210,9 @@
     "CSS backdrop-filter only; modal scrim classes copied verbatim from OriaAide with blur restored at the user's latest request; no custom filter renderer or frame tracking",
     "Surface pseudo-elements no longer add a second highlight rim; cards and chrome use theme shadow-2xs",
     "Responsive modals share viewport margins, floating title bars, scroll-fade bodies and themed slim scrollbars; descriptions scroll in the body",
-    "OriaAide material opacity formulas, Positioner isolation and inactive chrome restored; translucent cards and pages retain their original appearance"
+    "OriaAide material opacity formulas, Positioner isolation and inactive chrome restored; translucent cards and pages retain their original appearance",
+    "macOS material IPC waits for the AppKit main-thread result and reports initialization failure; native Gaussian blur/corners remain from the migrated source",
+    "User-approved window opacity and blur now follow raw theme tokens regardless of component surface alpha; appearance sliders omit Theme badges and retain reset actions"
   ],
   "nativeSource": {
     "file": "D:\\Projects\\OriaAide\\src-tauri\\src\\platform\\macos\\window.rs",
@@ -254,5 +256,89 @@
       "validated_external_url"
     ],
     "adapter": "String error type; tauri-plugin-shell same native dispatch"
+  },
+  "applicationIconMigration": {
+    "source": "OriaAide",
+    "files": [
+      {
+        "file": "src/lib/application-icon.ts",
+        "sha256": "c2395aa6e8187913dbf9044558a89a227c60cb0339f5b333ed9287d5e4467c59"
+      },
+      {
+        "file": "src/components/settings/application-icon-setting.tsx",
+        "sha256": "00c64a9330c2aa4739ff1f7f0c503ca929db218a36e014ef522b4e0ac1f0bc31"
+      },
+      {
+        "file": "src/components/settings/application-icon-sync.tsx",
+        "sha256": "5f00326892ed3cd757d49e678d5fa40018e5197fbe731e284c7ad78cfc4a854d"
+      },
+      {
+        "file": "src-tauri/src/platform/macos/app_icon.rs",
+        "sha256": "148a077f0aea90c42776d8252e664be08641b15b98f018e92455e896137fbc39"
+      },
+      {
+        "file": "src-tauri/src/platform/windows/app_icon.rs",
+        "sha256": "95707df728155a594f74be07b6571084ffb8e09f9b1e9972420050f1ce92fc17"
+      },
+      {
+        "file": "scripts/generate-app-icons.sh",
+        "sha256": "9efa252f310d5c3c5a8d5845e710ecc5bc5300b1b73daad64322fa23330fd3cd"
+      },
+      {
+        "file": "scripts/pad-runtime-app-icon.swift",
+        "sha256": "dc960903223e269b2d7f8da377c61d3bf1add15c35f46b6d1de7dd83c2c2b643"
+      }
+    ],
+    "masters": "src-tauri/icons/OriaTunnelIconExports",
+    "mapping": {
+      "light": "Default",
+      "dark": "Dark",
+      "mono": "ClearDark"
+    },
+    "adaptations": [
+      "OriaTunnel storage/event namespace and String command errors",
+      "Existing soft Tabs; settings choices display icons only, retaining localized aria-label/title",
+      "Ordered native updates and Toast failures; macOS awaits main-thread completion",
+      "Windows installed shortcuts are updated only when targeting the exact running executable; test profiles use an isolated asset directory",
+      "Portable Tauri-rendered icon generation; macOS runtime PNG content stays 864px within a 1024px canvas"
+    ],
+    "trayMaster": {
+      "file": "src-tauri/icons/tray-source.svg",
+      "sha256": "6e8a91ca7eab61c4c4af30e17323f6c6d3f733955e4fcf2f9a758b93377c188d",
+      "outputs": [
+        "windows-tray-icon.png (32px, color)",
+        "macos-tray-icon.png (36px, black alpha template)"
+      ]
+    }
+  },
+  "installerIconMigration": {
+    "source": "OriaAide",
+    "files": [
+      {
+        "file": "src-tauri/icons/AideInstaller.svg",
+        "sha256": "01f53c015b4eb9d9328d696ec66d9a3c633a4df88a9d19eec66832c71346f0ca"
+      },
+      {
+        "file": "scripts/package-mac.sh",
+        "sha256": "5a21fc093974b91881718b2a6af7a50d5d3f0197aaca5bc08725a7fa133fa8af"
+      },
+      {
+        "file": "scripts/set-dmg-volume-icon.sh",
+        "sha256": "289f9ee635d830687abd1584482436a92b1efe4c70b33004a641f61dcd56dc97"
+      },
+      {
+        "file": "scripts/set-file-icon.swift",
+        "sha256": "2f8bce4289e7a70f96f0148adf3baa5d64f591bb81433dda2310a0aeabeb59fc"
+      }
+    ],
+    "master": "src-tauri/icons/OriaTunnelInstaller.svg",
+    "adaptations": [
+      "Acrylic cube uses the central hub blue (#1268FF) at the user request; 820-unit canvas enlarges the subject by about 25%, with compact shadows",
+      "Aide character replaced by the approved six-node OriaTunnel vector",
+      "Installer ICO/ICNS generated separately from application and tray icons",
+      "macOS package script regenerates assets, builds app/DMG, updates mounted-volume and Finder file icons, and preserves file-icon metadata in ZIP",
+      "Windows NSIS uses installer-icon.ico; the installed app retains icon.ico",
+      "Tauri CLI called through the local Node entry point and extra build arguments forwarded"
+    ]
   }
 }

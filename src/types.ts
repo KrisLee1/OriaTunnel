@@ -1,3 +1,6 @@
+export type ApplicationIconPreference = "system" | "light" | "dark" | "mono";
+export type ResolvedApplicationIcon = Exclude<ApplicationIconPreference, "system">;
+
 export interface WindowAppearance {
   opacity: number;
   blurRadius: number;
@@ -22,13 +25,18 @@ export interface Host {
   proxyJump: string | null;
   fieldSources: Record<string, string>;
   configuredForwards: string[];
+  unsupportedSessionOptions?: string[];
 }
 export interface ConnectionOptions {
   connectTimeoutSecs: number;
   keepaliveIntervalSecs: number;
   keepaliveMax: number;
 }
+export type ServiceProtocol = "http" | "https" | "vnc";
+export type RuleIcon = { kind: "builtin" | "emoji"; value: string };
 export interface Rule {
+  icon: RuleIcon | null;
+  serviceProtocol: ServiceProtocol | null;
   id: string;
   name: string;
   color: string | null;

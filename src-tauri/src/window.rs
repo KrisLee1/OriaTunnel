@@ -8,7 +8,7 @@ pub struct Appearance {
     pub corner_radius: f64,
 }
 #[tauri::command]
-pub fn set_window_appearance(
+pub async fn set_window_appearance(
     window: tauri::WebviewWindow,
     appearance: Appearance,
 ) -> Result<(), String> {
@@ -37,7 +37,8 @@ pub fn set_window_appearance(
             window.clone(),
             appearance.blur_radius.round() as u32,
             appearance.corner_radius,
-        )?;
+        )
+        .await?;
     }
     let _ = window.set_shadow(true);
     Ok(())

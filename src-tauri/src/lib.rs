@@ -1,5 +1,6 @@
 mod activity;
 mod app;
+mod application_icon;
 pub mod batch;
 mod config_export;
 mod config_import;
@@ -10,6 +11,7 @@ mod long_running;
 #[cfg(target_os = "macos")]
 mod macos_material;
 pub mod model;
+mod service;
 mod ssh_conditions;
 pub mod ssh_config;
 pub mod supervisor;
@@ -20,6 +22,8 @@ use tauri::Manager;
 #[derive(Default)]
 struct ExitState(std::sync::atomic::AtomicU8);
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    configure_webviews(context.config_mut(), cfg!(debug_assertions));
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(ExitState::default())
@@ -43,7 +47,7 @@ pub fn run() {
             if !std::env::args().any(|arg| arg == "--background") {
                 desktop::show(app.handle());
             }
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             {
                 match long_running::subscribe(app::state(app.handle()).wake_sender()) {
                     Ok(subscription) => {
@@ -87,6 +91,7 @@ pub fn run() {
             app::save_host,
             app::save_host_metadata,
             app::save_rule,
+            app::open_service,
             app::start_rule,
             app::password_status,
             app::clear_password,
@@ -110,12 +115,17 @@ pub fn run() {
             app::undo_delete,
             app::set_autostart,
             window::set_window_appearance,
+            application_icon::set_application_icon,
             window::read_dropped_file,
             window::open_external_url
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Unable to build OriaTunnel")
         .run(|handle, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                desktop::show(handle);
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 let exit = &handle.state::<ExitState>().0;
                 if exit.load(std::sync::atomic::Ordering::SeqCst) != 2 {
@@ -141,4 +151,39 @@ pub fn run() {
                 }
             }
         });
+}
+
+fn configure_webviews(config: &mut tauri::Config, debug: bool) {
+    if !debug {
+        for window in &mut config.app.windows {
+            window.devtools = Some(false);
+        }
+    }
+}
+
+#[cfg(test)]
+mod webview_tests {
+    #[test]
+    fn release_disables_native_devtools_for_every_window() {
+        let mut config = tauri::Config::default();
+        config.app.windows = vec![
+            tauri::utils::config::WindowConfig {
+                devtools: Some(true),
+                ..Default::default()
+            },
+            tauri::utils::config::WindowConfig {
+                label: "secondary".into(),
+                ..Default::default()
+            },
+        ];
+        let mut debug = config.clone();
+        super::configure_webviews(&mut debug, true);
+        assert_eq!(debug.app.windows[0].devtools, Some(true));
+        super::configure_webviews(&mut config, false);
+        assert!(config
+            .app
+            .windows
+            .iter()
+            .all(|window| window.devtools == Some(false)));
+    }
 }

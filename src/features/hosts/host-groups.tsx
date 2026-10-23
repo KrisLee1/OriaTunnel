@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { ServerIcon } from "lucide-react";
+import { motion } from "motion/react";
+import { useEntranceMotion } from "@/components/ui/motion";
 import type { Host, Runtime } from "@/types";
 import { runtimeStatus } from "@/features/tunnels/runtime-status";
 import { hostAuthLabels } from "./host-auth";
@@ -47,6 +49,7 @@ export function HostGroups({
   actions: (host: Host, runtime?: Runtime) => ReactNode;
 }) {
   const { t } = useTranslation("tunnel");
+  const entrance = useEntranceMotion(4);
   const groups = groupHosts(hosts, grouping, runtimes);
   const items = (list: Host[]) =>
     list.map((h) => {
@@ -55,9 +58,10 @@ export function HostGroups({
       );
       const status = runtime ? runtimeStatus(runtime) : null;
       return (
-        <article
+        <motion.article
           className={`host-item themed-surface ${selected === h.id ? "selected" : ""}`}
           key={h.id}
+          {...entrance}
         >
           <ServerIcon size={16} aria-hidden="true" />
           <div className="host-item-content">
@@ -86,7 +90,7 @@ export function HostGroups({
             </span>
           </div>
           <div className="host-item-actions">{actions(h, runtime)}</div>
-        </article>
+        </motion.article>
       );
     });
   return (

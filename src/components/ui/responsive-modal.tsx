@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useMemo, type ReactElement, type ReactNode } from 'react';
+import { usePresence } from "motion/react";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,16 +46,20 @@ function ResponsiveModal({
   children?: ReactNode;
 }) {
   const isMobile = useIsMobile();
+  const [isPresent, safeToRemove] = usePresence();
   const contextValue = useMemo(() => ({ isMobile }), [isMobile]);
+  const finishClose = (nextOpen: boolean) => {
+    if (!nextOpen && !isPresent) safeToRemove?.();
+  };
 
   return (
     <ResponsiveModalContext.Provider value={contextValue}>
       {isMobile ? (
-        <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="down">
+        <Drawer open={isPresent ? open : false} onOpenChange={onOpenChange} onOpenChangeComplete={finishClose} swipeDirection="down">
           {children}
         </Drawer>
       ) : (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={isPresent ? open : false} onOpenChange={onOpenChange} onOpenChangeComplete={finishClose}>
           {children}
         </Dialog>
       )}

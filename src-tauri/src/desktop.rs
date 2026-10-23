@@ -109,7 +109,7 @@ pub fn install_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let mut tray = TrayIconBuilder::with_id("main-tray")
         .tooltip("OriaTunnel · 关闭窗口后仍可从此处恢复")
         .menu(&menu)
-        .show_menu_on_left_click(false)
+        .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show(app),
             "stop" => {
@@ -123,22 +123,64 @@ pub fn install_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if matches!(
-                event,
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                }
-            ) {
+            if !cfg!(target_os = "macos")
+                && matches!(
+                    event,
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    }
+                )
+            {
                 show(tray.app_handle());
             }
         });
-    let icon = app
-        .default_window_icon()
-        .ok_or_else(|| tauri::Error::AssetNotFound("OriaTunnel application icon".into()))?;
-    tray = tray.icon(icon.clone());
+    #[cfg(not(target_os = "macos"))]
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/windows-tray-icon.png"))?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        tray = tray.icon(icon);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // A small alpha template stays legible in both macOS menu bar appearances.
+        let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/macos-tray-icon.png"))?;
+        tray = tray.icon(icon).icon_as_template(true);
+    }
     tray.build(app)?;
     app.manage(TraySummary::default());
     Ok(())
+}
+
+#[cfg(test)]
+mod icon_tests {
+    #[test]
+    fn tray_assets_are_transparent_and_the_macos_template_is_monochrome() {
+        for (bytes, size, monochrome) in [
+            (
+                include_bytes!("../icons/windows-tray-icon.png").as_slice(),
+                32,
+                false,
+            ),
+            (
+                include_bytes!("../icons/macos-tray-icon.png").as_slice(),
+                36,
+                true,
+            ),
+        ] {
+            let image = tauri::image::Image::from_bytes(bytes).unwrap();
+            assert_eq!((image.width(), image.height()), (size, size));
+            let pixels: Vec<_> = image.rgba().chunks_exact(4).collect();
+            assert_eq!(pixels[0][3], 0);
+            assert!(pixels.iter().any(|pixel| pixel[3] == 255));
+            if monochrome {
+                assert!(pixels.iter().all(|pixel| pixel[..3] == [0, 0, 0]));
+            } else {
+                assert!(pixels
+                    .iter()
+                    .any(|pixel| pixel[3] > 0 && pixel[0] != pixel[1]));
+            }
+        }
+    }
 }

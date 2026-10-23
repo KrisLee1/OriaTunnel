@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 
 export function FilePathsEditor({
   value,
@@ -41,7 +42,6 @@ export function FilePathsEditor({
   const latest = useRef({ value, onChange });
   latest.current = { value, onChange };
   const [picking, setPicking] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -53,7 +53,6 @@ export function FilePathsEditor({
     if (disabled || pending.current || !pickFile) return;
     pending.current = true;
     setPicking(index);
-    setError(null);
     try {
       const path = await pickFile();
       if (
@@ -66,7 +65,8 @@ export function FilePathsEditor({
         latest.current.onChange(next);
       }
     } catch (cause) {
-      if (active.current) setError(formatError(cause));
+      if (active.current)
+        toast.add({ title: formatError(cause), type: "error", timeout: 6000 });
     } finally {
       pending.current = false;
       if (active.current) setPicking(null);
@@ -139,11 +139,6 @@ export function FilePathsEditor({
           </div>
         ))}
       </div>
-      {error && (
-        <p className="inline-error" role="alert">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

@@ -45,6 +45,8 @@ export const emptyRule = (hostId = ""): Rule => ({
   name: "",
   hostId,
   color: null,
+  icon: null,
+  serviceProtocol: null,
   kind: "L",
   bindAddress: "127.0.0.1",
   bindPort: 15432,
@@ -77,6 +79,8 @@ export function networkChanged(before: Rule, after: Rule) {
   const {
     name: _a,
     color: _colorA,
+    icon: _iconA,
+    serviceProtocol: _serviceA,
     background: _backgroundA,
     autoConnect: _autoA,
     ...a
@@ -84,6 +88,8 @@ export function networkChanged(before: Rule, after: Rule) {
   const {
     name: _b,
     color: _colorB,
+    icon: _iconB,
+    serviceProtocol: _serviceB,
     background: _backgroundB,
     autoConnect: _autoB,
     ...b

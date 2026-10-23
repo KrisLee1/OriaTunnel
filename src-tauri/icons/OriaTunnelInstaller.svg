@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="102 106 820 820">
+  <title>OriaTunnel installer — acrylic network cube</title>
+  <desc>The six-node OriaTunnel network enclosed in a translucent hub-blue acrylic installation cube with a tightly fitted canvas.</desc>
+  <defs>
+    <linearGradient id="topGlass" x1="0.08" y1="0.06" x2="0.92" y2="0.94">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="0.42" stop-color="#DCE9FF" stop-opacity="0.22"/>
+      <stop offset="0.72" stop-color="#8AB7FF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#1268FF" stop-opacity="0.38"/>
+    </linearGradient>
+    <linearGradient id="leftGlass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F1F6FF" stop-opacity="0.39"/>
+      <stop offset="0.4" stop-color="#83B3FF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#1268FF" stop-opacity="0.42"/>
+    </linearGradient>
+    <linearGradient id="rightGlass" x1="0.06" y1="0.04" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#EEF4FF" stop-opacity="0.25"/>
+      <stop offset="0.48" stop-color="#70A4FF" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#1256D9" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="glassEdge" x1="0.05" y1="0.02" x2="0.96" y2="0.98">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="0.3" stop-color="#C9DDFF" stop-opacity="0.88"/>
+      <stop offset="0.62" stop-color="#70A4FF" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#1268FF" stop-opacity="0.86"/>
+    </linearGradient>
+    <linearGradient id="baseGlow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#A6C8FF" stop-opacity="0.1"/>
+      <stop offset="0.52" stop-color="#BFD7FF" stop-opacity="0.64"/>
+      <stop offset="1" stop-color="#1268FF" stop-opacity="0.12"/>
+    </linearGradient>
+
+    <filter id="groundShadow" x="-35%" y="-90%" width="170%" height="280%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <filter id="cubeShadow" x="-20%" y="-18%" width="140%" height="155%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#0D2A67" flood-opacity="0.24"/>
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#2F68C7" flood-opacity="0.15"/>
+    </filter>
+    <filter id="networkShadow" x="-40%" y="-40%" width="180%" height="200%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="17" flood-color="#163A6B" flood-opacity="0.3"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#3E76B8" flood-opacity="0.18"/>
+    </filter>
+    <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="frostBlur" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <clipPath id="topFaceClip">
+      <path d="M 512 128 L 838 306 L 512 486 L 186 306 Z"/>
+    </clipPath>
+    <clipPath id="leftFaceClip">
+      <path d="M 186 306 L 512 486 L 512 868 L 186 686 Z"/>
+    </clipPath>
+    <clipPath id="rightFaceClip">
+      <path d="M 512 486 L 838 306 L 838 686 L 512 868 Z"/>
+    </clipPath>
+
+    <linearGradient id="sky" gradientUnits="userSpaceOnUse" x1="0" y1="-112" x2="0" y2="-197.59" color-interpolation="sRGB">
+      <stop offset="0" stop-color="#1268FF"/>
+      <stop offset="0.13" stop-color="#1268FF"/>
+      <stop offset="0.43" stop-color="#1B88FF"/>
+      <stop offset="0.7" stop-color="#28A4FA"/>
+      <stop offset="1" stop-color="#2DA9FA"/>
+    </linearGradient>
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="0" y1="-112" x2="0" y2="-197.59" color-interpolation="sRGB">
+      <stop offset="0" stop-color="#1268FF"/>
+      <stop offset="0.13" stop-color="#1268FF"/>
+      <stop offset="0.43" stop-color="#2AA8D7"/>
+      <stop offset="0.7" stop-color="#98D7AF"/>
+      <stop offset="1" stop-color="#FFC43C"/>
+    </linearGradient>
+    <linearGradient id="coral" gradientUnits="userSpaceOnUse" x1="0" y1="-112" x2="0" y2="-197.59" color-interpolation="sRGB">
+      <stop offset="0" stop-color="#1268FF"/>
+      <stop offset="0.13" stop-color="#1268FF"/>
+      <stop offset="0.43" stop-color="#8C77EE"/>
+      <stop offset="0.7" stop-color="#DC80BE"/>
+      <stop offset="1" stop-color="#FF7774"/>
+    </linearGradient>
+    <linearGradient id="violet" gradientUnits="userSpaceOnUse" x1="0" y1="-112" x2="0" y2="-197.59" color-interpolation="sRGB">
+      <stop offset="0" stop-color="#1268FF"/>
+      <stop offset="0.13" stop-color="#1268FF"/>
+      <stop offset="0.43" stop-color="#3869FF"/>
+      <stop offset="0.7" stop-color="#5C63FF"/>
+      <stop offset="1" stop-color="#7060FF"/>
+    </linearGradient>
+    <linearGradient id="mint" gradientUnits="userSpaceOnUse" x1="0" y1="-112" x2="0" y2="-197.59" color-interpolation="sRGB">
+      <stop offset="0" stop-color="#1268FF"/>
+      <stop offset="0.13" stop-color="#1268FF"/>
+      <stop offset="0.43" stop-color="#219FE0"/>
+      <stop offset="0.7" stop-color="#50CBB1"/>
+      <stop offset="1" stop-color="#73D79B"/>
+    </linearGradient>
+    <linearGradient id="teal" gradientUnits="userSpaceOnUse" x1="0" y1="-112" x2="0" y2="-197.59" color-interpolation="sRGB">
+      <stop offset="0" stop-color="#1268FF"/>
+      <stop offset="0.13" stop-color="#1268FF"/>
+      <stop offset="0.43" stop-color="#168DE5"/>
+      <stop offset="0.7" stop-color="#17B4C8"/>
+      <stop offset="1" stop-color="#1CBDB5"/>
+    </linearGradient>
+    <radialGradient id="hub">
+      <stop offset="0" stop-color="#2384FF"/>
+      <stop offset="0.65" stop-color="#1673FF"/>
+      <stop offset="1" stop-color="#1268FF"/>
+    </radialGradient>
+
+  </defs>
+
+  <ellipse cx="512" cy="875" rx="316" ry="20" fill="#163B80" opacity="0.2" filter="url(#groundShadow)"/>
+
+  <g filter="url(#cubeShadow)">
+    <!-- Rear glass and the inner plinth establish the cube before the network is placed inside. -->
+    <path d="M 512 128 L 838 306 L 512 486 L 186 306 Z" fill="url(#topGlass)" stroke="#C9DDFF" stroke-opacity="0.38" stroke-width="5"/>
+    <path d="M 186 306 L 512 486 L 512 868 L 186 686 Z" fill="#98BDFF" fill-opacity="0.08"/>
+    <path d="M 512 486 L 838 306 L 838 686 L 512 868 Z" fill="#5E96FF" fill-opacity="0.08"/>
+    <ellipse cx="512" cy="730" rx="216" ry="68" fill="url(#baseGlow)" filter="url(#softBlur)"/>
+
+    <!-- the network remains crisp enough to read through the frosted enclosure. -->
+    <g transform="translate(512 527) scale(0.82)" filter="url(#networkShadow)">
+    <path transform="rotate(0)" fill="url(#sky)" d="M -22 -109.818
+  C -14 -111.421 -12 -122 -12 -140
+  C -12 -167 -14 -191.966 -27 -197.590
+  A 68 68 0 1 1 27 -197.590
+  C 14 -191.966 12 -167 12 -140
+  C 12 -122 14 -111.421 22 -109.818
+  L 22 -80 L -22 -80 Z"/>
+    <path transform="rotate(60)" fill="url(#gold)" d="M -22 -109.818
+  C -14 -111.421 -12 -122 -12 -140
+  C -12 -167 -14 -191.966 -27 -197.590
+  A 68 68 0 1 1 27 -197.590
+  C 14 -191.966 12 -167 12 -140
+  C 12 -122 14 -111.421 22 -109.818
+  L 22 -80 L -22 -80 Z"/>
+    <path transform="rotate(120)" fill="url(#coral)" d="M -22 -109.818
+  C -14 -111.421 -12 -122 -12 -140
+  C -12 -167 -14 -191.966 -27 -197.590
+  A 68 68 0 1 1 27 -197.590
+  C 14 -191.966 12 -167 12 -140
+  C 12 -122 14 -111.421 22 -109.818
+  L 22 -80 L -22 -80 Z"/>
+    <path transform="rotate(180)" fill="url(#violet)" d="M -22 -109.818
+  C -14 -111.421 -12 -122 -12 -140
+  C -12 -167 -14 -191.966 -27 -197.590
+  A 68 68 0 1 1 27 -197.590
+  C 14 -191.966 12 -167 12 -140
+  C 12 -122 14 -111.421 22 -109.818
+  L 22 -80 L -22 -80 Z"/>
+    <path transform="rotate(240)" fill="url(#mint)" d="M -22 -109.818
+  C -14 -111.421 -12 -122 -12 -140
+  C -12 -167 -14 -191.966 -27 -197.590
+  A 68 68 0 1 1 27 -197.590
+  C 14 -191.966 12 -167 12 -140
+  C 12 -122 14 -111.421 22 -109.818
+  L 22 -80 L -22 -80 Z"/>
+    <path transform="rotate(300)" fill="url(#teal)" d="M -22 -109.818
+  C -14 -111.421 -12 -122 -12 -140
+  C -12 -167 -14 -191.966 -27 -197.590
+  A 68 68 0 1 1 27 -197.590
+  C 14 -191.966 12 -167 12 -140
+  C 12 -122 14 -111.421 22 -109.818
+  L 22 -80 L -22 -80 Z"/>
+    <circle r="112" fill="url(#hub)"/>
+    </g>
+
+    <!-- Translucent front faces place the network physically behind acrylic. -->
+    <path d="M 186 306 L 512 486 L 512 868 L 186 686 Z" fill="url(#leftGlass)"/>
+    <path d="M 512 486 L 838 306 L 838 686 L 512 868 Z" fill="url(#rightGlass)"/>
+    <path d="M 512 128 L 838 306 L 512 486 L 186 306 Z" fill="url(#topGlass)" opacity="0.58"/>
+
+    <!-- Broad diffused reflections create the frosted acrylic finish. -->
+    <g clip-path="url(#leftFaceClip)" opacity="0.5" filter="url(#frostBlur)">
+      <path d="M 154 286 L 270 335 L 407 833 L 270 758 Z" fill="#FFFFFF" opacity="0.3"/>
+      <ellipse cx="285" cy="574" rx="70" ry="242" transform="rotate(-28 285 574)" fill="#E3EFFF" opacity="0.2"/>
+    </g>
+    <g clip-path="url(#rightFaceClip)" opacity="0.48" filter="url(#frostBlur)">
+      <path d="M 762 318 L 840 278 L 829 717 L 738 764 Z" fill="#B7D0FF" opacity="0.28"/>
+      <ellipse cx="708" cy="584" rx="54" ry="225" transform="rotate(27 708 584)" fill="#FFFFFF" opacity="0.14"/>
+    </g>
+    <g clip-path="url(#topFaceClip)" filter="url(#frostBlur)">
+      <ellipse cx="387" cy="263" rx="190" ry="45" transform="rotate(28 387 263)" fill="#FFFFFF" opacity="0.22"/>
+    </g>
+
+    <!-- Layered edges mimic thick polished acrylic with blue refraction matching the central hub. -->
+    <path d="M 512 128 L 838 306 L 838 686 L 512 868 L 186 686 L 186 306 Z" fill="none" stroke="#1268FF" stroke-opacity="0.34" stroke-width="18" stroke-linejoin="round"/>
+    <path d="M 512 128 L 838 306 L 838 686 L 512 868 L 186 686 L 186 306 Z" fill="none" stroke="url(#glassEdge)" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M 186 306 L 512 486 L 838 306 M 512 486 L 512 868" fill="none" stroke="#1256D9" stroke-opacity="0.28" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M 186 306 L 512 486 L 838 306 M 512 486 L 512 868" fill="none" stroke="url(#glassEdge)" stroke-opacity="0.86" stroke-width="7" stroke-linejoin="round"/>
+
+    <path d="M 512 149 L 795 303" fill="none" stroke="#FFFFFF" stroke-opacity="0.68" stroke-width="6" stroke-linecap="round"/>
+    <path d="M 205 326 L 205 652" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round"/>
+    <path d="M 817 330 L 817 572" fill="none" stroke="#EFF5FF" stroke-opacity="0.38" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="512" cy="486" r="8" fill="#FFFFFF" fill-opacity="0.8"/>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { ParameterTitle } from "@/components/parameter-field";
 import {
   Item,
@@ -27,12 +28,14 @@ export function HostSourceSettings({
   const syncId = useId();
   const [files, setFiles] = useState<string[]>(data.sourceFiles || []);
   const [autoSync, setAutoSync] = useState(data.autoSyncHosts ?? true);
-  const [saved, setSaved] = useState(false);
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        void save(files, autoSync).then(setSaved);
+        void save(files, autoSync).then((ok) => {
+          if (ok)
+            toast.add({ title: t("sourcesSaved"), type: "success", timeout: 4000 });
+        });
       }}
     >
       <ItemGroup className="settings-section-panel themed-surface gap-0 divide-y divide-border-strong/15 overflow-hidden rounded-xl">
@@ -53,10 +56,7 @@ export function HostSourceSettings({
                 ? t("sourcePickerUpdateRequired")
                 : String(cause)
             }
-            onChange={(paths) => {
-              setFiles(paths);
-              setSaved(false);
-            }}
+            onChange={setFiles}
           />
         </Item>
         <Item className="rounded-none border-0 px-3 py-2.5">
@@ -73,19 +73,11 @@ export function HostSourceSettings({
             <Switch
               id={syncId}
               checked={autoSync}
-              onCheckedChange={(checked) => {
-                setAutoSync(checked);
-                setSaved(false);
-              }}
+              onCheckedChange={setAutoSync}
             />
           </ItemActions>
         </Item>
         <Item className="justify-end rounded-none border-0 px-3 py-2.5">
-          {saved && (
-            <small className="text-xs text-muted-foreground" role="status">
-              {t("saved")}
-            </small>
-          )}
           <Button size="sm" variant="outline" type="submit" disabled={busy}>
             {t("save")}
           </Button>

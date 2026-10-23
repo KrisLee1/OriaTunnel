@@ -9,6 +9,20 @@
 @custom-variant keyboard-focus (&:where([data-keyboard-navigation="true"] *));
 @custom-variant focus-visible (&:where([data-keyboard-navigation="true"] *):focus-visible);
 
+/* Desktop controls do not create document selections; editors remain selectable. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable="plaintext-only"],
+[data-selectable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .combobox-control {
   position: relative;
 }
@@ -383,6 +397,11 @@ body {
   border-color: var(--aide-workspace-border);
 }
 
+/* Match action buttons to the capsule's 2px inset and theme border. */
+.app-titlebar .window-actions [data-slot="button"] {
+  border-radius: max(0px, calc(var(--radius-xl) - 2px - var(--oria-border-width-default)));
+}
+
 .floating-surface,
 .popover-overlay,
 .floating-surface-arrow {
@@ -426,22 +445,22 @@ body {
 }
 
 .responsive-modal-header {
-  position: absolute;
-  z-index: 10;
-  inset: 0 0 auto;
-  height: var(--modal-header-height);
+  position: relative;
+  flex-shrink: 0;
+  min-height: var(--modal-header-height);
+  padding-block: calc(var(--spacing) * 4);
   justify-content: center;
-  pointer-events: none;
 }
 
 .responsive-modal-body {
-  --scroll-fade-t-size: calc(var(--modal-header-height) + var(--spacing) * 4);
-  --scroll-fade-b-size: calc(var(--spacing) * 5);
-  --scroll-fade-reveal: calc(var(--spacing) * 12);
-  padding-top: calc(var(--modal-header-height) + var(--spacing) * 2);
-  scroll-padding-block: calc(var(--modal-header-height) + var(--spacing) * 4)
-    calc(var(--spacing) * 5);
+  --scroll-fade-t-size: calc(var(--spacing) * 4);
+  --scroll-fade-b-size: calc(var(--spacing) * 4);
+  --scroll-fade-reveal: calc(var(--spacing) * 6);
+  padding-top: calc(var(--spacing) * 2);
+  scroll-padding-block: calc(var(--spacing) * 4);
 }
+.responsive-modal-surface > [data-slot="dialog-close"] { top: calc(var(--spacing) * 3.5); }
+.responsive-modal-header > button { top: calc(var(--spacing) * 3); }
 
 .modal-actions {
   background: linear-gradient(
@@ -568,4 +587,134 @@ body {
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+}
+
+/* Shared content-sized Tabs for navigation and settings. */
+[data-slot="tabs-list"][data-variant="soft"] {
+  position: relative;
+  isolation: isolate;
+  --soft-tabs-inset: 2px;
+  --soft-tabs-selected-opacity: 10%;
+  --soft-tabs-selected-hover-opacity: 20%;
+  height: calc(var(--spacing) * 8 + var(--oria-border-width-default) * 2);
+  padding: var(--soft-tabs-inset);
+  gap: 2px;
+  border-radius: var(--radius-xl);
+}
+[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"] {
+  z-index: 1;
+  flex: 0 0 auto;
+  width: max-content;
+  height: calc(var(--spacing) * 7);
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: max(0px, calc(var(--radius-xl) - var(--soft-tabs-inset) - var(--oria-border-width-default)));
+  font-size: 0.8rem;
+  color: var(--oria-color-muted-fg);
+  box-shadow: none;
+  transition-property: background-color, color, border-color;
+}
+[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"]::after {
+  display: none;
+}
+[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"]:hover {
+  background-color: color-mix(in srgb, var(--oria-color-muted) 50%, transparent);
+  color: var(--oria-color-fg);
+}
+[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"][data-active] {
+  background-color: transparent;
+  color: var(--oria-color-primary);
+  border-color: transparent;
+}
+[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"][data-active]:hover {
+  background-color: transparent;
+}
+.soft-tabs-indicator {
+  position: absolute;
+  pointer-events: none;
+  left: var(--active-tab-left);
+  top: var(--active-tab-top);
+  width: var(--active-tab-width);
+  height: var(--active-tab-height);
+  border-radius: max(0px, calc(var(--radius-xl) - var(--soft-tabs-inset) - var(--oria-border-width-default)));
+  background-color: color-mix(in srgb, var(--oria-color-primary) var(--soft-tabs-selected-opacity), transparent);
+}
+[data-slot="tabs-list"][data-variant="soft"]:has(> [data-active]:hover) > .soft-tabs-indicator {
+  background-color: color-mix(in srgb, var(--oria-color-primary) var(--soft-tabs-selected-hover-opacity), transparent);
+}
+[data-slot="tabs-list"][data-variant="soft"]:has(> [data-active]:disabled) > .soft-tabs-indicator {
+  opacity: 0.5;
+}
+.dark [data-slot="tabs-list"][data-variant="soft"] {
+  --soft-tabs-selected-opacity: 20%;
+  --soft-tabs-selected-hover-opacity: 30%;
+}
+
+/* shadcn/Base UI Toast stacking and transitions, using ORIA floating surfaces. */
+.toast-viewport {
+  position: fixed;
+  inset: auto 16px 32px auto;
+  z-index: 250;
+  width: min(384px, calc(100vw - 32px));
+  outline: none;
+  pointer-events: none;
+}
+.toast {
+  --gap: 12px;
+  --height: var(--toast-frontmost-height, var(--toast-height));
+  --offset-y: calc(var(--toast-offset-y) * -1 + var(--toast-index) * var(--gap) * -1 + var(--toast-swipe-movement-y));
+  --peek: 12px;
+  --scale: max(0, 1 - var(--toast-index) * 0.1);
+  --shrink: calc(1 - var(--scale));
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: calc(1000 - var(--toast-index));
+  width: 100%;
+  height: var(--height);
+  border-radius: var(--oria-radius-xl);
+  outline: none;
+  pointer-events: auto;
+  user-select: none;
+  transform-origin: bottom;
+  transform: translateX(var(--toast-swipe-movement-x)) translateY(calc(var(--toast-swipe-movement-y) - var(--toast-index) * var(--peek) - var(--shrink) * var(--height))) scale(var(--scale));
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms, height 150ms;
+}
+.toast::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: calc(var(--gap) + 1px);
+}
+.toast[data-expanded] {
+  height: var(--toast-height);
+  transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--offset-y));
+}
+.toast[data-limited] { opacity: 0; }
+.toast[data-starting-style],
+.toast[data-ending-style]:not([data-limited]):not([data-swipe-direction]) {
+  transform: translateY(150%);
+  opacity: 0;
+}
+.toast[data-ending-style][data-swipe-direction="down"] { transform: translateY(calc(var(--toast-swipe-movement-y) + 150%)); }
+.toast[data-ending-style][data-swipe-direction="up"] { transform: translateY(calc(var(--toast-swipe-movement-y) - 150%)); }
+.toast[data-ending-style][data-swipe-direction="left"] { transform: translateX(calc(var(--toast-swipe-movement-x) - 150%)) translateY(var(--offset-y)); }
+.toast[data-ending-style][data-swipe-direction="right"] { transform: translateX(calc(var(--toast-swipe-movement-x) + 150%)) translateY(var(--offset-y)); }
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  padding: 12px;
+  transition: opacity 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.toast-content[data-behind] { opacity: 0; }
+.toast-content[data-expanded] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast-content { transition: none; }
 }

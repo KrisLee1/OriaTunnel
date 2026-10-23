@@ -42,6 +42,10 @@ describe("migrated appearance settings", () => {
     expect(html).toContain(i18n.t("theme.import.add"));
     expect(html).toContain(i18n.t("theme.custom.empty"));
     expect(html).toContain('class="aide-theme-palette"');
+    expect(html).toContain(i18n.t("applicationIcon.label"));
+    for (const variant of ["system", "light", "dark", "mono"]) {
+      expect(html).toContain(`aria-label="${i18n.t(`applicationIcon.${variant}`)}"`);
+    }
   });
 
   it("shows an imported active theme with a delete action and returns to the preset after removal", () => {

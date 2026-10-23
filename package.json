@@ -7,6 +7,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "icons": "node scripts/icon.mjs",
+    "package:mac": "bash scripts/package-mac.sh",
+    "package:win": "node scripts/icon.mjs && tauri build --bundles nsis",
     "tauri": "tauri",
     "test": "vitest run"
   },

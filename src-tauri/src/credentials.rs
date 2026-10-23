@@ -171,7 +171,45 @@ mod platform {
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(target_os = "macos")]
+mod platform {
+    use super::*;
+    use security_framework::passwords::{
+        delete_generic_password_options, generic_password, set_generic_password_options,
+        PasswordOptions,
+    };
+    const SERVICE: &str = "com.oria-tunnel.ssh-password";
+    const NOT_FOUND: i32 = -25300;
+
+    fn options(target: &str) -> PasswordOptions {
+        let mut options = PasswordOptions::new_generic_password(SERVICE, target);
+        // Passwords stay on this Mac; never opt into iCloud Keychain synchronization.
+        options.set_access_synchronized(Some(false));
+        options
+    }
+    pub fn read(target: &str) -> Result<Option<Zeroizing<Vec<u8>>>, String> {
+        match generic_password(options(target)) {
+            Ok(bytes) => Ok(Some(Zeroizing::new(bytes))),
+            Err(error) if error.code() == NOT_FOUND => Ok(None),
+            Err(_) => Err("无法读取 macOS 钥匙串".into()),
+        }
+    }
+    pub fn write(target: &str, bytes: &[u8]) -> Result<(), String> {
+        set_generic_password_options(bytes, options(target))
+            .map_err(|_| "无法保存到 macOS 钥匙串".into())
+    }
+    pub fn delete(target: &str) -> Result<(), String> {
+        match delete_generic_password_options(options(target)) {
+            Ok(()) => Ok(()),
+            Err(error) if error.code() == NOT_FOUND => Ok(()),
+            Err(_) => Err("无法从 macOS 钥匙串清除密码".into()),
+        }
+    }
+}
+
+pub const SUPPORTED: bool = cfg!(any(windows, target_os = "macos"));
+
+#[cfg(all(test, any(windows, target_os = "macos")))]
 mod tests {
     use super::*;
     struct Fixture {
@@ -269,7 +307,7 @@ mod tests {
         assert!(f.vault.read(&f.host).unwrap().is_none());
     }
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 mod platform {
     use super::*;
     pub fn read(_: &str) -> Result<Option<Zeroizing<Vec<u8>>>, String> {

@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from "react";
 import { UploadIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Modal, Field } from "@/components/tunnel-form";
+import { Modal, Field, ModalActions } from "@/components/tunnel-form";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import { useNativeFileDrop } from "@/hooks/use-native-file-drop";
@@ -207,11 +207,11 @@ export function ImportConfig({
               {t("importDropFile")}
             </span>
           </button>
-          <div className="form-actions">
+          <ModalActions>
             <Button variant="ghost" disabled={disabled} onClick={close}>
               {t("cancel")}
             </Button>
-          </div>
+          </ModalActions>
         </>
       )}
     </Modal>
@@ -346,7 +346,7 @@ function ImportConfigReview({
         </label>
       )}
       <p className="muted">{t("importStopped")}</p>
-      <div className="form-actions">
+      <ModalActions>
         <Button variant="ghost" disabled={busy} onClick={close}>
           {t("cancel")}
         </Button>
@@ -358,7 +358,7 @@ function ImportConfigReview({
         >
           {t("importSelected", { count: selected.length })}
         </Button>
-      </div>
+      </ModalActions>
     </>
   );
 }

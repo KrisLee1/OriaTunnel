@@ -92,6 +92,8 @@ describe("forward composition and semantics", () => {
     expect(networkChanged(rule, { ...rule, name: "renamed" })).toBe(false);
     expect(networkChanged(rule, { ...rule, autoConnect: true })).toBe(false);
     expect(networkChanged(rule, { ...rule, color: "#7c3aed" })).toBe(false);
+    expect(networkChanged(rule, { ...rule, icon: { kind: "emoji", value: "🚀" } })).toBe(false);
+    expect(networkChanged(rule, { ...rule, serviceProtocol: "vnc" })).toBe(false);
     expect(networkChanged(rule, { ...rule, targetPort: 8080 })).toBe(true);
   });
 });

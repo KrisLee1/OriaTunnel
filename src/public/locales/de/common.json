@@ -1512,7 +1512,8 @@
     "system": "System",
     "light": "Licht",
     "dark": "Dunkel",
-    "mono": "Mono"
+    "mono": "Mono",
+    "applyFailed": "App-Symbol konnte nicht aktualisiert werden"
   },
   "theme": {
     "label": "Design",

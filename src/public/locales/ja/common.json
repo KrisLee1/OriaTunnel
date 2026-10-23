@@ -1512,7 +1512,8 @@
     "system": "システム",
     "light": "ライト",
     "dark": "暗闇",
-    "mono": "モノ"
+    "mono": "モノ",
+    "applyFailed": "アプリアイコンを更新できませんでした"
   },
   "theme": {
     "label": "テーマ",

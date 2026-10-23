@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import { resolveTheme } from "@oriatheme/core"
+import { oriaPresetThemes } from "@oriatheme/presets"
 
 import {
   applyWindowAppearanceToRoot,
@@ -51,7 +53,7 @@ describe("nativeThemeForAppearance", () => {
 })
 
 describe("themeWindowAppearance", () => {
-  it("uses solid defaults and adds the window edge inset to the theme radius", () => {
+  it("reads window tokens even when the component surface is opaque", () => {
     expect(
       themeWindowAppearance({
         "--oria-color-surface-raised": "#ffffff",
@@ -60,7 +62,7 @@ describe("themeWindowAppearance", () => {
         "--oria-radius-xl": "0",
         "--oria-space": "0.25rem",
       }),
-    ).toEqual({ opacity: 100, blurRadius: 0, cornerRadius: 6 })
+    ).toEqual({ opacity: 70, blurRadius: 48, cornerRadius: 6 })
   })
 
   it("derives transparent material values and converts rem corner radii", () => {
@@ -73,6 +75,18 @@ describe("themeWindowAppearance", () => {
         "--oria-space": "0.5rem",
       }),
     ).toEqual({ opacity: 78, blurRadius: 60, cornerRadius: 44 })
+  })
+
+  it.each([
+    ["oria-default", 82, 40],
+    ["oria-glass", 78, 60],
+    ["oria-line-art", 100, 0],
+  ] as const)("follows %s preset tokens in both appearances", (id, opacity, blurRadius) => {
+    const preset = oriaPresetThemes.find((theme) => theme.id === id)!
+    for (const appearance of ["light", "dark"] as const) {
+      expect(themeWindowAppearance(resolveTheme(preset, appearance).variables))
+        .toMatchObject({ opacity, blurRadius })
+    }
   })
 })
 

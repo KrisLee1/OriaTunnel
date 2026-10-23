@@ -48,7 +48,7 @@ export function HostTestButton({
   return (
     <Button
       size="sm"
-      variant={testing ? "destructive" : "primary-soft"}
+      variant="primary-soft"
       className={`host-test-button${success ? " host-test-succeeded" : ""}`}
       disabled={disabled}
       aria-busy={testing}

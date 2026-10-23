@@ -8,8 +8,11 @@ import type {
   ImportPreview,
   ImportChoices,
   ImportSource,
+  ResolvedApplicationIcon,
 } from "@/types";
 export const desktop = isTauri();
+export const setApplicationIcon = (icon: ResolvedApplicationIcon) =>
+  invoke<void>("set_application_icon", { icon });
 export const openExternalUrl = (url: string) =>
   invoke<void>("open_external_url", { url });
 export const setWindowAppearance = (appearance: WindowAppearance) =>
@@ -48,6 +51,7 @@ export const saveHostMetadata = (host: Host) =>
     name: host.name,
     tags: host.tags,
   });
+export const openService = (id: string) => invoke<void>("open_service", { id });
 export const saveRule = (rule: Rule) => invoke<Snapshot>("save_rule", { rule });
 export const deleteRule = (id: string) =>
   invoke<Snapshot>("delete_rule", { id });

@@ -47,8 +47,8 @@ export function ThemeModeToggle({ variant, size, align, side, tooltip, className
   if (displayMode === "switch") {
     return (
       <Tabs value={resolvedMode} onValueChange={changeMode}>
-        <TabsList className={cn("p-0", className)}>
-          {items.slice(1).map((item) => <TabsTrigger key={item.value} value={item.value} aria-label={item.label} title={item.label} className="aspect-square">{item.icon}</TabsTrigger>)}
+        <TabsList variant="soft" className={className}>
+          {items.slice(1).map((item) => <TabsTrigger key={item.value} value={item.value} aria-label={item.label} title={item.label}>{item.icon}</TabsTrigger>)}
         </TabsList>
       </Tabs>
     )
@@ -72,8 +72,8 @@ export function ThemeModeToggle({ variant, size, align, side, tooltip, className
 
   return (
     <Tabs value={mode} onValueChange={changeMode}>
-      <TabsList className={cn(className)}>
-        {items.map((item) => <TabsTrigger value={item.value} key={item.value} aria-label={item.label} title={item.label} className="aspect-square">{item.icon}</TabsTrigger>)}
+      <TabsList variant="soft" className={className}>
+        {items.map((item) => <TabsTrigger value={item.value} key={item.value} aria-label={item.label} title={item.label}>{item.icon}</TabsTrigger>)}
       </TabsList>
     </Tabs>
   )

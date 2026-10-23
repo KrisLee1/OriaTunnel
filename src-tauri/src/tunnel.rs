@@ -411,6 +411,15 @@ async fn forward(
     } = request;
     rule.validate()
         .map_err(|e| Failure::new(FailureKind::Configuration, e))?;
+    if !test_only && !rule.no_remote_command && !host.unsupported_session_options.is_empty() {
+        return Err(Failure::new(
+            FailureKind::Configuration,
+            format!(
+                "远程命令暂不支持来源会话选项 {}；请使用仅转发模式",
+                host.unsupported_session_options.join("、")
+            ),
+        ));
+    }
     let mut target = host.clone();
     if let Some(options) = &rule.connection {
         target.connection = options.clone();

@@ -1,11 +1,14 @@
 import { useTranslation } from "react-i18next";
+import { useId } from "react";
 import { ServerPlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field } from "@/components/tunnel-form";
+import { Field, ModalActions } from "@/components/tunnel-form";
 import type { ConnectionOptions, Host, Rule } from "@/types";
 import { defaultConnection, rulePath } from "./rule-model";
+import { ServiceProtocolPicker } from "./service-protocol";
 import { ConnectionColorPicker } from "./connection-color";
+import { ConnectionIconPicker } from "./connection-icon";
 import { HostPicker } from "@/features/hosts/host-picker";
 import { ParameterField, ParameterSwitch } from "@/components/parameter-field";
 import {
@@ -101,10 +104,12 @@ export function RuleEditor({
 }) {
   const { t } = useTranslation("tunnel");
   const selected = hosts.find((h) => h.id === draft.hostId);
+  const formId = useId();
   const eligible = selected && !selected.diagnostics.length;
   const change = (r: Partial<Rule>) => onChange({ ...draft, ...r });
   return (
     <form
+      id={formId}
       onSubmit={(e) => {
         e.preventDefault();
         onSave(false);
@@ -120,6 +125,11 @@ export function RuleEditor({
       <ConnectionColorPicker
         value={draft.color}
         onChange={(color) => change({ color })}
+      />
+      <ConnectionIconPicker
+        value={draft.icon}
+        color={draft.color}
+        onChange={(icon) => change({ icon })}
       />
       <HostPicker
         hosts={hosts}
@@ -168,6 +178,11 @@ export function RuleEditor({
         </Select>
       </Field>
       <p className="muted form-hint">{t(`example${draft.kind}`)}</p>
+      <ServiceProtocolPicker
+        value={draft.serviceProtocol}
+        disabled={draft.kind === "D"}
+        onChange={(serviceProtocol) => change({ serviceProtocol })}
+      />
       <div className="form-grid">
         <Field
           label={t(draft.kind === "R" ? "remoteBindAddress" : "bindAddress")}
@@ -382,12 +397,13 @@ export function RuleEditor({
         <small>{t(`dns${draft.kind}`)}</small>
       </div>
       {reconnect && <p className="inline-error">{t("reconnectHint")}</p>}
-      <div className="form-actions">
+      <ModalActions>
         <Button type="button" variant="ghost" onClick={onCancel}>
           {t("cancel")}
         </Button>
         <Button
           type="submit"
+          form={formId}
           disabled={
             busy ||
             !eligible ||
@@ -400,6 +416,7 @@ export function RuleEditor({
         {!reconnect && (
           <Button
             type="submit"
+            form={formId}
             variant="primary-soft"
             disabled={
               busy ||
@@ -417,7 +434,7 @@ export function RuleEditor({
             {t("saveStart")}
           </Button>
         )}
-      </div>
+      </ModalActions>
     </form>
   );
 }

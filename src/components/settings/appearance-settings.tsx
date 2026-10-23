@@ -25,6 +25,7 @@ import {
 } from "@/components/settings/window-control-setting";
 import { WindowAppearanceSettings } from "@/components/settings/window-appearance-setting";
 import { isWindowsDesktop } from "@/components/theme/window-appearance";
+import { ApplicationIconSetting } from "@/components/settings/application-icon-setting";
 
 // Composition migrated from OriaAide's settings-panel.tsx, without unrelated app settings.
 function SettingItem({
@@ -82,7 +83,10 @@ export function AppearanceSettings() {
         />
       </SettingItem>
       <SettingItem title={t("appAppearance.label")}>
-        <ThemeModeToggle className="p-0" />
+        <ThemeModeToggle />
+      </SettingItem>
+      <SettingItem title={t("applicationIcon.label")} description={t("applicationIcon.description")}>
+        <ApplicationIconSetting />
       </SettingItem>
       <SettingItem title={t("theme.label")}>
         <ThemeSelect

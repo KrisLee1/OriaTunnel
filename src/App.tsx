@@ -9,6 +9,8 @@ import {
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
+import { AnimatePresence, motion } from "motion/react";
+import { PageTransition, useEntranceMotion } from "./components/ui/motion";
 import {
   ReactFlow,
   Background,
@@ -37,19 +39,18 @@ import {
   MaximizeIcon,
   ZoomInIcon,
   ZoomOutIcon,
-  NetworkIcon,
-  XIcon,
+  GraphStarIcon,
   ShieldCheckIcon,
-  KeyRoundIcon,
   InfoIcon,
   Trash2Icon,
 } from "lucide-react";
 import { WindowHeader } from "./components/window/window-header";
 import { Button } from "./components/ui/button";
+import { Toaster, toast } from "./components/ui/toast";
 import { Input } from "./components/ui/input";
 import { ScrollArea } from "./components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
-import { Field, Modal } from "./components/tunnel-form";
+import { Field, Modal, ModalActions } from "./components/tunnel-form";
 import { ConnectionFields, RuleEditor } from "./features/tunnels/rule-editor";
 import { HostSourceSettings } from "./features/hosts/source-settings";
 import { HostGroups, type HostGrouping } from "./features/hosts/host-groups";
@@ -63,6 +64,7 @@ import { HostDiscovery } from "./features/hosts/host-discovery";
 import { hostAuthLabels } from "./features/hosts/host-auth";
 import { addedHosts, hostFilterStatus } from "./features/hosts/host-collection";
 import { RuleToolbar } from "./features/tunnels/rule-toolbar";
+import { OpenServiceButton } from "./features/tunnels/service-protocol";
 import { RuleActions } from "./features/tunnels/rule-actions";
 import { ParameterField, ParameterSwitch, ParameterTitle } from "./components/parameter-field";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "./components/ui/item";
@@ -74,7 +76,7 @@ import { runtimeStatus } from "./features/tunnels/runtime-status";
 import { ActivityView } from "./features/tunnels/activity-view";
 import { WorkspaceActions } from "./features/tunnels/workspace-actions";
 import { ImportConfig } from "./features/tunnels/import-config";
-import { ConnectionColorDot } from "./features/tunnels/connection-color";
+import { ConnectionIcon } from "./features/tunnels/connection-icon";
 import { ConnectionEdge } from "./features/tunnels/connection-edge";
 import { LocalPortHandle } from "./features/tunnels/local-port-handle";
 import { PORT_LAYOUT_KEY, readPortPlacements, type PortPlacement } from "./features/tunnels/port-placement";
@@ -164,6 +166,7 @@ function useSnapshot() {
 
 export function App() {
   const { t } = useTranslation("tunnel");
+  const rowEntrance = useEntranceMotion(4);
   const { data, accept, error, setError } = useSnapshot();
   const [page, setPage] = useState("canvas");
   const [settings, setSettings] = useState(false);
@@ -195,9 +198,37 @@ export function App() {
     return () => { void unlisten.then((off) => off()).catch(() => {}); };
   }, [setError]);
   const rememberHostIds = () => Object.keys(rememberPasswords).filter((id) => rememberPasswords[id]);
-  const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
+  useEffect(() => {
+    if (!error) {
+      toast.close("app-error");
+      return;
+    }
+    toast.add({
+      id: "app-error",
+      title: error,
+      type: "error",
+      priority: "high",
+      timeout: 0,
+      onClose: () => setError((current) => current === error ? "" : current),
+    });
+  }, [error, setError]);
+  const notifyBatch = (results: BatchResult[], operation: "start" | "stop") => {
+    const accepted = results.filter((result) => result.accepted).length;
+    const rejected = results.length - accepted;
+    toast.add({
+      title: t(rejected ? "batchRequestPartial" : "batchRequestSubmitted", {
+        action: t(operation),
+        count: accepted,
+        rejected,
+      }),
+      description:
+        results.find((result) => !result.accepted)?.error ||
+        (rejected ? t("batchRequestFailed") : undefined),
+      type: rejected ? "warning" : "info",
+      timeout: rejected ? 6000 : 4000,
+    });
+  };
   const [exporting, setExporting] = useState<string[] | null>(null);
-  const [exportPath, setExportPath] = useState("");
   const action = useCallback(
     async (fn: () => Promise<unknown>) => {
       setBusy(true);
@@ -389,13 +420,12 @@ export function App() {
               onStartAll={() => {
                 setBatchAuth(data.rules.map((r) => r.id));
                 setBatchSecrets({});
-                setBatchResults([]);
               }}
               onStopAll={() => {
-                setBatchResults([]);
                 void action(async () =>
-                  setBatchResults(
+                  notifyBatch(
                     await bridge.stopBatch(data.rules.map((r) => r.id)),
+                    "stop",
                   ),
                 );
               }}
@@ -404,7 +434,7 @@ export function App() {
         }
         centerContent={
           <Tabs value={page} onValueChange={setPage}>
-            <TabsList className="nav-tabs overlay">
+            <TabsList variant="soft">
               <TabsTrigger value="canvas">{t("canvas")}</TabsTrigger>
               <TabsTrigger value="tunnels">{t("tunnels")}</TabsTrigger>
               <TabsTrigger value="hosts">{t("hosts")}</TabsTrigger>
@@ -430,11 +460,13 @@ export function App() {
         </div>
       )}
       <main>
+        <PageTransition key={page}>
         {page === "canvas" ? (
           <ReactFlowProvider>
             <TunnelCanvas
               data={data}
               onStart={start}
+              onOpenService={(id) => void action(() => bridge.openService(id))}
               onStop={stop}
               onDetails={(rule) => setInspecting(rule.id)}
               onCopy={copyRule}
@@ -495,11 +527,10 @@ export function App() {
               onStart={() => {
                 setBatchAuth(selection);
                 setBatchSecrets({});
-                setBatchResults([]);
               }}
               onStop={() =>
                 void action(async () =>
-                  setBatchResults(await bridge.stopBatch(selection)),
+                  notifyBatch(await bridge.stopBatch(selection), "stop"),
                 )
               }
               onDelete={() =>
@@ -513,26 +544,6 @@ export function App() {
               }}
               onUndo={() => void action(bridge.undoDelete)}
             />
-            {!!batchResults.length && (
-              <div className="batch-results" role="status">
-                <p className="muted">{t("batchAcceptedHint")}</p>
-                {batchResults.map((result) => (
-                  <p
-                    key={result.id}
-                    className={result.accepted ? "muted" : "inline-error"}
-                  >
-                    {data.rules.find((r) => r.id === result.id)?.name ||
-                      result.id}{" "}
-                    · {result.accepted ? t("requestAccepted") : result.error}
-                  </p>
-                ))}
-              </div>
-            )}
-            {exportPath && (
-              <p className="muted" role="status">
-                {t("exported")} {exportPath}
-              </p>
-            )}
             {!data.rules.length ? (
               <Empty title={t("noRules")} body={t("emptyBody")} />
             ) : (
@@ -560,7 +571,7 @@ export function App() {
                           (r) => r.ruleId === rule.id,
                         );
                       return (
-                        <div className="rule-row themed-surface" key={rule.id}>
+                        <motion.div className="rule-row themed-surface" key={rule.id} {...rowEntrance}>
                           <input
                             className="rule-select"
                             type="checkbox"
@@ -576,7 +587,7 @@ export function App() {
                           />
                           <div className="rule-summary">
                             <strong className="rule-name">
-                              <ConnectionColorDot color={rule.color} />
+                              <ConnectionIcon icon={rule.icon} color={rule.color} />
                               <span title={rule.name}>{rule.name}</span>
                             </strong>
                             <Status runtime={runtime} />
@@ -621,7 +632,7 @@ export function App() {
                               stop={() => void stop(rule.id)}
                             />
                           </RuleActions>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </section>
@@ -630,29 +641,15 @@ export function App() {
             )}
           </ScrollArea>
         )}
+        </PageTransition>
       </main>
       <div className="app-footnote">
-        <NetworkIcon size={13} />
+        <GraphStarIcon size={13} />
         <span>
           {active} {t("active")}
         </span>
         <span className="footnote-divider" />
         <span>OriaTunnel</span>
-        {!!batchResults.length && page !== "tunnels" && (
-          <Button
-            className="batch-result-link"
-            variant="ghost"
-            size="sm"
-            onClick={() => setPage("tunnels")}
-          >
-            <span role="status">
-              {t("viewBatchResults", {
-                accepted: batchResults.filter((r) => r.accepted).length,
-                count: batchResults.length,
-              })}
-            </span>
-          </Button>
-        )}
       </div>
       {!!data.diagnostics.length && (
         <div className="diagnostics overlay">
@@ -661,21 +658,10 @@ export function App() {
           ))}
         </div>
       )}
-      {error && (
-        <div className="error-toast floating-surface" role="alert">
-          <div>{error}</div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("cancel")}
-            onClick={() => setError("")}
-          >
-            <XIcon />
-          </Button>
-        </div>
-      )}
+      <Toaster closeLabel={t("cancel")} />
+      <AnimatePresence>
       {deleting && (
-        <Modal
+        <Modal key="delete-rules"
           title={t("confirmDelete")}
           close={() => {
             if (!busy) setDeleting(null);
@@ -689,7 +675,7 @@ export function App() {
               <li key={rule.id}>{rule.name}</li>
             ))}
           </ul>
-          <div className="form-actions">
+          <ModalActions>
             <Button
               variant="ghost"
               disabled={busy}
@@ -711,9 +697,6 @@ export function App() {
                     setSelectedRules((ids) =>
                       ids.filter((id) => !removed.has(id)),
                     );
-                    setBatchResults((items) =>
-                      items.filter((item) => !removed.has(item.id)),
-                    );
                     setDeleting(null);
                   }
                 })
@@ -721,11 +704,11 @@ export function App() {
             >
               {t("delete")}
             </Button>
-          </div>
+          </ModalActions>
         </Modal>
       )}
       {deletingHost && (
-        <Modal
+        <Modal key="delete-host"
           title={t("confirmDelete")}
           close={() => {
             if (!busy) setDeletingHost(null);
@@ -748,7 +731,7 @@ export function App() {
             </ul>
           )}
           <p className="muted">{t("deleteUndoHint")}</p>
-          <div className="form-actions">
+          <ModalActions>
             <Button
               variant="ghost"
               disabled={busy}
@@ -770,9 +753,6 @@ export function App() {
                     setSelectedRules((items) =>
                       items.filter((id) => !ids.includes(id)),
                     );
-                    setBatchResults((items) =>
-                      items.filter((item) => !ids.includes(item.id)),
-                    );
                     setSelectedHost((id) => (id === hostId ? "" : id));
                     setDeletingHost(null);
                   }
@@ -781,11 +761,11 @@ export function App() {
             >
               {t("delete")}
             </Button>
-          </div>
+          </ModalActions>
         </Modal>
       )}
       {importing && (
-        <ImportConfig
+        <ImportConfig key="import"
           previewFile={bridge.previewImport}
           cancelPreview={bridge.cancelImport}
           hosts={data.hosts}
@@ -804,7 +784,7 @@ export function App() {
         />
       )}
       {settings && (
-        <Modal
+        <Modal key="settings"
           title={t("settings")}
           close={() => setSettings(false)}
           className="max-w-3xl sm:max-w-3xl"
@@ -853,11 +833,6 @@ export function App() {
                     htmlFor="settings-autostart"
                   />
                 </ItemTitle>
-                {!data.autostartSupported && (
-                  <ItemDescription className="line-clamp-none text-xs">
-                    {t("autostartUnavailable")}
-                  </ItemDescription>
-                )}
                 {data.autostartError && (
                   <ItemDescription
                     className="line-clamp-none text-xs text-destructive"
@@ -892,7 +867,7 @@ export function App() {
         </Modal>
       )}
       {inspected && (
-        <Modal title={inspected.name} close={() => setInspecting("")}>
+        <Modal key="runtime-details" title={inspected.name} close={() => setInspecting("")}>
           <RuntimeDetails
             rule={inspected}
             runtime={data.runtimes.find((r) => r.ruleId === inspected.id)}
@@ -904,7 +879,7 @@ export function App() {
         </Modal>
       )}
       {batchAuth && (
-        <Modal
+        <Modal key="batch-auth"
           title={t("batchStartTitle", { count: batchAuth.length })}
           description={t("batchAuthHint")}
           close={() => {
@@ -912,7 +887,7 @@ export function App() {
             setBatchSecrets({});
           }}
         >
-          <form
+          <form id="batch-auth-form"
             onSubmit={(e) => {
               e.preventDefault();
               const ids = batchAuth;
@@ -921,7 +896,10 @@ export function App() {
               setBatchSecrets({});
               setBatchAuth(null);
               void action(async () =>
-                setBatchResults(await bridge.startBatch(ids, credentials, remember)),
+                notifyBatch(
+                  await bridge.startBatch(ids, credentials, remember),
+                  "start",
+                ),
               );
             }}
           >
@@ -931,39 +909,44 @@ export function App() {
                 remember={!!rememberPasswords[host.id]}
                 onRemember={(value) => setRememberPasswords((old) => ({ ...old, [host.id]: value }))} />
             ))}
-            <p className="muted">{t("batchAcceptedHint")}</p>
-            <div className="form-actions">
-              <Button type="submit" variant="primary-soft" disabled={busy}>
+            <ModalActions>
+              <Button type="submit" form="batch-auth-form" variant="primary-soft" disabled={busy}>
                 {t("startSelected")}
               </Button>
-            </div>
+            </ModalActions>
           </form>
         </Modal>
       )}
       {exporting && (
-        <Modal
+        <Modal key="export"
           title={t("exportTitle", { count: exporting.length })}
           close={() => setExporting(null)}
         >
           <p className="muted">{t("exportHint")}</p>
-          <div className="form-actions">
+          <ModalActions>
             <Button
               disabled={busy}
               onClick={() =>
                 void action(async () => {
                   const path = await bridge.exportConfig(exporting);
-                  if (path) setExportPath(path);
+                  if (path)
+                    toast.add({
+                      title: t("exported"),
+                      description: path,
+                      type: "success",
+                      timeout: 4000,
+                    });
                   setExporting(null);
                 })
               }
             >
               {t("chooseExportFile")}
             </Button>
-          </div>
+          </ModalActions>
         </Modal>
       )}
       {ruleDraft && !ruleSuspended && (
-        <Modal
+        <Modal key="rule-editor"
           title={t(ruleDraft.id ? "editForward" : "add")}
           close={() => setRuleDraft(null)}
         >
@@ -993,7 +976,7 @@ export function App() {
         </Modal>
       )}
       {discovering && (
-        <HostDiscovery
+        <HostDiscovery key="discovery"
           hosts={data.hosts.filter((host) => !managedHostIds.has(host.id))}
           diagnostics={data.diagnostics}
           busy={busy}
@@ -1029,11 +1012,11 @@ export function App() {
         />
       )}
       {hostDraft && (
-        <Modal
+        <Modal key="host-editor"
           title={hostDraft.id ? t("edit") : t("newHost")}
           close={closeHost}
         >
-          <form
+          <form id="host-editor-form"
             onSubmit={(e) => {
               e.preventDefault();
               void saveHostDraft(false);
@@ -1215,12 +1198,12 @@ export function App() {
                 )}
               </div>
             )}
-            <div className="form-actions">
+            <ModalActions>
               <Button type="button" variant="ghost" onClick={closeHost}>
                 {t("cancel")}
               </Button>
               <Button
-                type="submit"
+                type="submit" form="host-editor-form"
                 variant="primary-soft"
                 disabled={busy}
                 onClick={(e) => {
@@ -1232,16 +1215,17 @@ export function App() {
               >
                 {t("saveTest")}
               </Button>
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" form="host-editor-form" disabled={busy}>
                 {t("save")}
               </Button>
-            </div>
+            </ModalActions>
           </form>
         </Modal>
       )}
       {authId && (
-        <Modal
-          title={t("auth")}
+        <Modal key="authentication"
+          className="authentication-modal max-w-lg sm:max-w-lg"
+          title={authTarget ? t("authForHost", { name: authTarget.name }) : t("auth")}
           description={t("authHelp")}
           close={() => {
             setAuthId(null);
@@ -1249,7 +1233,7 @@ export function App() {
             setJumpSecrets({});
           }}
         >
-          <form
+          <form id="authentication-form"
             onSubmit={(e) => {
               e.preventDefault();
               const id = authId;
@@ -1272,28 +1256,41 @@ export function App() {
                 remember={!!rememberPasswords[h.id]}
                 onRemember={(value) => setRememberPasswords((old) => ({ ...old, [h.id]: value }))} />
             ))}
-            {authTarget && <AuthenticationField host={authTarget} value={secret} onChange={setSecret}
-              remember={!!rememberPasswords[authTarget.id]}
-              onRemember={(value) => setRememberPasswords((old) => ({ ...old, [authTarget.id]: value }))} />}
-            <div className="form-actions">
-              <Button type="submit" variant="primary-soft">
-                <KeyRoundIcon />
-                {t("start")}
-              </Button>
-            </div>
+            {authTarget ? (
+              <AuthenticationField
+                host={authTarget}
+                hideLabel
+                value={secret}
+                onChange={setSecret}
+                remember={!!rememberPasswords[authTarget.id]}
+                onRemember={(value) => setRememberPasswords((old) => ({ ...old, [authTarget.id]: value }))}
+                actions={<Button type="submit" form="authentication-form" variant="primary-soft">{t("connect")}</Button>}
+              />
+            ) : (
+              <ModalActions>
+                <Button type="submit" form="authentication-form" variant="primary-soft">{t("connect")}</Button>
+              </ModalActions>
+            )}
           </form>
         </Modal>
       )}
       {pending && (
-        <Modal
-          title={t("trust")}
+        <Modal key="trust"
+          className="trust-modal max-w-lg sm:max-w-lg"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheckIcon className="size-5 shrink-0 text-primary" aria-hidden="true" />
+              {t("trust")}
+            </span>
+          }
           description={t("trustHelp")}
           close={() => void stop(pending.ruleId)}
         >
-          <ShieldCheckIcon className="trust-icon" />
-          <strong>{pending.verificationEndpoint}</strong>
-          <code className="fingerprint">{pending.fingerprint}</code>
-          <div className="form-actions">
+          <div className="trust-details">
+            <strong className="trust-host">{pending.verificationEndpoint}</strong>
+            <code className="fingerprint">{pending.fingerprint}</code>
+          </div>
+          <ModalActions className="trust-actions">
             <Button
               variant="destructive"
               onClick={() => void stop(pending.ruleId)}
@@ -1314,9 +1311,10 @@ export function App() {
             >
               {t("trustAccept")}
             </Button>
-          </div>
+          </ModalActions>
         </Modal>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1324,7 +1322,7 @@ export function App() {
 function Empty({ title, body }: { title: string; body?: string }) {
   return (
     <div className="empty">
-      <NetworkIcon size={36} strokeWidth={1} />
+      <GraphStarIcon size={36} strokeWidth={1} />
       <h2>{title}</h2>
       {body && <p>{body}</p>}
     </div>
@@ -1502,8 +1500,9 @@ function Hosts({
           }}
         />
       )}
+      <AnimatePresence>
       {host && (
-        <Modal title={host.name} close={() => setSelected("")}>
+        <Modal key={host.id} title={host.name} close={() => setSelected("")}>
           <div className="host-detail">
             <div className="host-detail-badges">
               <span className="source-badge">
@@ -1603,6 +1602,9 @@ function Hosts({
             {host.source === "config" && (
               <p className="muted">{t("sourceHint")}</p>
             )}
+            {!!host.unsupportedSessionOptions?.length && (
+              <p className="muted">{t("sessionOptionsHint", { options: host.unsupportedSessionOptions.join(", ") })}</p>
+            )}
             {host.diagnostics.map((d, i) => (
               <p className="inline-error" key={i}>
                 {d}
@@ -1641,11 +1643,13 @@ function Hosts({
           </div>
         </Modal>
       )}
+      </AnimatePresence>
     </ScrollArea>
   );
 }
 
 type CardData = {
+  onOpenService: (id: string) => void;
   onPortMove: (
     id: string,
     value: PortPlacement | null,
@@ -1727,6 +1731,8 @@ function CardPorts({
 }
 function Card({ id, data: d }: NodeProps<CardNode>) {
   const { t } = useTranslation("tunnel");
+  // Opacity only: transforms belong to React Flow and port measurement.
+  const entrance = useEntranceMotion(0);
   const updateInternals = useUpdateNodeInternals();
   const [portDragSize, setPortDragSize] = useState<ReturnType<
     typeof localCardSize
@@ -1742,8 +1748,9 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
   }, [id, portLayout, updateInternals]);
   if (d.local)
     return (
-      <article
+      <motion.article
         className="tunnel-card themed-surface local-card"
+        {...entrance}
         style={portDragSize || localCardSize(d.ports)}
         aria-label={`${t("local")} · ${d.count || 0} ${t("tunnels")}`}
       >
@@ -1756,14 +1763,14 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
           }
         />
         <div className="local-computer" aria-hidden="true">
-          <MonitorIcon strokeWidth={1.3} />
+          <MonitorIcon />
           <strong>{d.count || 0}</strong>
         </div>
         <span className="local-card-title">{t("local")}</span>
-      </article>
+      </motion.article>
     );
   return (
-    <article className="tunnel-card themed-surface host-card">
+    <motion.article className="tunnel-card themed-surface host-card" {...entrance}>
       <div className="card-heading">
         <span className="card-icon">
           <ServerIcon size={21} />
@@ -1804,7 +1811,10 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
                 }
               >
                 <div className="host-rule-heading">
-                  <strong>{rule.name}</strong>
+                  <strong className="rule-name">
+                    <ConnectionIcon icon={rule.icon} color={rule.color} />
+                    <span title={rule.name}>{rule.name}</span>
+                  </strong>
                   <Status runtime={runtime} />
                 </div>
                 <div className="host-rule-meta">
@@ -1855,6 +1865,12 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
                       </>
                     )}
                   </code>
+                  <OpenServiceButton
+                    rule={rule}
+                    runtime={runtime}
+                    desktop={bridge.desktop}
+                    onOpen={d.onOpenService}
+                  />
                 </div>
                 {runtime?.configurationChanged && (
                   <p className="muted">{t("configUpdated")}</p>
@@ -1882,13 +1898,14 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
           })}
         </div>
       </>
-    </article>
+    </motion.article>
   );
 }
 const nodeTypes = { card: Card };
 const edgeTypes = { connection: ConnectionEdge };
 function TunnelCanvas({
   data,
+  onOpenService,
   onStart,
   onStop,
   onEdit,
@@ -1899,6 +1916,7 @@ function TunnelCanvas({
   onFocusDone,
 }: {
   data: Snapshot;
+  onOpenService: (id: string) => void;
   onStart: (id: string) => void;
   onStop: (id: string) => unknown;
   onEdit: (rule: Rule) => void;
@@ -2023,6 +2041,7 @@ function TunnelCanvas({
         data: {
           local: true,
           onPortMove,
+          onOpenService,
           onDetails,
           onCopy,
           onDelete,
@@ -2040,6 +2059,7 @@ function TunnelCanvas({
         data: {
           local: false,
           onPortMove,
+          onOpenService,
           onDetails,
           onCopy,
           onDelete,
@@ -2058,6 +2078,7 @@ function TunnelCanvas({
     positions,
     portPlacements,
     onPortMove,
+    onOpenService,
     onStart,
     onStop,
     onEdit,
@@ -2092,6 +2113,12 @@ function TunnelCanvas({
   );
   return (
     <div className="canvas">
+      {!data.rules.length && (
+        <div className="canvas-hint">
+          <span className="eyebrow">OriaTunnel</span>
+          <p>{t("empty")}</p>
+        </div>
+      )}
       <div className="canvas-mask">
         <ReactFlow<CardNode>
           nodes={nodes}
@@ -2164,12 +2191,6 @@ function TunnelCanvas({
           <Background gap={24} size={1} />
         </ReactFlow>
       </div>
-      {!data.rules.length && (
-        <div className="canvas-hint">
-          <span className="eyebrow">OriaTunnel</span>
-          <p>{t("empty")}</p>
-        </div>
-      )}
       <div className="canvas-controls overlay">
         <Button
           variant="ghost"

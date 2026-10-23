@@ -1,5 +1,14 @@
 import i18n from "./i18n";
 const en = {
+  serviceProtocol: "Service protocol",
+  openService: "Open service",
+  serviceSelectProtocol: "Select a service protocol first",
+  serviceDynamic: "SOCKS5 has no fixed service endpoint",
+  serviceRemoteLoopback: "A remote loopback listener cannot be accessed directly from this computer",
+  serviceStartFirst: "Start the forward and wait until it is listening",
+  serviceReconnect: "Reconnect after configuration changes",
+  serviceDesktopOnly: "Open services in the desktop app",
+
   importHostBlocked:
     "The source marked this host incompatible. Skip dependent rules or explicitly reuse a healthy existing host; importing it as a direct connection is blocked.",
   jumpNumber: "Jump {{count}}",
@@ -72,6 +81,15 @@ const en = {
   startAll: "Start all",
   stopAll: "Stop all",
   connectionColor: "Connection color",
+  connectionIcon: "Icon",
+  defaultIcon: "Default dot",
+  iconLibrary: "Icon library",
+  builtinIcons: "Icons",
+  searchIcons: "Search icons or emoji…",
+  noMatchingIcons: "No matching icons",
+  customEmoji: "Custom emoji or symbol",
+  customEmojiHint: "Enter one emoji or symbol; combined emoji are supported.",
+  useIcon: "Use",
   customColor: "Custom color",
   themeColor: "Theme color",
   selectHostSearch: "Search and select an SSH host…",
@@ -89,7 +107,6 @@ const en = {
   colorRed: "Red",
   colorGray: "Gray",
   allRulesHint: "{{action}} · all {{count}} forwards in the current workspace",
-  viewBatchResults: "Results · {{accepted}}/{{count}} accepted",
   repeatCommandOnReconnect:
     "Allow this command to run again on every reconnect",
   repeatCommandHint:
@@ -130,11 +147,9 @@ const en = {
   autoConnect: "Connect this rule when OriaTunnel starts",
   autoConnectHint:
     "Off by default. Requires trusted host keys for every hop and a key or Agent. Passwords and key passphrases are never stored; missing authentication requires manual start.",
-  autostart: "Start in tray when signing in",
+  autostart: "Launch at startup",
   autostartHint:
-    "Applies to this Windows user. Independent of each rule's automatic connection setting; off by default.",
-  autostartUnavailable:
-    "Available in Windows release builds. Development builds require the local development server.",
+    "Start in the background after signing in.",
   "needs-attention": "Needs attention",
   "status-authentication-error": "Authentication failed",
   "status-host-key-error": "Verify host key",
@@ -172,16 +187,17 @@ const en = {
   batchStartTitle: "Start {{count}} rules",
   batchAuthHint:
     "Enter credentials per host, including jump hosts, or leave blank to reuse saved passwords. Each rule starts independently.",
-  batchAcceptedHint:
-    "Accepted means the request was queued. Each rule's live state and any trust prompts show the actual outcome.",
-  requestAccepted: "Request accepted",
+  batchRequestSubmitted: "{{action}} requests submitted · {{count}}",
+  batchRequestPartial: "{{action}} requests: {{count}} submitted, {{rejected}} failed",
+  batchRequestFailed: "Unable to submit the request",
   undoDelete: "Undo deletion",
   exportConfig: "Export configuration",
   exportTitle: "Export {{count}} rules",
   exportHint:
     "Exports the selected rules and required host route. Excludes credentials, trusted keys, source file contents, commands, logs and runtime. Automatic connection is off in the exported package.",
   chooseExportFile: "Save configuration file",
-  exported: "Exported to",
+  exported: "Configuration exported",
+  sourcesSaved: "SSH source settings saved",
   sourcesHint:
     "Default user and system SSH configurations remain read-only. Additional files are resolved after the user configuration and before the system configuration.",
   additionalSources: "Additional SSH configuration files",
@@ -276,6 +292,7 @@ const en = {
   commandHint:
     "This command runs on the SSH server when started. Do not put secrets here: the command is saved with the rule. Output is discarded; no interactive terminal is opened.",
   trayAndStartup: "Tray and startup",
+  sessionOptionsHint: "Source session options ({{options}}) do not affect forwarding or host tests. Remote commands are unavailable for this host until those options are supported.",
   overrideConnection: "Override host connection options",
   inheritConnection: "Use the host’s timeout and keepalive settings.",
   connectTimeout: "Connection and handshake timeout (seconds)",
@@ -342,11 +359,14 @@ const en = {
   path: "Connection path",
   saveStart: "Save and start",
   password: "Password / private key passphrase (optional)",
-  auth: "Connect securely",
+  auth: "Authentication",
+  authForHost: "Authentication · {{name}}",
+  connect: "Connect",
   authHelp:
-    "Leave blank to use a saved password, private key or system agent. New secrets remain in session memory unless you choose to remember a password. Private key passphrases are never saved.",
+    "Enter a password or key passphrase, or leave blank to use a saved password, private key or system agent.",
   rememberPassword: "Remember password",
-  rememberPasswordHint: "Save to Windows Credential Manager after successful password authentication. Turning this off keeps any previously saved password.",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
   passwordSaved: "Password saved on this device",
   passwordStorageNeedsAttention: "Saved password unavailable",
   savedPasswordPlaceholder: "Leave blank to use saved password; enter a new one to replace it",
@@ -374,7 +394,6 @@ const en = {
   fit: "Fit canvas",
   zoomOut: "Zoom out",
   zoomIn: "Zoom in",
-  saved: "Saved",
   error: "Action failed",
   trust: "Verify SSH host",
   trustHelp:
@@ -404,6 +423,15 @@ const en = {
   busy: "Working…",
 };
 const zh: typeof en = {
+  serviceProtocol: "服务协议",
+  openService: "打开服务",
+  serviceSelectProtocol: "请先选择服务协议",
+  serviceDynamic: "SOCKS5 转发没有固定服务入口",
+  serviceRemoteLoopback: "远端回环监听无法从此电脑直接访问",
+  serviceStartFirst: "请先启动转发并等待监听就绪",
+  serviceReconnect: "配置已更改，请重新连接",
+  serviceDesktopOnly: "请在桌面应用中打开服务",
+
   importHostBlocked:
     "来源标记此主机不兼容。请跳过相关规则或明确复用正常的现有主机；禁止导入后静默改为直接连接。",
   jumpNumber: "第 {{count}} 跳",
@@ -472,6 +500,15 @@ const zh: typeof en = {
   startAll: "全部开启",
   stopAll: "全部停止",
   connectionColor: "连接颜色",
+  connectionIcon: "图标",
+  defaultIcon: "默认色点",
+  iconLibrary: "图标库",
+  builtinIcons: "图标",
+  searchIcons: "搜索图标或 emoji…",
+  noMatchingIcons: "没有匹配的图标",
+  customEmoji: "自定义 emoji 或符号",
+  customEmojiHint: "输入单个 emoji 或符号，支持组合 emoji。",
+  useIcon: "使用",
   customColor: "自定义颜色",
   themeColor: "跟随主题",
   selectHostSearch: "搜索并选择 SSH 主机…",
@@ -489,7 +526,6 @@ const zh: typeof en = {
   colorRed: "红色",
   colorGray: "灰色",
   allRulesHint: "{{action}} · 当前工作区全部 {{count}} 条转发",
-  viewBatchResults: "逐项结果 · {{accepted}}/{{count}} 已受理",
   repeatCommandOnReconnect: "允许每次重连时重新执行远程命令",
   repeatCommandHint:
     "默认关闭；未允许时，带命令的会话断线后等待手动启动。仅在确定命令可重复执行时启用。",
@@ -529,10 +565,9 @@ const zh: typeof en = {
   autoConnect: "启动 OriaTunnel 后自动连接此规则",
   autoConnectHint:
     "默认关闭。每跳都需已核对指纹并具备私钥或系统代理；不保存密码或私钥口令，缺少认证时需手动启动。",
-  autostart: "登录 Windows 后在托盘启动",
+  autostart: "开机自启",
   autostartHint:
-    "仅影响当前 Windows 用户，与每条规则的自动连接独立，默认关闭。",
-  autostartUnavailable: "Windows 发布构建可用；开发构建需要本地开发服务器。",
+    "登录系统后在后台启动。",
   "needs-attention": "需处理",
   "status-authentication-error": "认证失败",
   "status-host-key-error": "需核对指纹",
@@ -570,16 +605,17 @@ const zh: typeof en = {
   batchStartTitle: "启动 {{count}} 条规则",
   batchAuthHint:
     "按主机填写本次凭据（含跳板），已有保存密码可留空。每条规则独立启动，部分失败不影响其他规则。",
-  batchAcceptedHint:
-    "“已受理”表示启动或停止请求已提交；实际结果以各规则状态和指纹提示为准。",
-  requestAccepted: "已受理",
+  batchRequestSubmitted: "已提交{{action}}请求（{{count}} 条）",
+  batchRequestPartial: "{{action}}请求：{{count}} 条已提交，{{rejected}} 条未能提交",
+  batchRequestFailed: "请求未能提交",
   undoDelete: "撤销删除",
   exportConfig: "导出配置",
   exportTitle: "导出 {{count}} 条规则",
   exportHint:
     "导出所选规则及所需主机路线，不含凭据、已信任密钥、源文件正文、远程命令、日志及运行态。导出包中的自动连接保持关闭。",
   chooseExportFile: "保存配置文件",
-  exported: "已导出至",
+  exported: "配置已导出",
+  sourcesSaved: "SSH 来源设置已保存",
   sourcesHint:
     "默认用户与系统 SSH 配置始终只读。附加文件按用户配置之后、系统配置之前的顺序解析。",
   additionalSources: "附加 SSH 配置文件",
@@ -669,6 +705,7 @@ const zh: typeof en = {
   commandHint:
     "启动时在 SSH 主机上执行此命令。命令随规则保存，请勿填写秘密；不打开交互终端，不保存输出。",
   trayAndStartup: "托盘与启动",
+  sessionOptionsHint: "来源会话选项（{{options}}）不影响纯转发和主机测试；这些选项尚未支持，此主机暂不能执行远程命令。",
   overrideConnection: "覆盖主机连接参数",
   inheritConnection: "使用主机的超时与保活设置。",
   connectTimeout: "连接与握手超时（秒）",
@@ -733,11 +770,14 @@ const zh: typeof en = {
   path: "连接路径",
   saveStart: "保存并启动",
   password: "密码 / 私钥口令（可选）",
-  auth: "安全连接",
+  auth: "认证",
+  authForHost: "认证 · {{name}}",
+  connect: "连接",
   authHelp:
-    "留空将使用已保存的密码，或按主机设置尝试私钥、系统代理。新输入默认仅在当前会话内存中保留；私钥口令不会保存。",
+    "输入密码或私钥口令；使用已保存密码、私钥或系统代理时可留空。",
   rememberPassword: "记住密码",
-  rememberPasswordHint: "仅在密码认证成功后保存到 Windows 凭据管理器。关闭开关不会删除已有密码。",
+  showPassword: "显示密码",
+  hidePassword: "隐藏密码",
   passwordSaved: "已在本机保存密码",
   passwordStorageNeedsAttention: "已保存密码不可用",
   savedPasswordPlaceholder: "留空使用已保存密码，输入新密码可替换",
@@ -764,7 +804,6 @@ const zh: typeof en = {
   fit: "适应画布",
   zoomOut: "缩小",
   zoomIn: "放大",
-  saved: "已保存",
   error: "操作失败",
   trust: "核对 SSH 主机",
   trustHelp: "请通过可信渠道核对 SHA256 指纹，再继续连接。",
