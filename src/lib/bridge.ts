@@ -9,8 +9,15 @@ import type {
   ImportChoices,
   ImportSource,
   ResolvedApplicationIcon,
+  UpdateSnapshot,
 } from "@/types";
 export const desktop = isTauri();
+export const updateSnapshot = () => invoke<UpdateSnapshot>("update_snapshot");
+export const checkUpdate = () => invoke<UpdateSnapshot>("check_update");
+export const downloadUpdate = (version: string) => invoke<UpdateSnapshot>("download_update", { version });
+export const setUpdateAutoCheck = (enabled: boolean) => invoke<UpdateSnapshot>("set_update_auto_check", { enabled });
+export const updateInstallContext = () => invoke<string[]>("update_install_context");
+export const installUpdate = (version: string, expectedWorkIds: string[]) => invoke<UpdateSnapshot>("install_update", { version, expectedWorkIds });
 export const setApplicationIcon = (icon: ResolvedApplicationIcon) =>
   invoke<void>("set_application_icon", { icon });
 export const openExternalUrl = (url: string) =>

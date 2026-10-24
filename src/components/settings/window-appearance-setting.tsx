@@ -102,18 +102,19 @@ export function WindowAppearanceSettings({
             onChange={setCornerRadius}
             onFollowTheme={() => setCornerRadius(null)}
           />
-          <Item className="justify-end rounded-none border-0 px-3 py-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              disabled={customCount === 0}
-              onClick={followTheme}
-            >
-              <RotateCcwIcon aria-hidden="true" />
-              {t("windowAppearance.followThemeAll")}
-            </Button>
+          <Item className="justify-end rounded-none border-0 px-3 py-2.5">
+            <ItemActions className="ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={customCount === 0}
+                onClick={followTheme}
+              >
+                <RotateCcwIcon aria-hidden="true" />
+                {t("windowAppearance.followThemeAll")}
+              </Button>
+            </ItemActions>
           </Item>
         </>
       )}

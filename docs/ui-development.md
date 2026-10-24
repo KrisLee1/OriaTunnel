@@ -4,6 +4,13 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 ## 可复用能力
 
+- 关于应用在 `src/components/settings/about-dialog.tsx`：顶栏设置按钮外侧放置透明 SVG Avatar，复用 `ui/avatar.tsx` 的 Avatar/Image/Fallback/Badge，有更新时显示右上角 8px 纯色圆点，无文字，随既有 WindowHeader 左右控件位置镜像。SVG 在 `src/assets/oria-tunnel-logo.svg`，复用透明图标母版；关于弹窗标题仅显示「关于」，内容放大应用名称，版本和 KrisLee 版权同行且可换行；显示包内应用图标与官网/GitHub/KrisLee 外链。macOS 默认应用菜单仅替换原生 About 项，保留系统本地化名称与其他菜单行为；点击恢复主窗口并通过 `tunnel://open-about` 打开同一弹窗。三个入口使用真实 SVG 标识：项目 Logo、GitHub 官方黑/白 Invertocat 和用户提供的 KrisLee Logo，来源见 `src/assets/README.md`。
+- 版本更新在关于弹窗内，`src/components/settings/application-update-setting.tsx` 复用 ItemGroup/Item、Button、Switch、业务 Modal/ModalActions 与共享 Progress（shadcn/Base UI）。`src/lib/application-update.ts` 在 App 根部先订阅 `tunnel://update` 再读取快照，按 revision 丢弃旧进度；检查、下载、验签、偏好与安装由 Rust `updater.rs` 管理。安装确认从 Rust 获取活动任务集合，提交时再次核对；界面不直接调用插件安装。新文案位于八语言 `updater.json`，在 `src/i18n.ts` 注册独立命名空间。开发构建禁用更新，隔离 UI 夹具只验证显示与交互，不作为下载验签或安装成功的证据。
+- 更新状态直接显示实际结果及目标版本，未检查时显示当前版本，不显示「可以检查更新」或泛化状态标题；自动检查开关不加操作解释。首行主按钮按 Rust 能力切换检查/下载/安装，详情下不重复放置下载或安装按钮。状态区域保持挂载并使用 polite/atomic 播报，下载进度不逐块打断播报；Progress 下方左侧显示下载量，右侧以 ProgressValue 显示本地化百分比，未知总量时隐藏百分比。
+- 新版本通知复用 Toast，使用透明应用 Logo、Badge 版本号及「去更新」按钮；按钮关闭通知并打开同一个关于弹窗。通知按版本去重，八语言通过 Trans 插入 Badge；共享 Toast 支持 `data.icon` 自定义图标和既有 `actionProps`，其他业务保留原状态图标。
+- 窗口设置末尾的「全部恢复跟随主题」复用 ItemActions 右对齐与小尺寸描边按钮，不占满整行；各字段旁的单项恢复仍使用原有图标按钮。
+- 关于弹窗底部的「更多应用」由 `about-dialog.tsx` 中的已发布应用数组维护，当前仅包含 OriaTheme 与 OriaTab，复用 Item/ItemMedia 和 ExternalLink，使用各自原始 SVG。区域以自身宽度切换单/双列，未来新增已发布应用只需追加条目；不显示未发布占位。
+
 - 应用图标使用 `src/components/settings/application-icon-setting.tsx` 与根部 `ApplicationIconSync`：跟随系统 / Light / Dark / Mono，独立于应用主题；偏好保存在 `oria-tunnel.application-icon.v1`，按顺序调用 Rust `set_application_icon`，失败使用 Toast。设置中的 Tabs 只显示图标，名称由 title 与 aria-label 保留。母版为 `src-tauri/icons/OriaTunnelIconExports`，`pnpm icons` 生成桌面 ICO/ICNS、Windows 任务栏和带 Dock 边距的 macOS 运行图标；`src-tauri/icons/tray-source.svg` 为透明托盘母版，另生成 Windows 彩色托盘与 macOS 单色模板。安装包另用 `OriaTunnelInstaller.svg` 中心球蓝色的亚克力盒母版；`pnpm package:mac` 自动替换卷/文件图标并输出保留元数据的 ZIP，`pnpm package:win` 使用独立 NSIS 安装器 ICO。
 
 - 桌面界面默认禁止普通文本选择（含弹窗/Drawer），输入框、文本域、可编辑区域和显式 `data-selectable="true"` 区域保留选字；主机指纹继续可复制。发布前端由 `src/lib/webview-guards.ts` 禁用 WebView 原生右键菜单、F12、Windows/Linux Ctrl+Shift+I/J/C 及 macOS ⌘⌥I/J/C 等调试/源码入口，普通选字、复制粘贴和应用快捷键保留；开发前端不安装这些事件拦截。Rust 创建窗口前将 release 窗口的 devtools 显式设为 false，避免仅靠前端拦截。
@@ -70,7 +77,7 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 ## 数据与检查
 
-此电脑卡片的 `local-add-forward.tsx` 提供边缘接近添加转发：按最近边缘定位，按钮保持屏幕 40px 与约 14px 间距，跨空隙可继续点击。Motion 弹簧允许进出反向，SVG 将卡片背景、拉伸颈和按钮合成为一个轮廓并统一描边，卡片文字/端口与窗口材质保持独立；卡片/端口拖动期间隐藏。按钮可用 Tab、Enter/Space、Escape；减少动态效果时直接显隐，粗指针保持入口可见。几何与通道判断位于 `local-add-geometry.ts`，监听器、RAF 和 ResizeObserver 随画布卸载清理。
+此电脑卡片的 `local-add-forward.tsx` 提供边缘接近添加转发：按最近边缘定位，按钮保持屏幕 40px 与约 4px 间距，外侧触发距离与按钮中心同为 24px；内侧仅在边缘 4px 内触发，按钮命中区回延 8px 覆盖触发位置与间隙，停在触发点即可点击。角落因安全留白而无法直接点击的位置不触发。Motion 弹簧允许进出反向，SVG 将卡片背景、拉伸颈和按钮合成为一个轮廓并统一描边，卡片文字/端口与窗口材质保持独立；卡片/端口拖动期间隐藏。按钮可用 Tab、Enter/Space、Escape；减少动态效果时直接显隐，粗指针保持入口可见。几何与通道判断位于 `local-add-geometry.ts`，监听器、RAF 和 ResizeObserver 随画布卸载清理。
 
 融球进度使用独立慢弹簧，指针位置跟随仍用共享交互弹簧；连接颈在分离前保留更久。填充与透明度复用卡片背景公式和 surface Token，按钮前景跟随卡片，轮廓使用中性边框，并去掉此电脑选中态的蓝色外框。
 

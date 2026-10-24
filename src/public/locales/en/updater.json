@@ -1,0 +1,60 @@
+{
+  "title": "Application updates",
+  "currentVersion": "Current version: {{version}}",
+  "check": "Check for updates",
+  "loading": "Loading update status…",
+  "progress": "Update download progress",
+  "newVersion": "Version {{version}} is available",
+  "notes": "Release notes",
+  "download": "Download update",
+  "install": "Install and restart",
+  "autoCheck": "Check on startup",
+  "releases": "Open releases",
+  "confirmTitle": "Install update",
+  "confirmHint": "Install version {{version}} and restart? This stops all forwards and host tests.",
+  "activeForwards": "Active forwards: {{count}}",
+  "activeTests": "Active host tests: {{count}}",
+  "later": "Later",
+  "confirmInstall": "Stop sessions and install",
+  "notification": "New version <version>{{version}}</version> is available.",
+  "phase": {
+    "checking": "Checking for updates…",
+    "upToDate": "You are up to date",
+    "downloading": "Downloading update…",
+    "verifying": "Verifying update…",
+    "ready": "Update verified and ready to install.",
+    "preparing": "Stopping sessions…",
+    "installing": "Installing and restarting…",
+    "error": "The update could not be completed."
+  },
+  "unavailable": {
+    "notConfigured": "In-app updates are not enabled for this build. Download an installer from Releases.",
+    "development": "Updates are disabled in development builds.",
+    "unsupported": "Use an installed version to update this app.",
+    "browser": "Open the desktop app to check for updates."
+  },
+  "errors": {
+    "check": "Could not check for updates. Check your network or visit Releases.",
+    "download": "Download or signature verification failed. Download the update again.",
+    "install": "Could not start or complete installation. Check that the app is in a writable installation folder, retry, or download an installer.",
+    "cleanup": "Session cleanup failed. Installation was canceled.",
+    "activityChanged": "Active sessions changed. Review them and confirm installation again.",
+    "preferences": "Could not read or save the startup check preference. Change the switch to retry saving.",
+    "busy": "Another update operation is running. Try again when it finishes.",
+    "notReady": "The selected update is no longer ready. Check or download it again.",
+    "unavailable": "Updates are unavailable for this build.",
+    "request": "Could not communicate with the updater. Try again or restart the app."
+  },
+  "about": {
+    "title": "About",
+    "open": "About OriaTunnel",
+    "openWithUpdate": "About OriaTunnel, update available",
+    "icon": "OriaTunnel application icon",
+    "version": "Version {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "Website",
+    "author": "KrisLee",
+    "moreApps": "More apps"
+  },
+  "goUpdate": "Update"
+}

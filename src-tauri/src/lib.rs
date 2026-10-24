@@ -17,16 +17,18 @@ mod ssh_conditions;
 pub mod ssh_config;
 pub mod supervisor;
 pub mod tunnel;
+mod updater;
 mod window;
 use std::sync::Arc;
 use tauri::Manager;
 #[derive(Default)]
-struct ExitState(std::sync::atomic::AtomicU8);
+struct ExitState(Arc<std::sync::atomic::AtomicU8>);
 pub fn run() {
     let mut context = tauri::generate_context!();
     configure_webviews(context.config_mut(), cfg!(debug_assertions));
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ExitState::default())
         .setup(|app| {
             let directory = app.path().app_data_dir()?;
@@ -44,7 +46,15 @@ pub fn run() {
             app.manage(Arc::new(
                 app::AppState::load(path).map_err(std::io::Error::other)?,
             ));
+            let updates = Arc::new(updater::UpdateState::load(app.handle(), directory));
+            app.manage(updates.clone());
+            let update_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = updates.check(&update_app, true).await;
+            });
             desktop::install_tray(app.handle())?;
+            #[cfg(target_os = "macos")]
+            desktop::install_application_menu(app.handle())?;
             if !std::env::args().any(|arg| arg == "--background") {
                 desktop::show(app.handle());
             }
@@ -74,6 +84,15 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
+                if app
+                    .state::<ExitState>()
+                    .0
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                    == 3
+                {
+                    api.prevent_close();
+                    return;
+                }
                 if app::state(app).close_to_tray() {
                     api.prevent_close();
                     let _ = window.hide();
@@ -87,6 +106,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app::snapshot,
+            updater::update_snapshot,
+            updater::check_update,
+            updater::download_update,
+            updater::set_update_auto_check,
+            updater::update_install_context,
+            updater::install_update,
             desktop::show_main_window,
             app::refresh_hosts,
             app::set_host_sources,

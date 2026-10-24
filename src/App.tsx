@@ -70,6 +70,8 @@ import { RuleActions } from "./features/tunnels/rule-actions";
 import { ParameterField, ParameterSwitch, ParameterTitle } from "./components/parameter-field";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "./components/ui/item";
 import { Switch } from "./components/ui/switch";
+import { AboutButton, AboutDialog } from "./components/settings/about-dialog";
+import { useApplicationUpdate } from "./lib/application-update";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "./components/ui/select";
 import { RuntimeDetails } from "./features/tunnels/runtime-details";
 import { bytes, rate } from "./features/tunnels/runtime-format";
@@ -108,6 +110,7 @@ import type {
   BatchResult,
 } from "./types";
 import "./tunnel-i18n";
+import i18n from "./i18n";
 import {
   groupRulesByHost,
   groupPositions,
@@ -169,6 +172,14 @@ function useSnapshot() {
 
 export function App() {
   const { t } = useTranslation("tunnel");
+  const [about, setAbout] = useState(false);
+  const openAbout = useCallback(() => setAbout(true), []);
+  const updates = useApplicationUpdate(openAbout);
+  useEffect(() => {
+    if (!bridge.desktop) return;
+    const subscription = listen("tunnel://open-about", openAbout);
+    return () => { void subscription.then((off) => off()).catch(() => {}); };
+  }, [openAbout]);
   const rowEntrance = useEntranceMotion(4);
   const { data, accept, error, setError } = useSnapshot();
   const [page, setPage] = useState("canvas");
@@ -212,7 +223,7 @@ export function App() {
     }
     toast.add({
       id: "app-error",
-      title: error,
+      title: error === "updateInstalling" ? i18n.t("phase.installing", { ns: "updater" }) : error,
       type: "error",
       priority: "high",
       timeout: 0,
@@ -527,6 +538,7 @@ export function App() {
         >
           <Settings2Icon />
         </Button>
+        <AboutButton snapshot={updates.snapshot} onClick={openAbout} />
       </WindowHeader>
       {ruleDraft && ruleSuspended && (
         <div className="draft-return overlay">
@@ -869,6 +881,7 @@ export function App() {
           }}
         />
       )}
+      {about && <AboutDialog key="about" updates={updates} close={() => setAbout(false)} />}
       {settings && (
         <Modal key="settings"
           title={t("settings")}

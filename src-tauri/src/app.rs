@@ -52,6 +52,7 @@ pub struct AppState {
     revision: std::sync::atomic::AtomicU64,
     path: PathBuf,
     shutting_down: std::sync::atomic::AtomicBool,
+    update_installing: std::sync::atomic::AtomicBool,
     generations: Mutex<BTreeMap<String, String>>,
     wake: tokio::sync::watch::Sender<u64>,
     activity: Mutex<crate::activity::Activity>,
@@ -61,6 +62,10 @@ pub struct AppState {
     power_missing: std::sync::atomic::AtomicBool,
 }
 impl AppState {
+    #[cfg(test)]
+    pub(crate) fn isolated(path: PathBuf) -> Self {
+        Self::load_with_discovery(path, Default::default()).unwrap()
+    }
     pub fn load(path: PathBuf) -> Result<Self, String> {
         let state = Self::load_with_discovery(path, Default::default())?;
         let sources = state.config.lock().unwrap().source_files.clone();
@@ -94,6 +99,7 @@ impl AppState {
             power_missing: false.into(),
             path,
             shutting_down: false.into(),
+            update_installing: false.into(),
             generations: Mutex::new(BTreeMap::new()),
         };
         Ok(state)
@@ -335,6 +341,42 @@ impl AppState {
             .store(true, std::sync::atomic::Ordering::SeqCst);
         self.stop_all().await;
     }
+    pub fn update_installing(&self) -> bool {
+        self.update_installing
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+    pub fn finish_update_attempt(&self) {
+        self.update_installing
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+    pub async fn active_work_ids(&self) -> Vec<String> {
+        self.workers
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, worker)| !worker.join.is_finished())
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+    pub async fn prepare_update(&self, expected: &[String]) -> Result<(), String> {
+        self.update_installing
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let expected: BTreeSet<_> = expected.iter().cloned().collect();
+        let actual: BTreeSet<_> = self.active_work_ids().await.into_iter().collect();
+        if actual != expected {
+            return Err("activityChanged".into());
+        }
+        self.stop_all_checked().await
+    }
+    fn allow_launch(&self) -> Result<(), String> {
+        if self.shutting_down.load(std::sync::atomic::Ordering::SeqCst) {
+            Err("应用正在退出".into())
+        } else if self.update_installing() {
+            Err("updateInstalling".into())
+        } else {
+            Ok(())
+        }
+    }
     pub fn wake_sender(&self) -> tokio::sync::watch::Sender<u64> {
         self.wake.clone()
     }
@@ -345,7 +387,7 @@ impl AppState {
     pub async fn auto_connect(self: &Arc<Self>, app: &tauri::AppHandle) {
         let rules = self.snapshot().rules;
         for rule in rules.into_iter().filter(|r| r.auto_connect) {
-            if self.shutting_down.load(std::sync::atomic::Ordering::SeqCst) {
+            if self.allow_launch().is_err() {
                 break;
             }
             let id = rule.id.clone();
@@ -374,13 +416,17 @@ impl AppState {
         }
     }
     pub async fn stop_all(&self) {
+        let _ = self.stop_all_checked().await;
+    }
+    async fn stop_all_checked(&self) -> Result<(), String> {
         let mut workers = self.workers.lock().await;
         let jobs = std::mem::take(&mut *workers);
         for worker in jobs.values() {
             worker.cancel.cancel();
         }
+        let mut failed = false;
         for (_, worker) in jobs {
-            let _ = worker.join.await;
+            failed |= worker.join.await.is_err();
         }
         self.trust.lock().unwrap().clear();
         let ids = self
@@ -391,6 +437,11 @@ impl AppState {
             .cloned()
             .collect::<Vec<_>>();
         self.settle_stopped(&ids);
+        if failed {
+            Err("cleanup".into())
+        } else {
+            Ok(())
+        }
     }
     pub fn close_to_tray(&self) -> bool {
         self.config.lock().unwrap().close_to_tray
@@ -919,12 +970,7 @@ async fn launch(
 ) -> Result<(), String> {
     let id = rule.id.clone();
     let mut workers = state.workers.lock().await;
-    if state
-        .shutting_down
-        .load(std::sync::atomic::Ordering::SeqCst)
-    {
-        return Err("应用正在退出".into());
-    }
+    state.allow_launch()?;
     if let Some(old) = workers.remove(&id) {
         old.cancel.cancel();
         let _ = old.join.await;
@@ -1159,7 +1205,8 @@ async fn launch(
     ));
     // Tauri returns its own JoinHandle, wrap it for a single task type.
     let join = tokio::spawn(async move {
-        let _ = join.await;
+        // Propagate task failure so update preparation cannot report successful cleanup.
+        join.await.expect("SSH supervisor task failed");
     });
     workers.insert(
         id,
@@ -1952,6 +1999,107 @@ mod tests {
         assert!(r.message.is_empty());
         assert!(r.error_kind.is_none());
         assert!(r.sent_per_second.is_none());
+    }
+    #[tokio::test]
+    async fn update_preparation_waits_for_sessions_and_blocks_launch_until_released() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap(),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let token = CancellationToken::new();
+        let cancelled = token.clone();
+        let finish = Arc::new(tokio::sync::Notify::new());
+        let finish_worker = finish.clone();
+        state.workers.lock().await.insert(
+            "forward".into(),
+            Worker {
+                rule: Rule::default(),
+                cancel: token.clone(),
+                join: tokio::spawn(async move {
+                    cancelled.cancelled().await;
+                    finish_worker.notified().await;
+                    drop(listener);
+                }),
+            },
+        );
+        let preparing = {
+            let state = state.clone();
+            tokio::spawn(async move { state.prepare_update(&["forward".into()]).await })
+        };
+        token.cancelled().await;
+        assert!(state.update_installing());
+        assert_eq!(state.allow_launch().unwrap_err(), "updateInstalling");
+        assert!(!preparing.is_finished());
+        assert!(tokio::net::TcpListener::bind(address).await.is_err());
+        finish.notify_one();
+        preparing.await.unwrap().unwrap();
+        let _listener = tokio::net::TcpListener::bind(address).await.unwrap();
+        assert!(state.active_work_ids().await.is_empty());
+        state.finish_update_attempt();
+        assert!(state.allow_launch().is_ok());
+        state.shutdown().await;
+        state.finish_update_attempt();
+        assert!(state.allow_launch().is_err());
+    }
+    #[tokio::test]
+    async fn update_confirmation_changes_preserve_existing_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap();
+        let token = CancellationToken::new();
+        let worker = token.clone();
+        state.workers.lock().await.insert(
+            "host-test:fixture".into(),
+            Worker {
+                rule: Rule::default(),
+                cancel: token.clone(),
+                join: tokio::spawn(async move {
+                    worker.cancelled().await;
+                }),
+            },
+        );
+        assert_eq!(
+            state.prepare_update(&[]).await.unwrap_err(),
+            "activityChanged"
+        );
+        assert!(!token.is_cancelled());
+        state.finish_update_attempt();
+        assert!(state.allow_launch().is_ok());
+        state
+            .prepare_update(&["host-test:fixture".into()])
+            .await
+            .unwrap();
+        assert!(token.is_cancelled());
+        state.finish_update_attempt();
+    }
+    #[tokio::test]
+    async fn update_cleanup_failure_is_reported_and_does_not_set_permanent_shutdown() {
+        let dir = tempfile::tempdir().unwrap();
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap();
+        let worker = tokio::spawn(async {
+            panic!("isolated worker failure");
+        });
+        while !worker.is_finished() {
+            tokio::task::yield_now().await;
+        }
+        state.workers.lock().await.insert(
+            "failed".into(),
+            Worker {
+                rule: Rule::default(),
+                cancel: CancellationToken::new(),
+                join: worker,
+            },
+        );
+        assert_eq!(state.prepare_update(&[]).await.unwrap_err(), "cleanup");
+        state.finish_update_attempt();
+        assert!(state.allow_launch().is_ok());
+        assert!(state.workers.lock().await.is_empty());
     }
     #[tokio::test]
     async fn hiding_keeps_all_forwards_and_cancels_host_tests_then_exit_cancels_all() {

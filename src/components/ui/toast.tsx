@@ -1,6 +1,7 @@
 // Adapted from shadcn/ui's Base UI Toast; ORIA surface and localized close label.
 // https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/bases/base/ui/toast.tsx
 import { Toast as ToastPrimitive } from "@base-ui/react/toast";
+import type { ReactNode } from "react";
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -117,11 +118,11 @@ function ToastIcon({ type }: { type?: string }) {
   );
 }
 function ToastList({ closeLabel }: { closeLabel: string }) {
-  const { toasts } = useToastManager();
+  const { toasts } = useToastManager<{ icon?: ReactNode }>();
   return toasts.map((item) => (
     <Toast key={item.id} toast={item}>
       <ToastContent>
-        <ToastIcon type={item.type} />
+        {item.data?.icon ?? <ToastIcon type={item.type} />}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <ToastTitle />
           <ToastDescription />

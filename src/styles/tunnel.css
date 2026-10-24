@@ -194,16 +194,21 @@ body,
   opacity: var(--aide-component-surface-opacity);
 }
 .local-add-button-frame {
+  display: flex;
   position: absolute;
   top: 0;
   left: 0;
 }
 .local-add-button[data-slot="button"] {
+  position: relative;
   border-radius: 50%;
   padding: 0;
   background: transparent;
   color: var(--aide-themed-surface-fg);
   border-color: transparent;
+}
+.local-add-hit-area {
+  position: absolute;
 }
 .local-add-button:focus-visible {
   outline: 2px solid var(--oria-color-fg);

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000px" height="1000px" viewBox="0 0 1000 1000" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>1000x1000</title>
+    <defs>
+        <polygon id="path-1" points="0.111098767 0 833.018553 833 0.111098767 833"></polygon>
+        <filter x="-0.6%" y="-0.6%" width="102.4%" height="101.2%" filterUnits="objectBoundingBox" id="filter-2">
+            <feOffset dx="10" dy="0" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.0987574437 0" type="matrix" in="shadowOffsetOuter1"></feColorMatrix>
+        </filter>
+        <polygon id="path-3" points="1.39456272e-12 0 999.888901 1000 0 1000"></polygon>
+        <filter x="-0.5%" y="-0.5%" width="102.0%" height="101.0%" filterUnits="objectBoundingBox" id="filter-4">
+            <feOffset dx="10" dy="0" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.0988087687 0" type="matrix" in="shadowOffsetOuter1"></feColorMatrix>
+        </filter>
+        <path d="M166,0 L166,832.888 L833,832.888889 L999.888901,999.888889 L166,999.888 L166,1000 L0,1000 L0,0 L166,0 Z" id="path-5"></path>
+        <filter x="-0.5%" y="-0.5%" width="102.0%" height="101.0%" filterUnits="objectBoundingBox" id="filter-6">
+            <feOffset dx="10" dy="0" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.0952395993 0" type="matrix" in="shadowOffsetOuter1"></feColorMatrix>
+        </filter>
+    </defs>
+    <g id="1000x1000" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="KL">
+            <g id="三角形" transform="translate(416.564826, 416.500000) scale(1, -1) translate(-416.564826, -416.500000) ">
+                <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
+                <use fill="#72E7FD" fill-rule="evenodd" xlink:href="#path-1"></use>
+            </g>
+            <g id="三角形">
+                <use fill="black" fill-opacity="1" filter="url(#filter-4)" xlink:href="#path-3"></use>
+                <use fill="#96FFD8" fill-rule="evenodd" xlink:href="#path-3"></use>
+            </g>
+            <g id="形状结合">
+                <use fill="black" fill-opacity="1" filter="url(#filter-6)" xlink:href="#path-5"></use>
+                <use fill="#3C49FF" fill-rule="evenodd" xlink:href="#path-5"></use>
+            </g>
+        </g>
+    </g>
+</svg>

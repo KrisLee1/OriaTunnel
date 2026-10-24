@@ -195,6 +195,34 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
 pub fn show_main_window(app: tauri::AppHandle) {
     show(&app);
 }
+
+#[cfg(target_os = "macos")]
+pub fn install_application_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let menu = Menu::default(app)?;
+    // Tauri's default macOS application submenu starts with native About.
+    // Keep its system-localized label and all other standard menu behaviors.
+    if let Some(application_menu) = menu.items()?.first().and_then(|item| item.as_submenu()) {
+        if let Some(native_about) = application_menu
+            .items()?
+            .first()
+            .and_then(|item| item.as_predefined_menuitem())
+        {
+            let about =
+                MenuItem::with_id(app, "app:about", native_about.text()?, true, None::<&str>)?;
+            application_menu.remove_at(0)?;
+            application_menu.insert(&about, 0)?;
+        }
+    }
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, event| {
+        if event.id.as_ref() == "app:about" {
+            show(app);
+            let _ = app.emit_to("main", "tunnel://open-about", ());
+        }
+    });
+    Ok(())
+}
+
 fn handle_menu(app: &tauri::AppHandle, id: &str) {
     match id {
         "show" => show(app),

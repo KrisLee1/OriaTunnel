@@ -6,6 +6,20 @@ export interface WindowAppearance {
   blurRadius: number;
   cornerRadius: number;
 }
+export interface UpdateSnapshot {
+  revision: number;
+  currentVersion: string;
+  phase: "idle" | "checking" | "upToDate" | "available" | "downloading" | "verifying" | "ready" | "preparing" | "installing" | "error";
+  unavailable: "notConfigured" | "development" | "unsupported" | null;
+  autoCheck: boolean;
+  preferenceError: boolean;
+  release: { version: string; notes: string } | null;
+  downloaded: number;
+  total: number | null;
+  error: "check" | "download" | "install" | "cleanup" | "activityChanged" | null;
+  canDownload: boolean;
+  canInstall: boolean;
+}
 export interface Host {
   id: string;
   name: string;

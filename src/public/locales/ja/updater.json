@@ -1,0 +1,60 @@
+{
+  "title": "アプリの更新",
+  "currentVersion": "現在のバージョン：{{version}}",
+  "check": "更新を確認",
+  "loading": "更新状態を読み込み中…",
+  "progress": "更新のダウンロード進行状況",
+  "newVersion": "新しいバージョン {{version}} が利用可能です",
+  "notes": "更新内容",
+  "download": "更新をダウンロード",
+  "install": "インストールして再起動",
+  "autoCheck": "起動時に更新を確認",
+  "releases": "リリースページを開く",
+  "confirmTitle": "更新をインストール",
+  "confirmHint": "{{version}} をインストールして再起動しますか？すべての転送とホストテストが停止します。",
+  "activeForwards": "実行中の転送：{{count}}",
+  "activeTests": "実行中のホストテスト：{{count}}",
+  "later": "後で",
+  "confirmInstall": "セッションを停止してインストール",
+  "notification": "新しいバージョン <version>{{version}}</version> が利用可能です。",
+  "phase": {
+    "checking": "更新を確認中…",
+    "upToDate": "最新のバージョンです",
+    "downloading": "更新をダウンロード中…",
+    "verifying": "更新を検証中…",
+    "ready": "更新の検証が完了し、インストールできます。",
+    "preparing": "セッションを停止中…",
+    "installing": "インストールして再起動中…",
+    "error": "更新を完了できませんでした。"
+  },
+  "unavailable": {
+    "notConfigured": "このビルドではアプリ内更新が有効になっていません。リリースページからインストーラーをダウンロードしてください。",
+    "development": "開発ビルドではアプリの更新は無効です。",
+    "unsupported": "インストール済みのバージョンで更新してください。",
+    "browser": "デスクトップアプリで更新を確認してください。"
+  },
+  "errors": {
+    "check": "更新を確認できませんでした。ネットワークを確認するか、リリースページをご覧ください。",
+    "download": "ダウンロードまたは署名の検証に失敗しました。再度ダウンロードしてください。",
+    "install": "インストールを開始または完了できませんでした。アプリが書き込み可能な場所にあることを確認して再試行するか、インストーラーをダウンロードしてください。",
+    "cleanup": "セッションの終了処理に失敗したため、インストールを中止しました。",
+    "activityChanged": "実行中のセッションが変わりました。再確認してインストールしてください。",
+    "preferences": "起動時の確認設定を読み込みまたは保存できませんでした。スイッチを操作して保存し直してください。",
+    "busy": "別の更新操作が実行中です。完了後に再試行してください。",
+    "notReady": "選択した更新は準備できていません。確認またはダウンロードし直してください。",
+    "unavailable": "このビルドでは更新を利用できません。",
+    "request": "更新機能と通信できませんでした。再試行するかアプリを再起動してください。"
+  },
+  "about": {
+    "title": "このアプリについて",
+    "open": "OriaTunnel について",
+    "openWithUpdate": "OriaTunnel について、更新あり",
+    "icon": "OriaTunnel のアプリアイコン",
+    "version": "バージョン {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "公式サイト",
+    "author": "KrisLee",
+    "moreApps": "その他のアプリ"
+  },
+  "goUpdate": "更新へ"
+}

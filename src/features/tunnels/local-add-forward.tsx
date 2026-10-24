@@ -22,6 +22,9 @@ import { interactionSpring } from "@/components/ui/motion";
 import { projectPort, type PortPlacement } from "./port-placement";
 import {
   inLocalAddCorridor,
+  LOCAL_ADD_RADIUS,
+  LOCAL_ADD_OUTSIDE_REACH,
+  LOCAL_ADD_HIT_EXTENSION,
   localAddAnchor,
   type LocalAddAnchor,
 } from "./local-add-geometry";
@@ -54,7 +57,7 @@ export function LocalAddForward({
   const originY = useSpring(0, interactionSpring);
   const normalX = useSpring(1, interactionSpring);
   const normalY = useSpring(0, interactionSpring);
-  const radius = useMotionValue(20 / zoom);
+  const radius = useMotionValue(LOCAL_ADD_RADIUS / zoom);
   const skinWidth = useMotionValue(200);
   const skinHeight = useMotionValue(164);
   const skinCorner = useMotionValue(16);
@@ -76,11 +79,33 @@ export function LocalAddForward({
   const anchor = useRef<LocalAddAnchor | null>(null);
   const latestPointer = useRef<PointerEvent | null>(null);
   const [shown, setShown] = useState(false);
-  const offset = useTransform(progress, [0, 1], [-24 / zoom, 34 / zoom]);
+  const offset = useTransform(
+    progress,
+    [0, 1],
+    [-24 / zoom, LOCAL_ADD_OUTSIDE_REACH / zoom],
+  );
   const x = useTransform(() => originX.get() + normalX.get() * offset.get());
   const y = useTransform(() => originY.get() + normalY.get() * offset.get());
   const buttonX = useTransform(() => x.get() - radius.get());
   const buttonY = useTransform(() => y.get() - radius.get());
+  // Bridge the small visual gap and the inner trigger strip. This is part of
+  // the native button, so the pointer can stay at its reveal point to click.
+  const hitLeft = useTransform(
+    normalX,
+    (value) => (-Math.max(0, value) * LOCAL_ADD_HIT_EXTENSION) / zoom,
+  );
+  const hitRight = useTransform(
+    normalX,
+    (value) => (Math.min(0, value) * LOCAL_ADD_HIT_EXTENSION) / zoom,
+  );
+  const hitTop = useTransform(
+    normalY,
+    (value) => (-Math.max(0, value) * LOCAL_ADD_HIT_EXTENSION) / zoom,
+  );
+  const hitBottom = useTransform(
+    normalY,
+    (value) => (Math.min(0, value) * LOCAL_ADD_HIT_EXTENSION) / zoom,
+  );
   const iconOpacity = useTransform(progress, [0, 0.5, 0.9, 1], [0, 0, 1, 1]);
   const neckRadius = useTransform(
     progress,
@@ -148,7 +173,7 @@ export function LocalAddForward({
   );
 
   useEffect(() => {
-    radius.set(20 / zoom);
+    radius.set(LOCAL_ADD_RADIUS / zoom);
     if (disabled || suspended) {
       reveal(false);
       return;
@@ -410,6 +435,16 @@ export function LocalAddForward({
             );
           }}
         >
+          <motion.span
+            className="local-add-hit-area"
+            aria-hidden="true"
+            style={{
+              left: hitLeft,
+              right: hitRight,
+              top: hitTop,
+              bottom: hitBottom,
+            }}
+          />
           <GitPullRequestCreateArrowIcon
             aria-hidden="true"
             style={{ width: 18 / zoom, height: 18 / zoom }}

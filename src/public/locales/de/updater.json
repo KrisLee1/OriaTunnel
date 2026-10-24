@@ -1,0 +1,60 @@
+{
+  "title": "App-Updates",
+  "currentVersion": "Aktuelle Version: {{version}}",
+  "check": "Nach Updates suchen",
+  "loading": "Update-Status wird geladen…",
+  "progress": "Download-Fortschritt",
+  "newVersion": "Version {{version}} ist verfügbar",
+  "notes": "Versionshinweise",
+  "download": "Update herunterladen",
+  "install": "Installieren und neu starten",
+  "autoCheck": "Beim Start nach Updates suchen",
+  "releases": "Veröffentlichungen öffnen",
+  "confirmTitle": "Update installieren",
+  "confirmHint": "Version {{version}} installieren und neu starten? Alle Weiterleitungen und Hosttests werden beendet.",
+  "activeForwards": "Aktive Weiterleitungen: {{count}}",
+  "activeTests": "Aktive Hosttests: {{count}}",
+  "later": "Später",
+  "confirmInstall": "Sitzungen beenden und installieren",
+  "notification": "Neue Version <version>{{version}}</version> verfügbar.",
+  "phase": {
+    "checking": "Updates werden gesucht…",
+    "upToDate": "Sie verwenden die aktuelle Version",
+    "downloading": "Update wird heruntergeladen…",
+    "verifying": "Update wird überprüft…",
+    "ready": "Update überprüft und zur Installation bereit.",
+    "preparing": "Sitzungen werden beendet…",
+    "installing": "Installation und Neustart…",
+    "error": "Das Update konnte nicht abgeschlossen werden."
+  },
+  "unavailable": {
+    "notConfigured": "App-Updates sind für diesen Build nicht aktiviert. Laden Sie ein Installationsprogramm von der Veröffentlichungsseite herunter.",
+    "development": "Updates sind in Entwicklungs-Builds deaktiviert.",
+    "unsupported": "Verwenden Sie eine installierte Version, um die App zu aktualisieren.",
+    "browser": "Suchen Sie in der Desktop-App nach Updates."
+  },
+  "errors": {
+    "check": "Updates konnten nicht abgerufen werden. Prüfen Sie das Netzwerk oder öffnen Sie die Veröffentlichungsseite.",
+    "download": "Download oder Signaturprüfung fehlgeschlagen. Laden Sie das Update erneut herunter.",
+    "install": "Die Installation konnte nicht gestartet oder abgeschlossen werden. Prüfen Sie, ob der Installationsordner beschreibbar ist, oder laden Sie ein Installationsprogramm herunter.",
+    "cleanup": "Die Sitzungsbereinigung ist fehlgeschlagen. Die Installation wurde abgebrochen.",
+    "activityChanged": "Die aktiven Sitzungen haben sich geändert. Prüfen und bestätigen Sie die Installation erneut.",
+    "preferences": "Die Einstellung zur Update-Suche konnte nicht gelesen oder gespeichert werden. Betätigen Sie den Schalter, um erneut zu speichern.",
+    "busy": "Ein anderer Update-Vorgang läuft. Versuchen Sie es danach erneut.",
+    "notReady": "Das gewählte Update ist nicht mehr bereit. Suchen oder laden Sie es erneut.",
+    "unavailable": "Updates sind für diesen Build nicht verfügbar.",
+    "request": "Keine Verbindung zum Updater. Versuchen Sie es erneut oder starten Sie die App neu."
+  },
+  "about": {
+    "title": "Über",
+    "open": "Über OriaTunnel",
+    "openWithUpdate": "Über OriaTunnel, Update verfügbar",
+    "icon": "OriaTunnel-App-Symbol",
+    "version": "Version {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "Website",
+    "author": "KrisLee",
+    "moreApps": "Weitere Apps"
+  },
+  "goUpdate": "Zum Update"
+}

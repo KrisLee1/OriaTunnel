@@ -1,0 +1,60 @@
+{
+  "title": "앱 업데이트",
+  "currentVersion": "현재 버전: {{version}}",
+  "check": "업데이트 확인",
+  "loading": "업데이트 상태를 읽는 중…",
+  "progress": "업데이트 다운로드 진행률",
+  "newVersion": "새 버전 {{version}}을 사용할 수 있습니다",
+  "notes": "업데이트 내용",
+  "download": "업데이트 다운로드",
+  "install": "설치 후 다시 시작",
+  "autoCheck": "시작 시 업데이트 확인",
+  "releases": "릴리스 페이지 열기",
+  "confirmTitle": "업데이트 설치",
+  "confirmHint": "{{version}} 버전을 설치하고 다시 시작할까요? 모든 포워딩과 호스트 테스트가 중지됩니다.",
+  "activeForwards": "실행 중인 포워딩: {{count}}",
+  "activeTests": "실행 중인 호스트 테스트: {{count}}",
+  "later": "나중에",
+  "confirmInstall": "세션 중지 후 설치",
+  "notification": "새 버전 <version>{{version}}</version>을 사용할 수 있습니다.",
+  "phase": {
+    "checking": "업데이트 확인 중…",
+    "upToDate": "최신 버전입니다",
+    "downloading": "업데이트 다운로드 중…",
+    "verifying": "업데이트 검증 중…",
+    "ready": "업데이트 검증이 완료되어 설치할 수 있습니다.",
+    "preparing": "세션 중지 중…",
+    "installing": "설치 및 다시 시작 중…",
+    "error": "업데이트를 완료하지 못했습니다."
+  },
+  "unavailable": {
+    "notConfigured": "이 빌드에서는 앱 내 업데이트를 사용할 수 없습니다. 릴리스 페이지에서 설치 파일을 다운로드하세요.",
+    "development": "개발 빌드에서는 앱 업데이트가 비활성화됩니다.",
+    "unsupported": "설치된 버전에서 업데이트하세요.",
+    "browser": "데스크톱 앱에서 업데이트를 확인하세요."
+  },
+  "errors": {
+    "check": "업데이트를 확인하지 못했습니다. 네트워크를 확인하거나 릴리스 페이지를 방문하세요.",
+    "download": "다운로드 또는 서명 검증에 실패했습니다. 업데이트를 다시 다운로드하세요.",
+    "install": "설치를 시작하거나 완료하지 못했습니다. 앱이 쓰기 가능한 설치 폴더에 있는지 확인하고 다시 시도하거나 설치 파일을 다운로드하세요.",
+    "cleanup": "세션 정리에 실패하여 설치를 취소했습니다.",
+    "activityChanged": "활성 세션이 변경되었습니다. 다시 확인하고 설치하세요.",
+    "preferences": "시작 시 확인 설정을 읽거나 저장하지 못했습니다. 스위치를 변경하여 다시 저장하세요.",
+    "busy": "다른 업데이트 작업이 진행 중입니다. 완료 후 다시 시도하세요.",
+    "notReady": "선택한 업데이트가 준비되지 않았습니다. 다시 확인하거나 다운로드하세요.",
+    "unavailable": "이 빌드에서는 업데이트를 사용할 수 없습니다.",
+    "request": "업데이트 모듈과 통신하지 못했습니다. 다시 시도하거나 앱을 다시 시작하세요."
+  },
+  "about": {
+    "title": "정보",
+    "open": "OriaTunnel 정보",
+    "openWithUpdate": "OriaTunnel 정보, 업데이트 있음",
+    "icon": "OriaTunnel 앱 아이콘",
+    "version": "버전 {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "공식 웹사이트",
+    "author": "KrisLee",
+    "moreApps": "다른 앱"
+  },
+  "goUpdate": "업데이트"
+}

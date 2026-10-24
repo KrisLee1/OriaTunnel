@@ -1,6 +1,13 @@
 export type Point = { x: number; y: number };
 export type LocalAddAnchor = { origin: Point; normal: Point; near: boolean };
 
+// Screen-pixel dimensions shared by the reveal geometry and the actual button.
+export const LOCAL_ADD_RADIUS = 20;
+export const LOCAL_ADD_GAP = 4;
+export const LOCAL_ADD_OUTSIDE_REACH = LOCAL_ADD_RADIUS + LOCAL_ADD_GAP;
+export const LOCAL_ADD_INSIDE_REACH = 4;
+export const LOCAL_ADD_HIT_EXTENSION = LOCAL_ADD_GAP + LOCAL_ADD_INSIDE_REACH;
+
 /** Coordinates are in canvas units; proximity and the detached gap use screen pixels. */
 export function localAddAnchor(
   point: Point,
@@ -28,14 +35,20 @@ export function localAddAnchor(
   };
   const inside =
     point.x >= 0 && point.y >= 0 && point.x <= width && point.y <= height;
+  const origin = nearest.normal.x
+    ? { x: nearest.origin.x, y: inset(point.y, height) }
+    : { x: inset(point.x, width), y: nearest.origin.y };
+  const tangent = Math.abs(
+    (point.x - origin.x) * nearest.normal.y -
+      (point.y - origin.y) * nearest.normal.x,
+  );
   return {
-    origin: nearest.normal.x
-      ? { x: nearest.origin.x, y: inset(point.y, height) }
-      : { x: inset(point.x, width), y: nearest.origin.y },
+    origin,
     normal: nearest.normal,
     near:
+      tangent <= LOCAL_ADD_RADIUS / zoom &&
       nearest.distance <=
-      (inside ? Math.min(26 / zoom, width * 0.22, height * 0.22) : 26 / zoom),
+        (inside ? LOCAL_ADD_INSIDE_REACH : LOCAL_ADD_OUTSIDE_REACH) / zoom,
   };
 }
 
@@ -49,5 +62,9 @@ export function inLocalAddCorridor(
   const dy = point.y - anchor.origin.y;
   const outward = dx * anchor.normal.x + dy * anchor.normal.y;
   const tangent = Math.abs(dx * anchor.normal.y - dy * anchor.normal.x);
-  return outward >= -26 / zoom && outward <= 62 / zoom && tangent <= 26 / zoom;
+  return (
+    outward >= -LOCAL_ADD_INSIDE_REACH / zoom &&
+    outward <= (LOCAL_ADD_OUTSIDE_REACH + LOCAL_ADD_RADIUS + 4) / zoom &&
+    tangent <= (LOCAL_ADD_RADIUS + 4) / zoom
+  );
 }

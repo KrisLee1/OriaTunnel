@@ -115,6 +115,28 @@ SSH 配置语义对照测试还需要系统 OpenSSH 客户端，使用独立配�
 
 `pnpm icons` 从仓库内的应用图标导出图、托盘 SVG 和安装包 SVG 生成各平台图标。打包脚本会调用它，并在 macOS 上设置 DMG 卷图标、Finder 文件图标，生成保留图标元数据的 ZIP。签名、公证和公开发布需要另行配置及授权；构建成功不等于已发布。
 
+## 应用更新开发
+
+更新运行逻辑位于 `src-tauri/src/updater.rs`；前端通过 `src/lib/application-update.ts` 与六个业务 IPC 获取真实状态，不需要安装 JavaScript Updater 或 Process 插件。普通本地构建仍不生成签名更新包，开发构建禁用更新检查与安装。
+
+`src-tauri/tauri.conf.json` 已包含更新公钥和稳定版入口，不包含私钥。更新启动偏好独立保存在应用数据目录的 `update-preferences.json`，不会进入连接配置或配置包。公钥缺失、开发构建和不支持的安装形态显示明确原因，不模拟发现或安装成功。
+
+后续发布构建需要通过环境变量提供 `TAURI_SIGNING_PRIVATE_KEY` 与可选的 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，并合并 `src-tauri/tauri.updater.conf.json` 才会生成签名更新产物。例如在对应操作系统执行：
+
+```sh
+# Windows NSIS
+pnpm tauri build --bundles nsis --config src-tauri/tauri.updater.conf.json
+
+# macOS App 与 DMG；正式发布仍需整合既有 DMG 图标后处理及平台签名/公证
+pnpm tauri build --bundles app,dmg --config src-tauri/tauri.updater.conf.json
+```
+
+以上为发布构建入口说明，不代表已配置发布环境。不要把私钥或口令写入命令行、仓库、日志或测试产物；macOS 发布还需保留现有 `scripts/package-mac.sh` 的图标处理及 ZIP 包装流程。更新压缩包为 `.app.tar.gz`，不是现有的 DMG ZIP。
+
+已启用 `requireSignedVersion`，使用支持版本绑定的锁定 Tauri CLI 构建。手动签名更新包时需提供 `--app-version`，使其与清单版本一致；清单只提供更高版本的稳定版。升级与验收计划见 [应用更新方案](APP_UPDATE_PLAN.md)。
+
+新增 Rust 测试通过本机回环 HTTP 提供公开签名夹具来验证下载、验签与失败重试；HTTP 放宽仅存在于测试配置中，应用要求 HTTPS。`src-tauri/tests/fixtures/updater/` 仅包含测试载荷、公钥与签名，不含私钥，也不使用正式更新密钥。库测试仍按上文明确跳过系统凭据模块；图形界面与原生验证使用独立标识和隔离数据。
+
 ## 源码入口与同步范围
 
 - `src/App.tsx` 组合连接图、转发、主机、日志及弹窗；复用组件见 UI 开发文档。

@@ -1,0 +1,60 @@
+{
+  "title": "版本更新",
+  "currentVersion": "目前版本：{{version}}",
+  "check": "檢查更新",
+  "loading": "正在讀取更新狀態…",
+  "progress": "更新下載進度",
+  "newVersion": "有新版本 {{version}} 可用",
+  "notes": "更新說明",
+  "download": "下載更新",
+  "install": "安裝並重新啟動",
+  "autoCheck": "啟動時檢查更新",
+  "releases": "開啟發行頁面",
+  "confirmTitle": "安裝更新",
+  "confirmHint": "安裝 {{version}} 並重新啟動？這會停止所有轉發和主機測試。",
+  "activeForwards": "執行中的轉發：{{count}}",
+  "activeTests": "執行中的主機測試：{{count}}",
+  "later": "稍後",
+  "confirmInstall": "停止工作階段並安裝",
+  "notification": "偵測到新版本<version>{{version}}</version>可用。",
+  "phase": {
+    "checking": "正在檢查更新…",
+    "upToDate": "已是最新版本",
+    "downloading": "正在下載更新…",
+    "verifying": "正在驗證更新…",
+    "ready": "更新已通過驗證，可以安裝。",
+    "preparing": "正在停止工作階段…",
+    "installing": "正在安裝並重新啟動…",
+    "error": "更新未能完成。"
+  },
+  "unavailable": {
+    "notConfigured": "此版本尚未啟用應用程式內更新，可從發行頁面下載安裝。",
+    "development": "開發版本不支援應用程式更新。",
+    "unsupported": "請使用已安裝的版本進行更新。",
+    "browser": "請在桌面應用程式中檢查更新。"
+  },
+  "errors": {
+    "check": "檢查更新失敗，請檢查網路或前往發行頁面。",
+    "download": "下載或簽章驗證失敗，請重新下載更新。",
+    "install": "無法啟動或完成安裝。請確認應用程式位於可寫入的安裝目錄，重試或手動下載安裝。",
+    "cleanup": "工作階段清理失敗，已取消安裝。",
+    "activityChanged": "活動工作階段已變更，請重新檢視並確認安裝。",
+    "preferences": "無法讀取或儲存啟動檢查偏好，請操作開關重試儲存。",
+    "busy": "另一項更新操作正在進行，請稍後重試。",
+    "notReady": "所選更新已不再就緒，請重新檢查或下載。",
+    "unavailable": "此版本暫不支援應用程式更新。",
+    "request": "無法與更新模組通訊，請重試或重新啟動應用程式。"
+  },
+  "about": {
+    "title": "關於",
+    "open": "關於 OriaTunnel",
+    "openWithUpdate": "關於 OriaTunnel，有可用更新",
+    "icon": "OriaTunnel 應用程式圖示",
+    "version": "版本 {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "官方網站",
+    "author": "KrisLee",
+    "moreApps": "更多應用程式"
+  },
+  "goUpdate": "前往更新"
+}

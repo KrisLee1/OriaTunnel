@@ -1,0 +1,60 @@
+{
+  "title": "版本更新",
+  "currentVersion": "当前版本：{{version}}",
+  "check": "检查更新",
+  "loading": "正在读取更新状态…",
+  "progress": "更新下载进度",
+  "newVersion": "有新版本 {{version}} 可用",
+  "notes": "更新说明",
+  "download": "下载更新",
+  "install": "安装并重启",
+  "autoCheck": "启动时检查更新",
+  "releases": "打开发布页面",
+  "confirmTitle": "安装更新",
+  "confirmHint": "安装 {{version}} 并重启？这会停止全部转发和主机测试。",
+  "activeForwards": "正在运行的转发：{{count}}",
+  "activeTests": "正在运行的主机测试：{{count}}",
+  "later": "稍后",
+  "confirmInstall": "停止会话并安装",
+  "notification": "检测到新版本<version>{{version}}</version>可用。",
+  "phase": {
+    "checking": "正在检查更新…",
+    "upToDate": "已是最新版本",
+    "downloading": "正在下载更新…",
+    "verifying": "正在验证更新…",
+    "ready": "更新已通过验证，可以安装。",
+    "preparing": "正在停止会话…",
+    "installing": "正在安装并重启…",
+    "error": "更新未能完成。"
+  },
+  "unavailable": {
+    "notConfigured": "此版本尚未启用应用内更新，可从发布页面下载安装。",
+    "development": "开发版本不支持应用更新。",
+    "unsupported": "请使用已安装的版本进行更新。",
+    "browser": "请在桌面应用中检查更新。"
+  },
+  "errors": {
+    "check": "检查更新失败，请检查网络或访问发布页面。",
+    "download": "下载或签名验证失败，请重新下载更新。",
+    "install": "无法启动或完成安装。请确认应用位于可写的安装目录，重试或手动下载安装。",
+    "cleanup": "会话清理失败，已取消安装。",
+    "activityChanged": "活动会话已变化，请重新查看并确认安装。",
+    "preferences": "无法读取或保存启动检查偏好，请操作开关重试保存。",
+    "busy": "另一项更新操作正在进行，请稍后重试。",
+    "notReady": "所选更新已不再就绪，请重新检查或下载。",
+    "unavailable": "此版本暂不支持应用更新。",
+    "request": "无法与更新模块通信，请重试或重启应用。"
+  },
+  "about": {
+    "title": "关于",
+    "open": "关于 OriaTunnel",
+    "openWithUpdate": "关于 OriaTunnel，有可用更新",
+    "icon": "OriaTunnel 应用图标",
+    "version": "版本 {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "官网",
+    "author": "KrisLee",
+    "moreApps": "更多应用"
+  },
+  "goUpdate": "去更新"
+}

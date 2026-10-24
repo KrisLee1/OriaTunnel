@@ -9,6 +9,10 @@
 | 外观模式 | `src/components/theme/theme-mode-toggle.tsx` | 系统/浅色/深色，原版过渡 |
 | 添加及管理主题 | `src/components/theme/theme-import-setting.tsx` | ThemeImportSetting 导入；CustomThemeList 列表、当前标记与删除 |
 | 设置卡片分组 | `src/components/settings/appearance-settings.tsx` | AppearanceSettings / WindowSettings，原版左标题右控件布局及编辑器入口 |
+| Avatar | `src/components/ui/avatar.tsx` | Base UI Avatar/Image/Fallback 与 AvatarBadge；默认无背景，徽标不被头像裁切，装饰图像由外部按钮提供可访问名称 |
+| 关于应用 | `src/components/settings/about-dialog.tsx` | AboutButton 在设置外侧随控件镜像，以透明 SVG Avatar 打开关于；真实更新状态控制右上角纯色圆点，macOS 菜单通过 `tunnel://open-about` 打开同一弹窗；短标题、突出名称、同行版本/版权，组合图标、官网/GitHub/KrisLee、版本更新及底部已发布的更多应用 |
+| 进度 | `src/components/ui/progress.tsx` | shadcn/Base UI Progress；主题色轨道与填充、无障碍名称/数值、`value=null` 不确定进度，减少动态效果下保留可见进度 |
+| 应用更新 | `src/components/settings/application-update-setting.tsx`、`src/lib/application-update.ts` | 关于内的更新卡片、八语言、Rust 权威状态/进度、活动任务确认与安装；复用业务 Modal，不直接开放 Updater 插件安装权限 |
 | 语言 | `src/components/language/language-select.tsx` | 原版语言列表及持久选择 |
 | 原生语言同步 | `src/components/language/native-language-sync.tsx` | 根部挂载，按顺序同步 Rust 托盘和后续原生文件对话框语言；消息正文通过 `src/lib/native-message.ts` 在显示时翻译，状态保留原始标识/参数 |
 | 窗口外观 | `src/components/settings/window-appearance-setting.tsx` | Windows opacityOnly；macOS 不透明度/模糊直接跟随主题 Token，支持手动覆盖及重置，无「主题」徽标 |
@@ -19,7 +23,7 @@
 | 动作/导航 | `src/components/ui/button.tsx`、`tabs.tsx` | 原版尺寸、状态与键盘交互；primary-soft 主题色半透明动作、destructive 危险色动作；TabsList soft 变体统一导航与设置，内容自适应宽度、半透明主题色滑动选中底板；Button 使用 Motion 按压反馈 |
 | 可取消单选 | `src/components/ui/toggle.tsx` | Base UI Toggle/ToggleGroup，键盘导航、pressed/disabled，内容宽度与 primary-soft 选中态 |
 | 弹层 | `src/components/ui/responsive-modal.tsx`、`dialog.tsx`、`drawer.tsx`、`dropdown-menu.tsx`、`tooltip.tsx` | 焦点、Portal 与透明材质由共享组件负责；业务 Modal 标题支持 ReactNode（含图标与文本组合），由 AnimatePresence 保留至 Base UI 关闭动画完成后卸载；ResponsiveModalHeader 独立固定且只放标题，Description 放在 Body，正文上下各 16px 渐隐并单独滚动 |
-| 通知 | `src/components/ui/toast.tsx` | shadcn/Base UI Toast；`toast.add` 和根部 `Toaster`，ORIA 浮层材质、状态图标、堆叠、滑动/手动关闭、悬停/聚焦暂停、进入/退出动画及减少动态效果 |
+| 通知 | `src/components/ui/toast.tsx` | shadcn/Base UI Toast；`toast.add` 和根部 `Toaster`，ORIA 浮层材质、状态图标或 `data.icon` 自定义图标、`actionProps` 操作按钮、堆叠、滑动/手动关闭、悬停/聚焦暂停、进入/退出动画及减少动态效果 |
 | 内容 | `src/components/ui/item.tsx`、`badge.tsx`、`scroll-area.tsx` | 通用信息分组、标签；ScrollArea 双轴覆盖轨道不挤压内容，Viewport/Content 分别支持布局与内容间距，内容尺寸变化自动更新滑块 |
 | 分割 | `src/components/ui/separator.tsx` | 主题边框色水平/竖直分割；主机与日志工具栏用竖线分隔筛选和分组，随分组控件整体换行 |
 | 外链与说明 | `src/components/ui/external-link.tsx`、`info-tooltip.tsx` | 桌面外链交给系统浏览器；Tooltip 支持悬停/焦点和点击固定，再次点击、Escape 或点外部关闭，可传入图标 |
@@ -31,7 +35,7 @@
 | 图标选择与显示 | `src/features/tunnels/connection-icon.tsx` | ConnectionIconPicker：内置图标/Emoji 分页、双语搜索、自定义单个符号、默认色点及双向展开动画；ConnectionIcon 供列表与连接图共用，清单见同目录 JSON |
 | 边缘创建方向 | `src/features/tunnels/canvas-creation.ts` | 保存触发侧及端点偏移，按实测尺寸与占用位置安置新主机卡片，保留已有卡片位置和 L/R/D 箭头语义 |
 | 连接颜色 | `src/features/tunnels/connection-color.tsx` | ConnectionColorPicker 主题/预设/自定义圆形色板；ConnectionColorDot 列表名称前的颜色标识 |
-| 此电脑边缘添加 | `src/features/tunnels/local-add-forward.tsx`、`local-add-geometry.ts` | 最近边缘接近触发，40px 图标按钮与 14px 间距不随缩放变化；卡片/融球一体背景轮廓、键盘与减少动态效果、拖动避让、弹窗关闭后收回，复用现有新建转发流程 |
+| 此电脑边缘添加 | `src/features/tunnels/local-add-forward.tsx`、`local-add-geometry.ts` | 最近边缘接近触发，40px 图标按钮与 4px 间距不随缩放变化，触发点落在按钮命中区内，无需向外移动；卡片/融球一体背景轮廓、键盘与减少动态效果、拖动避让、弹窗关闭后收回，复用现有新建转发流程 |
 | 来源设置 | `src/features/hosts/source-settings.tsx` | 沿用设置 ItemGroup 卡片与 Item 行，附加来源复用 FilePathsEditor、右侧自动检测开关、卡片底部保存；标题由设置弹窗组合，不在组件内连接 SSH |
 | 主机选择与标签 | `src/features/hosts/host-picker.tsx`、`host-tags.tsx` | 仅从已添加主机按标签分组选择稳定 ID、标识认证方式；标签多选及创建，去除首尾空格和重复项，保存前只修改草稿 |
 | 主机发现与已添加集合 | `src/features/hosts/host-discovery.tsx`、`host-collection.ts` | 原生复选框多选、按筛选全选、搜索保留选择；整组保存后回列表或回填转发草稿，不自动打开详情、测试或连接；已添加集合包含明确选择、手动主机、规则及跳板依赖 |

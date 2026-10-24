@@ -1,0 +1,60 @@
+{
+  "title": "Mises à jour",
+  "currentVersion": "Version actuelle : {{version}}",
+  "check": "Rechercher une mise à jour",
+  "loading": "Chargement de l’état…",
+  "progress": "Progression du téléchargement",
+  "newVersion": "La version {{version}} est disponible",
+  "notes": "Notes de version",
+  "download": "Télécharger la mise à jour",
+  "install": "Installer et redémarrer",
+  "autoCheck": "Rechercher au démarrage",
+  "releases": "Ouvrir les versions",
+  "confirmTitle": "Installer la mise à jour",
+  "confirmHint": "Installer la version {{version}} et redémarrer ? Toutes les redirections et tous les tests d’hôte seront arrêtés.",
+  "activeForwards": "Redirections actives : {{count}}",
+  "activeTests": "Tests d’hôte actifs : {{count}}",
+  "later": "Plus tard",
+  "confirmInstall": "Arrêter les sessions et installer",
+  "notification": "La version <version>{{version}}</version> est disponible.",
+  "phase": {
+    "checking": "Recherche en cours…",
+    "upToDate": "Votre version est à jour",
+    "downloading": "Téléchargement en cours…",
+    "verifying": "Vérification en cours…",
+    "ready": "Mise à jour vérifiée et prête à installer.",
+    "preparing": "Arrêt des sessions…",
+    "installing": "Installation et redémarrage…",
+    "error": "La mise à jour n’a pas pu être terminée."
+  },
+  "unavailable": {
+    "notConfigured": "Les mises à jour intégrées ne sont pas activées pour cette version. Téléchargez un programme d’installation depuis la page des versions.",
+    "development": "Les mises à jour sont désactivées en développement.",
+    "unsupported": "Utilisez une version installée pour mettre à jour l’application.",
+    "browser": "Recherchez les mises à jour dans l’application de bureau."
+  },
+  "errors": {
+    "check": "Impossible de rechercher les mises à jour. Vérifiez le réseau ou consultez la page des versions.",
+    "download": "Échec du téléchargement ou de la vérification de signature. Téléchargez à nouveau la mise à jour.",
+    "install": "Impossible de lancer ou de terminer l’installation. Vérifiez que le dossier d’installation est accessible en écriture, réessayez ou téléchargez le programme d’installation.",
+    "cleanup": "Échec du nettoyage des sessions. L’installation a été annulée.",
+    "activityChanged": "Les sessions actives ont changé. Vérifiez-les et confirmez à nouveau l’installation.",
+    "preferences": "Impossible de lire ou d’enregistrer la préférence de recherche. Actionnez le commutateur pour réessayer.",
+    "busy": "Une autre opération de mise à jour est en cours. Réessayez ensuite.",
+    "notReady": "La mise à jour sélectionnée n’est plus prête. Recherchez-la ou téléchargez-la à nouveau.",
+    "unavailable": "Les mises à jour ne sont pas disponibles pour cette version.",
+    "request": "Impossible de communiquer avec le module de mise à jour. Réessayez ou redémarrez l’application."
+  },
+  "about": {
+    "title": "À propos",
+    "open": "À propos d’OriaTunnel",
+    "openWithUpdate": "À propos d’OriaTunnel, mise à jour disponible",
+    "icon": "Icône de l’application OriaTunnel",
+    "version": "Version {{version}}",
+    "copyright": "© {{year}} KrisLee",
+    "website": "Site officiel",
+    "author": "KrisLee",
+    "moreApps": "Autres applications"
+  },
+  "goUpdate": "Mettre à jour"
+}
