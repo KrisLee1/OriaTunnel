@@ -23,6 +23,11 @@ export interface Host {
   identityAgent: string | null;
   identitiesOnly: boolean;
   proxyJump: string | null;
+  algorithms?: {
+    ciphers: string | null;
+    kexAlgorithms: string | null;
+    macs: string | null;
+  };
   fieldSources: Record<string, string>;
   configuredForwards: string[];
   unsupportedSessionOptions?: string[];

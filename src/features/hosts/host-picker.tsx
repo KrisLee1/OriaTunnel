@@ -13,7 +13,7 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox";
 import { groupHosts } from "./host-groups";
-import { hostAuthLabels } from "./host-auth";
+import { hostAuthLabels, hostAuthMethod } from "./host-auth";
 
 type HostOption = { host: Host; key: string };
 type HostOptionGroup = { key: string; label: string; items: HostOption[] };
@@ -80,7 +80,7 @@ export function HostPicker({
                         <small>
                           {option.host.user}@{option.host.address}:
                           {option.host.port} ·{" "}
-                          {t(hostAuthLabels[option.host.authMethod])}
+                          {t(hostAuthLabels[hostAuthMethod(option.host)])}
                           {option.host.diagnostics.length
                             ? ` · ${t("status-configuration-error")}`
                             : ""}

@@ -1,6 +1,6 @@
 use crate::{model::*, ssh_config, tunnel};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -154,8 +154,42 @@ impl AppState {
         *pending = None;
         Ok(())
     }
+    fn add_discovered_hosts(&self, ids: &[String]) -> Result<(), String> {
+        if ids.is_empty() {
+            return Err("请选择要添加的 SSH 主机".into());
+        }
+        let hosts = self.snapshot().hosts;
+        // Validate the entire selection before writing a single transaction.
+        let selected = ids
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|id| {
+                hosts
+                    .iter()
+                    .find(|h| &h.id == id && h.source == "config")
+                    .cloned()
+                    .ok_or("部分发现主机已不存在，请刷新后重试")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut config = self.config.lock().unwrap();
+        let mut next = config.clone();
+        for host in selected {
+            next.host_metadata
+                .entry(host.id.clone())
+                .or_insert_with(|| HostMetadata {
+                    name: host.name.clone(),
+                    tags: host.tags.clone(),
+                });
+            next.host_snapshots.insert(host.id.clone(), host);
+        }
+        self.persist(&next)?;
+        *config = next;
+        Ok(())
+    }
     fn upsert_host(&self, mut host: Host) -> Result<(), String> {
         host.connection.validate()?;
+        crate::ssh_algorithms::preferred(&host.algorithms)?;
         host.identity_files.retain(|path| !path.trim().is_empty());
         host.tags = host
             .tags
@@ -647,6 +681,16 @@ pub fn set_host_sources(
         *c = next;
     }
     state.sync_hosts(&app);
+    state.publish(&app);
+    Ok(state.snapshot())
+}
+#[tauri::command]
+pub fn add_discovered_hosts(
+    state: tauri::State<Arc<AppState>>,
+    app: tauri::AppHandle,
+    ids: Vec<String>,
+) -> Result<Snapshot, String> {
+    state.add_discovered_hosts(&ids)?;
     state.publish(&app);
     Ok(state.snapshot())
 }
@@ -1740,6 +1784,54 @@ mod tests {
         assert_eq!(missing.snapshot().hosts.len(), 1);
         assert_eq!(missing.snapshot().hosts[0].id, "ssh:candidate");
         assert!(!missing.snapshot().hosts[0].diagnostics.is_empty());
+    }
+    #[test]
+    fn discovered_multi_add_is_atomic_persistent_and_never_creates_rules_or_connections() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("connections.json");
+        let discovery = ssh_config::Discovery {
+            hosts: ["first", "second", "untouched"]
+                .into_iter()
+                .map(|name| Host {
+                    id: format!("ssh:{name}"),
+                    name: name.into(),
+                    source: "config".into(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let state = AppState::load_with_discovery(path.clone(), discovery.clone()).unwrap();
+        assert!(state.add_discovered_hosts(&[]).is_err());
+        assert!(state
+            .add_discovered_hosts(&["ssh:first".into(), "missing".into()])
+            .is_err());
+        assert!(state.snapshot().added_host_ids.is_empty());
+        assert!(!path.exists());
+        state
+            .add_discovered_hosts(&["ssh:first".into(), "ssh:second".into(), "ssh:first".into()])
+            .unwrap();
+        assert_eq!(state.snapshot().added_host_ids, ["ssh:first", "ssh:second"]);
+        let saved = std::fs::read(&path).unwrap();
+        let restored = AppState::load_with_discovery(path.clone(), discovery).unwrap();
+        assert_eq!(
+            restored.snapshot().added_host_ids,
+            ["ssh:first", "ssh:second"]
+        );
+        assert!(restored.snapshot().rules.is_empty());
+        assert!(restored.snapshot().runtimes.is_empty());
+        assert!(restored.add_discovered_hosts(&["missing".into()]).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), saved);
+        // A failed write also leaves the in-memory selection unchanged.
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert!(restored
+            .add_discovered_hosts(&["ssh:untouched".into()])
+            .is_err());
+        assert_eq!(
+            restored.snapshot().added_host_ids,
+            ["ssh:first", "ssh:second"]
+        );
     }
     #[test]
     fn import_is_atomic_stopped_additive_single_use_and_rejects_changed_preview() {

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
@@ -61,7 +62,7 @@ import { HostTestButton } from "./features/hosts/host-test-button";
 import { AuthenticationField } from "./features/hosts/authentication-field";
 import { IdentityFilesEditor } from "./features/hosts/identity-files-editor";
 import { HostDiscovery } from "./features/hosts/host-discovery";
-import { hostAuthLabels } from "./features/hosts/host-auth";
+import { hostAuthLabels, hostAuthMethod, needsInitialSecret, automaticAuthOutcome, type AutomaticAttempt } from "./features/hosts/host-auth";
 import { addedHosts, hostFilterStatus } from "./features/hosts/host-collection";
 import { RuleToolbar } from "./features/tunnels/rule-toolbar";
 import { OpenServiceButton } from "./features/tunnels/service-protocol";
@@ -79,6 +80,8 @@ import { ImportConfig } from "./features/tunnels/import-config";
 import { ConnectionIcon } from "./features/tunnels/connection-icon";
 import { ConnectionEdge } from "./features/tunnels/connection-edge";
 import { LocalPortHandle } from "./features/tunnels/local-port-handle";
+import { LocalAddForward } from "./features/tunnels/local-add-forward";
+import { createdCanvasLayout, oppositeSide, type CanvasCreation } from "./features/tunnels/canvas-creation";
 import { PORT_LAYOUT_KEY, readPortPlacements, type PortPlacement } from "./features/tunnels/port-placement";
 import { canvasLayout, canvasPortId, localPortSide, localCardSize, reconcileCanvasNodes } from "./features/tunnels/canvas-state";
 import {
@@ -177,11 +180,15 @@ export function App() {
   const [discovering, setDiscovering] = useState(false);
   const [addedInSession, setAddedInSession] = useState<string[]>([]);
   const [ruleDraft, setRuleDraft] = useState<Rule | null>(null);
+  const [draftPlacement, setDraftPlacement] = useState<PortPlacement | null>(null);
+  const [canvasCreation, setCanvasCreation] = useState<CanvasCreation | null>(null);
   const [focusRuleId, setFocusRuleId] = useState("");
   const [ruleSuspended, setRuleSuspended] = useState(false);
   const [hostFromRule, setHostFromRule] = useState(false);
   const [authHostId, setAuthHostId] = useState<string | null>(null);
   const [authId, setAuthId] = useState<string | null>(null);
+  const automaticAttempts = useRef(new Map<string, AutomaticAttempt>());
+  const [authFallback, setAuthFallback] = useState(false);
   const [jumpSecrets, setJumpSecrets] = useState<Record<string, string>>({});
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
@@ -266,11 +273,13 @@ export function App() {
     window.addEventListener("focus", focus);
     return () => window.removeEventListener("focus", focus);
   }, [accept, setError]);
-  const newRule = (hostId = "") => {
+  const newRule = (hostId = "", placement: PortPlacement | null = null) => {
     setRuleSuspended(false);
+    setDraftPlacement(placement);
     setRuleDraft(emptyRule(hostId));
   };
   const copyRule = (rule: Rule) => {
+    setDraftPlacement(null);
     setRuleSuspended(false);
     setRuleDraft({
       ...rule,
@@ -296,26 +305,60 @@ export function App() {
       return result;
     });
     if (ok) {
+      if (!old && draftPlacement) setCanvasCreation({
+        ruleId: rule.id, hostId: rule.hostId, placement: draftPlacement,
+        newHost: !data.rules.some((saved) => saved.hostId === rule.hostId),
+      });
+      setDraftPlacement(null);
       setRuleDraft(null);
       setRuleSuspended(false);
       setPage("canvas");
       setFocusRuleId(rule.id);
-      if (launch || reconnect) start(rule.id);
+      if (launch || reconnect) start(rule.id, rule.hostId);
     }
   };
-  const stop = (id: string) => action(() => bridge.stopRule(id));
-  const start = (id: string) => {
-    setAuthHostId(null);
+  const stop = (id: string) => {
+    automaticAttempts.current.delete(id);
+    return action(() => bridge.stopRule(id));
+  };
+  const beginConnection = (id: string, host?: Host, test = false) => {
     setSecret("");
     setJumpSecrets({});
-    setAuthId(id);
+    setAuthFallback(false);
+    const route = host ? [...jumpHosts(data.hosts, host), host] : [];
+    if (!host || needsInitialSecret(route)) {
+      setAuthHostId(test ? host?.id ?? id.slice("host-test:".length) : null);
+      setAuthId(id);
+      return;
+    }
+    automaticAttempts.current.set(id, {
+      previousRunId: data.runtimes.find((runtime) => runtime.ruleId === id)?.runId,
+      hostId: test ? host.id : undefined,
+    });
+    void action(() => test ? bridge.testHost(host.id, "") : bridge.startRule(id, ""))
+      .then((ok) => { if (!ok) automaticAttempts.current.delete(id); });
   };
-  const startHost = (id: string) => {
-    setAuthHostId(id);
-    setAuthId("host-test:" + id);
-    setSecret("");
-    setJumpSecrets({});
-  };
+  const start = (id: string, hostId?: string) => beginConnection(id, data.hosts.find((host) =>
+    host.id === (hostId || data.rules.find((rule) => rule.id === id)?.hostId)));
+  const startHost = (id: string, saved?: Host) => beginConnection("host-test:" + id,
+    saved || data.hosts.find((host) => host.id === id), true);
+  useEffect(() => {
+    for (const [id, attempt] of automaticAttempts.current) {
+      const outcome = automaticAuthOutcome(attempt, data.runtimes.find((runtime) => runtime.ruleId === id));
+      if (outcome === "waiting" || (outcome === "prompt" && authId)) continue;
+      automaticAttempts.current.delete(id);
+      const host = data.hosts.find((host) => host.id ===
+        (attempt.hostId || data.rules.find((rule) => rule.id === id)?.hostId));
+      if (outcome !== "prompt" || !host ||
+        [...jumpHosts(data.hosts, host), host].every((hop) => hop.authMethod === "agent")) continue;
+      setAuthHostId(attempt.hostId || null);
+      setAuthId(id);
+      setAuthFallback(true);
+      setSecret("");
+      setJumpSecrets({});
+      break;
+    }
+  }, [data.runtimes, data.hosts, data.rules, authId]);
   const closeHost = () => {
     setHostDraft(null);
     setHostFromRule(false);
@@ -332,13 +375,53 @@ export function App() {
       if (hostFromRule && ruleDraft)
         setRuleDraft({ ...ruleDraft, hostId: host.id });
       closeHost();
-      if (test) startHost(host.id);
+      if (test) startHost(host.id, host);
     }
   };
   const authTarget = data.hosts.find(
     (h) =>
       h.id === (authHostId || data.rules.find((r) => r.id === authId)?.hostId),
   );
+  const authPromptHosts = authTarget ? [...jumpHosts(data.hosts, authTarget), authTarget]
+    .filter((host) => authFallback ? host.authMethod !== "agent" : host.authMethod === "password") : [];
+  const batchRouteHosts = (ids: string[]) => data.hosts.filter((host) => ids.some((id) => {
+    const target = data.hosts.find((h) => h.id === data.rules.find((r) => r.id === id)?.hostId);
+    return host.id === target?.id || jumpHosts(data.hosts, target).some((hop) => hop.id === host.id);
+  }));
+  const startMany = (ids: string[], fromTray = false) => {
+    setBatchSecrets({});
+    if (needsInitialSecret(batchRouteHosts(ids))) {
+      setBatchAuth(ids);
+      return;
+    }
+    for (const id of ids) automaticAttempts.current.set(id, {
+      previousRunId: data.runtimes.find((r) => r.ruleId === id)?.runId,
+    });
+    void action(async () => {
+      const results = await bridge.startBatch(ids, {});
+      for (const result of results) if (!result.accepted) automaticAttempts.current.delete(result.id);
+      notifyBatch(results, "start");
+      if (fromTray && results.some((result) => !result.accepted)) void bridge.showMainWindow();
+    }).then((ok) => {
+      if (!ok) {
+        for (const id of ids) automaticAttempts.current.delete(id);
+        if (fromTray) void bridge.showMainWindow();
+      }
+    });
+  };
+  const trayStart = useRef(startMany);
+  useLayoutEffect(() => { trayStart.current = startMany; });
+  useEffect(() => {
+    if (!bridge.desktop) return;
+    let disposed = false;
+    const subscription = listen<string[]>("tunnel://tray-start", ({ payload }) => {
+      if (!disposed) trayStart.current(payload, true);
+    });
+    return () => {
+      disposed = true;
+      void subscription.then((off) => off()).catch(() => {});
+    };
+  }, []);
   const duplicateHost =
     hostDraft?.source === "manual" &&
     managedHosts.find(
@@ -349,6 +432,10 @@ export function App() {
         h.user === hostDraft.user,
     );
   const pending = data.runtimes.find((r) => r.status === "verifying-host");
+  const needsInput = Boolean(authId || batchAuth || pending);
+  useEffect(() => {
+    if (bridge.desktop && needsInput) void bridge.showMainWindow();
+  }, [needsInput]);
   const selection = selectedRules.filter((id) =>
     data.rules.some((r) => r.id === id),
   );
@@ -362,16 +449,7 @@ export function App() {
           ).some((h) => h.id === deletingHost.id),
       )
     : [];
-  const batchHosts = data.hosts.filter((h) =>
-    (batchAuth || []).some((id) => {
-      const rule = data.rules.find((r) => r.id === id);
-      const target = data.hosts.find((host) => host.id === rule?.hostId);
-      return (
-        h.id === target?.id ||
-        jumpHosts(data.hosts, target).some((j) => j.id === h.id)
-      );
-    }),
-  );
+  const batchHosts = batchRouteHosts(batchAuth || []).filter((host) => host.authMethod === "password");
   const inspected = data.rules.find((r) => r.id === inspecting);
   const active = data.runtimes.filter(
     (r) =>
@@ -417,11 +495,9 @@ export function App() {
               count={data.rules.length}
               busy={busy}
               available={bridge.desktop}
-              onStartAll={() => {
-                setBatchAuth(data.rules.map((r) => r.id));
-                setBatchSecrets({});
-              }}
+              onStartAll={() => startMany(data.rules.map((r) => r.id))}
               onStopAll={() => {
+                for (const rule of data.rules) automaticAttempts.current.delete(rule.id);
                 void action(async () =>
                   notifyBatch(
                     await bridge.stopBatch(data.rules.map((r) => r.id)),
@@ -465,6 +541,10 @@ export function App() {
           <ReactFlowProvider>
             <TunnelCanvas
               data={data}
+              onAdd={(placement) => newRule("", placement)}
+              canAdd={!busy && bridge.desktop}
+              creation={canvasCreation}
+              onCreationPlaced={() => setCanvasCreation(null)}
               onStart={start}
               onOpenService={(id) => void action(() => bridge.openService(id))}
               onStop={stop}
@@ -488,6 +568,7 @@ export function App() {
             selected={selectedHost}
             setSelected={setSelectedHost}
             onEdit={setHostDraft}
+            onAdd={() => openHostDiscovery()}
             onForward={(id) => newRule(id)}
             onTest={startHost}
             onStopTest={(id) => void stop("host-test:" + id)}
@@ -524,15 +605,13 @@ export function App() {
               onToggleAll={(checked) =>
                 setSelectedRules(checked ? data.rules.map((r) => r.id) : [])
               }
-              onStart={() => {
-                setBatchAuth(selection);
-                setBatchSecrets({});
-              }}
-              onStop={() =>
+              onStart={() => startMany(selection)}
+              onStop={() => {
+                for (const id of selection) automaticAttempts.current.delete(id);
                 void action(async () =>
                   notifyBatch(await bridge.stopBatch(selection), "stop"),
-                )
-              }
+                );
+              }}
               onDelete={() =>
                 setDeleting(data.rules.filter((r) => selection.includes(r.id)))
               }
@@ -545,7 +624,14 @@ export function App() {
               onUndo={() => void action(bridge.undoDelete)}
             />
             {!data.rules.length ? (
-              <Empty title={t("noRules")} body={t("emptyBody")} />
+              <Empty title={t("noRules")} body={t("emptyBody")}
+                action={
+                  <Button type="button" variant="primary-soft" disabled={busy || !bridge.desktop} onClick={() => newRule()}>
+                    <GitPullRequestCreateArrowIcon aria-hidden="true" />
+                    {t("add")}
+                  </Button>
+                }
+              />
             ) : (
               <div className="rule-list">
                 {groupRulesByHost(data.rules, data.hosts).map((group) => (
@@ -893,6 +979,12 @@ export function App() {
               const ids = batchAuth;
               const credentials = batchSecrets;
               const remember = rememberHostIds();
+              for (const id of ids) {
+                if (batchRouteHosts([id]).some((host) => host.authMethod === "auto" || host.authMethod === "privateKey"))
+                  automaticAttempts.current.set(id, {
+                    previousRunId: data.runtimes.find((r) => r.ruleId === id)?.runId,
+                  });
+              }
               setBatchSecrets({});
               setBatchAuth(null);
               void action(async () =>
@@ -992,19 +1084,16 @@ export function App() {
             setDiscovering(false);
             setHostDraft(emptyHost());
           }}
-          select={async (id) => {
-            const candidate = data.hosts.find(
-              (host) => host.id === id && host.source === "config",
-            );
-            if (!candidate || busy) return;
-            const ok = await action(() => bridge.saveHostMetadata(candidate));
+          select={async (ids) => {
+            if (!ids.length || busy) return;
+            const ok = await action(() => bridge.addDiscoveredHosts(ids));
             if (!ok) return;
-            setAddedInSession((ids) => (ids.includes(id) ? ids : [...ids, id]));
+            setAddedInSession((current) => [...new Set([...current, ...ids])]);
             if (hostFromRule && ruleDraft)
-              setRuleDraft((current) => current && { ...current, hostId: id });
+              setRuleDraft((current) => current && { ...current, hostId: ids[0] });
             else {
               setPage("hosts");
-              setSelectedHost(id);
+              setSelectedHost("");
             }
             setDiscovering(false);
             setHostFromRule(false);
@@ -1086,7 +1175,7 @@ export function App() {
                     { value: "privateKey", label: t("authPrivateKey") },
                     { value: "agent", label: t("authAgent") },
                   ]}
-                  value={hostDraft.authMethod}
+                  value={hostDraft.source === "config" ? hostAuthMethod(hostDraft) : hostDraft.authMethod}
                   onValueChange={(authMethod) =>
                     authMethod &&
                     setHostDraft({
@@ -1226,7 +1315,7 @@ export function App() {
         <Modal key="authentication"
           className="authentication-modal max-w-lg sm:max-w-lg"
           title={authTarget ? t("authForHost", { name: authTarget.name }) : t("auth")}
-          description={t("authHelp")}
+          description={t(authFallback ? "authFallbackHelp" : "authHelp")}
           close={() => {
             setAuthId(null);
             setSecret("");
@@ -1240,6 +1329,13 @@ export function App() {
               const once = secret;
               const jumps = jumpSecrets;
               const remember = rememberHostIds();
+              if (!authFallback && authTarget &&
+                [...jumpHosts(data.hosts, authTarget), authTarget].some((host) => host.authMethod === "auto" || host.authMethod === "privateKey")) {
+                automaticAttempts.current.set(id, {
+                  previousRunId: data.runtimes.find((r) => r.ruleId === id)?.runId,
+                  hostId: authHostId || undefined,
+                });
+              }
               setJumpSecrets({});
               setSecret("");
               setAuthId(null);
@@ -1250,13 +1346,13 @@ export function App() {
               );
             }}
           >
-            {jumpHosts(data.hosts, authTarget).map((h) => (
+            {authPromptHosts.filter((host) => host.id !== authTarget?.id).map((h) => (
               <AuthenticationField key={h.id} host={h} value={jumpSecrets[h.id] || ""}
                 onChange={(value) => setJumpSecrets({ ...jumpSecrets, [h.id]: value })}
                 remember={!!rememberPasswords[h.id]}
                 onRemember={(value) => setRememberPasswords((old) => ({ ...old, [h.id]: value }))} />
             ))}
-            {authTarget ? (
+            {authTarget && authPromptHosts.some((host) => host.id === authTarget.id) ? (
               <AuthenticationField
                 host={authTarget}
                 hideLabel
@@ -1319,12 +1415,13 @@ export function App() {
   );
 }
 
-function Empty({ title, body }: { title: string; body?: string }) {
+function Empty({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
   return (
     <div className="empty">
       <GraphStarIcon size={36} strokeWidth={1} />
       <h2>{title}</h2>
       {body && <p>{body}</p>}
+      {action}
     </div>
   );
 }
@@ -1360,6 +1457,7 @@ function Hosts({
   selected,
   setSelected,
   onEdit,
+  onAdd,
   onForward,
   onDelete,
   onCopy,
@@ -1371,6 +1469,7 @@ function Hosts({
   selected: string;
   setSelected: (s: string) => void;
   onEdit: (h: Host) => void;
+  onAdd: () => void;
   onForward: (id: string) => void;
   onTest: (id: string) => void;
   onStopTest: (id: string) => void;
@@ -1436,6 +1535,12 @@ function Hosts({
         <Empty
           title={t(data.hosts.length ? "emptyResult" : "noHosts")}
           body={t("noHostsBody")}
+          action={!data.hosts.length && (
+            <Button type="button" variant="primary-soft" disabled={busy || !bridge.desktop} onClick={onAdd}>
+              <ServerPlusIcon aria-hidden="true" />
+              {t("addHost")}
+            </Button>
+          )}
         />
       ) : (
         <HostGroups
@@ -1506,7 +1611,7 @@ function Hosts({
           <div className="host-detail">
             <div className="host-detail-badges">
               <span className="source-badge">
-                {t(hostAuthLabels[host.authMethod])}
+                {t(hostAuthLabels[hostAuthMethod(host, testRuntime)])}
               </span>
               {testRuntime ? (
                 <Status runtime={testRuntime} />
@@ -1538,12 +1643,7 @@ function Hosts({
               <dt>{t("authMethod")}</dt>
               <dd>
                 {t(
-                  {
-                    auto: "authAuto",
-                    password: "authPassword",
-                    privateKey: "authPrivateKey",
-                    agent: "authAgent",
-                  }[host.authMethod],
+                  hostAuthLabels[hostAuthMethod(host, testRuntime)],
                 )}
               </dd>
               <dt>{t("proxyJump")}</dt>
@@ -1649,6 +1749,8 @@ function Hosts({
 }
 
 type CardData = {
+  onAdd: (placement: PortPlacement) => void;
+  canAdd: boolean;
   onOpenService: (id: string) => void;
   onPortMove: (
     id: string,
@@ -1708,7 +1810,7 @@ function CardPorts({
       port.side === Position.Top || port.side === Position.Bottom;
     const offset = `${((index + 1) / (peers.length + 1)) * 100}%`;
     const placement: CSSProperties =
-      local && horizontal ? { left: offset } : { top: local ? offset : "50%" };
+      horizontal ? { left: offset } : { top: local ? offset : "50%" };
     return (
       <Handle
         key={port.ruleId}
@@ -1729,11 +1831,12 @@ function CardPorts({
     );
   });
 }
-function Card({ id, data: d }: NodeProps<CardNode>) {
+function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
   const { t } = useTranslation("tunnel");
   // Opacity only: transforms belong to React Flow and port measurement.
   const entrance = useEntranceMotion(0);
   const updateInternals = useUpdateNodeInternals();
+  const cardRef = useRef<HTMLElement>(null);
   const [portDragSize, setPortDragSize] = useState<ReturnType<
     typeof localCardSize
   > | null>(null);
@@ -1749,6 +1852,7 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
   if (d.local)
     return (
       <motion.article
+        ref={cardRef}
         className="tunnel-card themed-surface local-card"
         {...entrance}
         style={portDragSize || localCardSize(d.ports)}
@@ -1767,10 +1871,12 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
           <strong>{d.count || 0}</strong>
         </div>
         <span className="local-card-title">{t("local")}</span>
+        <LocalAddForward card={cardRef} disabled={!d.canAdd} suspended={!!dragging || !!portDragSize} onAdd={d.onAdd} />
       </motion.article>
     );
   return (
     <motion.article className="tunnel-card themed-surface host-card" {...entrance}>
+      <CardPorts ports={d.ports.filter((port) => port.side === Position.Top || port.side === Position.Bottom)} labels={false} />
       <div className="card-heading">
         <span className="card-icon">
           <ServerIcon size={21} />
@@ -1828,7 +1934,7 @@ function Card({ id, data: d }: NodeProps<CardNode>) {
                 </div>
                 <div className="port-path">
                   <CardPorts
-                    ports={d.ports.filter((p) => p.ruleId === rule.id)}
+                    ports={d.ports.filter((p) => p.ruleId === rule.id && p.side !== Position.Top && p.side !== Position.Bottom)}
                     labels={false}
                   />
                   <code>
@@ -1905,6 +2011,10 @@ const nodeTypes = { card: Card };
 const edgeTypes = { connection: ConnectionEdge };
 function TunnelCanvas({
   data,
+  onAdd,
+  canAdd,
+  creation,
+  onCreationPlaced,
   onOpenService,
   onStart,
   onStop,
@@ -1916,6 +2026,10 @@ function TunnelCanvas({
   onFocusDone,
 }: {
   data: Snapshot;
+  onAdd: (placement: PortPlacement) => void;
+  canAdd: boolean;
+  creation: CanvasCreation | null;
+  onCreationPlaced: () => void;
   onOpenService: (id: string) => void;
   onStart: (id: string) => void;
   onStop: (id: string) => unknown;
@@ -1931,13 +2045,14 @@ function TunnelCanvas({
   const nodesReady = useNodesInitialized();
   useEffect(() => {
     if (
-      focusRuleId &&
+      !creation && focusRuleId &&
       nodesReady &&
       data.rules.some((r) => r.id === focusRuleId)
     ) {
       void flow
         .fitView({
           nodes: [
+            { id: "local" },
             {
               id: `host:${data.rules.find((r) => r.id === focusRuleId)!.hostId}`,
             },
@@ -1948,7 +2063,7 @@ function TunnelCanvas({
         })
         .then(onFocusDone);
     }
-  }, [focusRuleId, nodesReady, data.rules, flow, onFocusDone]);
+  }, [creation, focusRuleId, nodesReady, data.rules, flow, onFocusDone]);
   const [initialViewport] = useState<Viewport | undefined>(() => {
     try {
       const value = JSON.parse(
@@ -1982,6 +2097,27 @@ function TunnelCanvas({
     }
   });
   const latestPortPlacements = useRef(portPlacements);
+  const pendingLayout = useMemo(() => {
+    if (!creation || !data.rules.some((rule) => rule.id === creation.ruleId)) return null;
+    const measured = Object.fromEntries(flow.getNodes().filter((node) => node.measured?.width && node.measured?.height)
+      .map((node) => [node.id, { width: node.measured!.width!, height: node.measured!.height! }]));
+    return createdCanvasLayout(data, creation, positions, portPlacements, measured);
+  }, [creation, data, positions, portPlacements, nodesReady, flow]);
+  useLayoutEffect(() => {
+    if (!creation || !pendingLayout) return;
+    const host = flow.getNode(`host:${creation.hostId}`);
+    if (creation.newHost && (!host?.measured?.width || !host?.measured?.height)) return;
+    setPositions(pendingLayout.positions);
+    setPortPlacements(pendingLayout.portPlacements);
+    latestPortPlacements.current = pendingLayout.portPlacements;
+    try {
+      localStorage.setItem("oria-tunnel-layout", JSON.stringify(pendingLayout.positions));
+      localStorage.setItem(PORT_LAYOUT_KEY, JSON.stringify(pendingLayout.portPlacements));
+    } catch (error) { console.error("Unable to save creation layout", error); }
+    onCreationPlaced();
+  }, [creation, pendingLayout, nodesReady, flow, onCreationPlaced]);
+  const renderPositions = pendingLayout?.positions || positions;
+  const renderPlacements = pendingLayout?.portPlacements || portPlacements;
   const onPortMove = useCallback<CardData["onPortMove"]>(
     (id, value, commit) => {
       const next = { ...latestPortPlacements.current };
@@ -2001,26 +2137,21 @@ function TunnelCanvas({
   );
   const projectedNodes = useMemo<CardNode[]>(() => {
     const groups = groupRulesByHost(data.rules, data.hosts);
-    const layout = groupPositions(groups, positions);
+    const layout = groupPositions(groups, renderPositions);
     const localPorts: CardPort[] = [];
     const hostPorts: Record<string, CardPort[]> = {};
     for (const group of groups) {
-      const hostSide =
-        layout[group.id].x < (positions.local?.x || 0)
-          ? Position.Right
-          : Position.Left;
       hostPorts[group.id] = group.rules.map((rule) => {
         const labels = connectionPorts(rule, group.host?.port);
         const color = rule.color || "var(--oria-color-accent)";
+        const side = renderPlacements[rule.id]?.side || localPortSide(renderPositions.local || { x: 0, y: 0 }, layout[group.id]);
         localPorts.push({
-          custom: portPlacements[rule.id],
+          custom: renderPlacements[rule.id],
           ruleId: rule.id,
           name: rule.name,
           label: labels.local,
           color,
-          side:
-            portPlacements[rule.id]?.side ||
-            localPortSide(positions.local || { x: 0, y: 0 }, layout[group.id]),
+          side,
           type: rule.kind === "R" ? "target" : "source",
         });
         return {
@@ -2028,7 +2159,7 @@ function TunnelCanvas({
           name: rule.name,
           label: labels.host,
           color,
-          side: hostSide,
+          side: oppositeSide(side),
           type: rule.kind === "R" ? "source" : "target",
         };
       });
@@ -2037,9 +2168,11 @@ function TunnelCanvas({
       {
         id: "local",
         type: "card",
-        position: positions.local || { x: 0, y: 0 },
+        position: renderPositions.local || { x: 0, y: 0 },
         data: {
           local: true,
+          onAdd,
+          canAdd,
           onPortMove,
           onOpenService,
           onDetails,
@@ -2058,6 +2191,8 @@ function TunnelCanvas({
         position: layout[group.id],
         data: {
           local: false,
+          onAdd,
+          canAdd,
           onPortMove,
           onOpenService,
           onDetails,
@@ -2075,8 +2210,10 @@ function TunnelCanvas({
     ];
   }, [
     data,
-    positions,
-    portPlacements,
+    onAdd,
+    canAdd,
+    renderPositions,
+    renderPlacements,
     onPortMove,
     onOpenService,
     onStart,

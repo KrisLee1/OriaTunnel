@@ -22,6 +22,7 @@ pub fn package(
     let hosts:Vec<_>=snapshot.hosts.iter().filter(|h|rules.iter().any(|r|rule_uses_host(r,&snapshot.hosts,&h.id))).map(|h|json!({
         "id":h.id,"name":h.name,"address":h.address,"port":h.port,"user":h.user,"authMethod":h.auth_method,
         "tags":h.tags,"connection":h.connection,"proxyJump":h.proxy_jump,"identitiesOnly":h.identities_only,
+        "algorithms":h.algorithms,
         "identityFiles":if include_key_paths {h.identity_files.clone()}else {Vec::new()},
         "identityFilesOmitted":!include_key_paths&&!h.identity_files.is_empty(),
         "connectionBlocked":!h.diagnostics.is_empty(),

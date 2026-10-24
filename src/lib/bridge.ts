@@ -43,6 +43,8 @@ export const syncHosts = () =>
 export const setHostSources = (files: string[], autoSync: boolean) =>
   invoke<Snapshot>("set_host_sources", { files, autoSync });
 export const saveHost = (host: Host) => invoke<Snapshot>("save_host", { host });
+export const addDiscoveredHosts = (ids: string[]) =>
+  invoke<Snapshot>("add_discovered_hosts", { ids });
 export const pickIdentityFile = () => invoke<string | null>("pick_identity_file");
 export const pickSshConfigFile = () => invoke<string | null>("pick_ssh_config_file");
 export const saveHostMetadata = (host: Host) =>
@@ -62,6 +64,7 @@ export const hideHost = (id: string, hidden: boolean) =>
   invoke<Snapshot>("hide_host", { id, hidden });
 export const setCloseToTray = (enabled: boolean) =>
   invoke<Snapshot>("set_close_to_tray", { enabled });
+export const showMainWindow = () => invoke<void>("show_main_window");
 export const quitApp = () => invoke<void>("quit_app");
 export const undoDelete = () => invoke<Snapshot>("undo_delete");
 export const setAutostart = (enabled: boolean) =>

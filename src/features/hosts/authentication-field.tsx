@@ -70,7 +70,7 @@ export function AuthenticationField({
     <div className={actions ? "space-y-2" : "mb-4 space-y-2"}>
       <div className="field">
         <Label htmlFor={inputId} className={hideLabel ? "sr-only" : "text-xs font-normal text-muted-foreground"}>
-          {host.name} · {t("password")}
+          {host.name} · {t(host.authMethod === "privateKey" ? "privateKeyPassphrase" : "password")}
         </Label>
         <div className="relative">
           <Input

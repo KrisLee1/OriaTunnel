@@ -12,6 +12,7 @@ mod long_running;
 mod macos_material;
 pub mod model;
 mod service;
+mod ssh_algorithms;
 mod ssh_conditions;
 pub mod ssh_config;
 pub mod supervisor;
@@ -86,10 +87,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app::snapshot,
+            desktop::show_main_window,
             app::refresh_hosts,
             app::set_host_sources,
             app::save_host,
             app::save_host_metadata,
+            app::add_discovered_hosts,
             app::save_rule,
             app::open_service,
             app::start_rule,

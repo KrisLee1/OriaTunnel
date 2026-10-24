@@ -109,11 +109,11 @@ body,
   justify-content: center;
   gap: 6px;
   padding: 24px 56px;
-  border-color: color-mix(
-    in srgb,
-    var(--oria-color-accent) 35%,
-    var(--oria-color-border)
-  );
+  border: 0;
+  box-shadow: none;
+}
+.local-card::before {
+  content: none;
 }
 .card-heading {
   display: flex;
@@ -169,6 +169,52 @@ body,
   font-size: 12px;
   color: var(--oria-color-muted-fg);
   white-space: nowrap;
+}
+.local-add-forward {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.local-add-fluid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: color-mix(
+    in srgb,
+    var(--aide-themed-surface-color) 72%,
+    var(--oria-color-bg)
+  );
+  /* Apply translucency after the alpha threshold, only to the small fluid layer. */
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.12));
+}
+.local-add-fluid > g {
+  opacity: var(--aide-component-surface-opacity);
+}
+.local-add-button-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.local-add-button[data-slot="button"] {
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--aide-themed-surface-fg);
+  border-color: transparent;
+}
+.local-add-button:focus-visible {
+  outline: 2px solid var(--oria-color-fg);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+@media (prefers-contrast: more), (forced-colors: active) {
+  .local-add-button[data-slot="button"] {
+    border: 1px solid currentColor;
+    background: var(--oria-color-bg);
+  }
 }
 .source-badge {
   display: inline-block;
@@ -290,6 +336,9 @@ body,
 .react-flow__node.selected .tunnel-card {
   outline: 2px solid var(--oria-color-ring);
   outline-offset: 3px;
+}
+.react-flow__node.selected .local-card {
+  outline: none;
 }
 .connection-stopped .react-flow__edge-path,
 .connection-connecting .react-flow__edge-path {
@@ -759,6 +808,10 @@ body,
   gap: 4px;
 }
 .host-discovery-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: var(--oria-radius-lg);
   width: 100%;
   height: auto;
   justify-content: flex-start;
@@ -767,8 +820,17 @@ body,
   text-align: left;
   white-space: normal;
 }
-.host-discovery-option[aria-pressed="true"] {
+.host-discovery-option[data-selected="true"],
+.host-discovery-option:hover {
   background: color-mix(in srgb, var(--oria-color-accent) 10%, transparent);
+}
+.host-discovery-option:focus-within {
+  outline: 2px solid var(--oria-color-primary);
+  outline-offset: -2px;
+}
+.host-discovery-option[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
 }
 .host-discovery-option > span:first-of-type {
   flex: 1;

@@ -1082,6 +1082,93 @@ async fn isolated_fixture() -> (Host, String, tokio::task::JoinHandle<()>) {
         task,
     )
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn discovered_crypto_policy_controls_handshake_and_refuses_disallowed_server_algorithms() {
+    // Restrict all three server lists so a client that ignores any source policy
+    // would incorrectly succeed in the corresponding mismatch case.
+    let socket = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = socket.local_addr().unwrap().port();
+    let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+    let fingerprint = key
+        .public_key()
+        .fingerprint(russh::keys::HashAlg::Sha256)
+        .to_string();
+    let config = Arc::new(server::Config {
+        preferred: russh::Preferred {
+            cipher: vec![russh::cipher::AES_128_CTR].into(),
+            kex: vec![russh::kex::CURVE25519].into(),
+            mac: vec![russh::mac::HMAC_SHA256].into(),
+            ..Default::default()
+        },
+        keys: vec![key],
+        auth_rejection_time: Duration::ZERO,
+        ..Default::default()
+    });
+    let server = tokio::spawn(async move {
+        TestServer::default()
+            .run_on_socket(config, &socket)
+            .await
+            .unwrap();
+    });
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("config");
+    for (ciphers, kex, macs, allowed) in [
+        ("aes128-ctr", "curve25519-sha256", "hmac-sha2-256", true),
+        ("aes256-ctr", "curve25519-sha256", "hmac-sha2-256", false),
+        ("aes128-ctr", "ecdh-sha2-nistp256", "hmac-sha2-256", false),
+        ("aes128-ctr", "curve25519-sha256", "hmac-sha2-512", false),
+    ] {
+        std::fs::write(&file, format!("Host crypto-fixture\n HostName 127.0.0.1\n Port {port}\n User tester\n IdentityAgent none\n Ciphers {ciphers}\n KexAlgorithms {kex}\n MACs {macs}\n")).unwrap();
+        let mut host = ssh_config::discover_files(std::slice::from_ref(&file), directory.path())
+            .hosts
+            .remove(0);
+        assert!(host.diagnostics.is_empty(), "{:?}", host.diagnostics);
+        host.auth_method = oria_tunnel_lib::model::AuthMethod::Password;
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let captured = events.clone();
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            tunnel::run(
+                tunnel::RunRequest {
+                    rule: Rule {
+                        id: "crypto-fixture".into(),
+                        name: "crypto-fixture".into(),
+                        host_id: host.id.clone(),
+                        bind_port: 12345,
+                        target_host: "127.0.0.1".into(),
+                        target_port: 9,
+                        ..Default::default()
+                    },
+                    host,
+                    secret: "test-only".into(),
+                    expected: Some(fingerprint.clone()),
+                    run_id: "crypto-fixture".into(),
+                    jumps: vec![],
+                    test_only: true,
+                },
+                CancellationToken::new(),
+                Arc::new(move |runtime| captured.lock().unwrap().push(runtime)),
+                Arc::new(|_, _, _| panic!("known isolated key")),
+            ),
+        )
+        .await
+        .unwrap();
+        let events = events.lock().unwrap();
+        assert_eq!(
+            events.iter().any(|r| r.status == "failed"),
+            !allowed,
+            "{events:?}"
+        );
+        assert_eq!(
+            events.iter().any(|r| r.status == "authenticating"),
+            allowed,
+            "{events:?}"
+        );
+        assert!(!events.iter().any(|r| r.status == "listening"));
+    }
+    server.abort();
+}
 #[tokio::test(flavor = "multi_thread")]
 async fn sendenv_source_allows_forwarding_but_never_silently_drops_command_environment() {
     let (mut host, fingerprint, server) = isolated_fixture().await;

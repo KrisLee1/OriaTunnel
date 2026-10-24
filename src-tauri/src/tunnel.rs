@@ -436,6 +436,7 @@ async fn forward(
         for (index,mut hop) in jumps.into_iter().enumerate() {
             let host=hop.host;
             host.connection.validate().map_err(|e|Failure::new(FailureKind::Configuration,e))?;
+            let preferred=crate::ssh_algorithms::preferred(&host.algorithms).map_err(|e|Failure::new(FailureKind::Configuration,e))?;
             let timeout=Duration::from_secs(host.connection.connect_timeout_secs);
             let started=tokio::time::Instant::now();
             let socket: Box<dyn SshStream>=if let Some(previous)=sessions.last() {
@@ -448,7 +449,7 @@ async fn forward(
             let final_hop=host.id==rule.host_id;
             let (trust_tx,trust_rx)=watch::channel(false);
             let handler=Client {expected:hop.expected,prompt:prompt.clone(),endpoint:format!("{}:{}",host.address,host.port),remote_port:(final_hop && rule.kind==ForwardKind::R).then_some(rule.bind_port),incoming:tx.clone(),trust_wait:trust_tx.clone(),key_rejected:Arc::new(false.into())};
-            let config=Arc::new(client::Config {keepalive_interval:(host.connection.keepalive_interval_secs>0).then(||Duration::from_secs(host.connection.keepalive_interval_secs)),keepalive_max:host.connection.keepalive_max,..Default::default()});
+            let config=Arc::new(client::Config {preferred,keepalive_interval:(host.connection.keepalive_interval_secs>0).then(||Duration::from_secs(host.connection.keepalive_interval_secs)),keepalive_max:host.connection.keepalive_max,..Default::default()});
             update(&runtime,&notify,"connecting",format!("SSH {} · {}",index+1,host.name));
             let socket=ConnectionStream {inner:socket,cancelled:Box::pin(transport_cancel.clone().cancelled_owned())};
             let Some(mut ssh)=handshake(config,socket,handler,trust_rx,&cancel,timeout.saturating_sub(started.elapsed())).await? else {return Ok(());};

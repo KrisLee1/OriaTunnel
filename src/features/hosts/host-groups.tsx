@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useEntranceMotion } from "@/components/ui/motion";
 import type { Host, Runtime } from "@/types";
 import { runtimeStatus } from "@/features/tunnels/runtime-status";
-import { hostAuthLabels } from "./host-auth";
+import { hostAuthLabels, hostAuthMethod } from "./host-auth";
 import { hostFilterStatus } from "./host-collection";
 export type HostGrouping = "none" | "tags" | "auth" | "status";
 export function groupHosts(
@@ -26,7 +26,7 @@ export function groupHosts(
             ) || "",
           ]
         : grouping === "auth"
-          ? [host.authMethod]
+          ? [hostAuthMethod(host, runtimes.find((r) => r.ruleId === `host-test:${host.id}`))]
           : grouping === "tags"
             ? [...new Set(host.tags.map((t) => t.trim()).filter(Boolean))]
             : [""];
@@ -85,7 +85,7 @@ export function HostGroups({
                 {h.user}@{h.address}:{h.port}
               </code>
               <span className="source-badge">
-                {t(hostAuthLabels[h.authMethod])}
+                {t(hostAuthLabels[hostAuthMethod(h, runtime)])}
               </span>
             </span>
           </div>

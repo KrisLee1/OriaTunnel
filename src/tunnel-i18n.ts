@@ -832,3 +832,39 @@ const zh: typeof en = {
 };
 i18n.addResourceBundle("en", "tunnel", en);
 i18n.addResourceBundle("zh-CN", "tunnel", zh);
+
+// Keep new interaction messages available in every supported shell language.
+for (const [language, messages] of Object.entries({
+  en: {
+    authFallbackHelp: "Private key or SSH agent authentication did not complete. Enter the private key passphrase if the key is encrypted, or the server password for password authentication.",
+    privateKeyPassphrase: "Private key passphrase",
+  },
+  "zh-CN": {
+    authFallbackHelp: "私钥或 SSH 代理未能完成认证。私钥已加密时请输入私钥口令；使用密码认证时请输入服务器密码。",
+    privateKeyPassphrase: "私钥口令",
+  },
+  "zh-TW": {
+    authFallbackHelp: "私鑰或 SSH 代理未能完成驗證。私鑰已加密時請輸入私鑰密碼；使用密碼驗證時請輸入伺服器密碼。",
+    privateKeyPassphrase: "私鑰密碼",
+  },
+  ja: {
+    authFallbackHelp: "秘密鍵または SSH エージェントで認証できませんでした。暗号化された秘密鍵のパスフレーズ、またはパスワード認証用のサーバーパスワードを入力してください。",
+    privateKeyPassphrase: "秘密鍵のパスフレーズ",
+  },
+  ko: {
+    authFallbackHelp: "개인 키 또는 SSH 에이전트 인증을 완료하지 못했습니다. 암호화된 개인 키의 암호문 또는 비밀번호 인증에 사용할 서버 비밀번호를 입력하세요.",
+    privateKeyPassphrase: "개인 키 암호문",
+  },
+  de: {
+    authFallbackHelp: "Die Anmeldung mit privatem Schlüssel oder SSH-Agent ist fehlgeschlagen. Geben Sie die Passphrase des verschlüsselten Schlüssels oder das Serverpasswort für die Passwortanmeldung ein.",
+    privateKeyPassphrase: "Passphrase des privaten Schlüssels",
+  },
+  fr: {
+    authFallbackHelp: "L’authentification par clé privée ou agent SSH a échoué. Saisissez la phrase secrète de la clé chiffrée, ou le mot de passe du serveur pour une authentification par mot de passe.",
+    privateKeyPassphrase: "Phrase secrète de la clé privée",
+  },
+  ru: {
+    authFallbackHelp: "Не удалось пройти аутентификацию с помощью закрытого ключа или SSH-агента. Введите парольную фразу зашифрованного ключа или пароль сервера для входа по паролю.",
+    privateKeyPassphrase: "Парольная фраза закрытого ключа",
+  },
+})) i18n.addResourceBundle(language, "tunnel", messages, true, true);

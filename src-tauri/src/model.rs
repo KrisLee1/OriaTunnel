@@ -60,6 +60,8 @@ pub struct Host {
     pub identity_agent: Option<String>,
     pub identities_only: bool,
     pub proxy_jump: Option<String>,
+    #[serde(default)]
+    pub algorithms: AlgorithmOptions,
     pub field_sources: std::collections::BTreeMap<String, String>,
     pub configured_forwards: Vec<String>,
     /// Session-only source options do not affect -N forwarding. Commands must not
@@ -78,9 +80,18 @@ impl Host {
             && self.identity_agent == other.identity_agent
             && self.identities_only == other.identities_only
             && self.proxy_jump == other.proxy_jump
+            && self.algorithms == other.algorithms
             && self.diagnostics == other.diagnostics
             && self.unsupported_session_options == other.unsupported_session_options
     }
+}
+/// Source expressions are retained so copying/exporting a host preserves its policy.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AlgorithmOptions {
+    pub ciphers: Option<String>,
+    pub kex_algorithms: Option<String>,
+    pub macs: Option<String>,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

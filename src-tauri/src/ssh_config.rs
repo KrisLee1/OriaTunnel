@@ -401,6 +401,9 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
                     | "identityagent"
                     | "identitiesonly"
                     | "tag"
+                    | "ciphers"
+                    | "kexalgorithms"
+                    | "macs"
                     | "proxyjump" => {
                         if !values.contains_key(&entry.key) {
                             field_sources.insert(entry.key.clone(), entry.file.clone());
@@ -459,6 +462,15 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             })
             .collect();
         let mut connection = crate::model::ConnectionOptions::default();
+        let algorithms = crate::model::AlgorithmOptions {
+            ciphers: values.get("ciphers").cloned(),
+            kex_algorithms: values.get("kexalgorithms").cloned(),
+            macs: values.get("macs").cloned(),
+        };
+        // Use the same capability check for discovery and the actual handshake.
+        for (key, error) in crate::ssh_algorithms::diagnostics(&algorithms) {
+            diagnostics.push(format!("{}: {error}", field_sources[&key]));
+        }
         for (name, slot) in [
             ("connecttimeout", &mut connection.connect_timeout_secs),
             (
@@ -556,6 +568,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             source_file: source.or_else(|| dependency_sources.get(&id).cloned()),
             diagnostics,
             connection,
+            algorithms,
             identities_only,
             identity_agent,
             proxy_jump,
@@ -611,6 +624,56 @@ pub fn discover_with(additional: &[String]) -> Discovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn system_crypto_include_respects_host_overrides_and_retains_error_locations() {
+        let directory = tempfile::tempdir().unwrap();
+        let user = directory.path().join("config");
+        let system = directory.path().join("ssh_config");
+        let crypto = directory.path().join("crypto.conf");
+        std::fs::write(&user, "Host fixture\n HostName 127.0.0.1\n Ciphers aes128-ctr\nHost blocked\n Ciphers unsupported-cipher\n").unwrap();
+        std::fs::write(&system, "Include crypto.conf\n").unwrap();
+        std::fs::write(&crypto, "Ciphers aes256-gcm@openssh.com,aes128-ctr\nKexAlgorithms curve25519-sha256,unsupported-kex\nMACs hmac-sha2-256,unsupported-mac\n").unwrap();
+        let found = discover_files(&[user, system], directory.path());
+        assert!(found.diagnostics.is_empty());
+        let host = found.hosts.iter().find(|h| h.name == "fixture").unwrap();
+        assert!(host.diagnostics.is_empty(), "{:?}", host.diagnostics);
+        assert_eq!(host.algorithms.ciphers.as_deref(), Some("aes128-ctr"));
+        assert_eq!(
+            host.field_sources["kexalgorithms"],
+            format!("{}:2", crypto.display())
+        );
+        let blocked = found.hosts.iter().find(|h| h.name == "blocked").unwrap();
+        assert_eq!(blocked.diagnostics.len(), 1);
+        assert!(blocked.diagnostics[0].contains("config:5: Ciphers:"));
+        let roundtrip: Host = serde_json::from_slice(&serde_json::to_vec(host).unwrap()).unwrap();
+        assert!(roundtrip.same_connection(host));
+        let mut changed = roundtrip.clone();
+        changed.algorithms.macs = Some("hmac-sha2-512".into());
+        assert!(!roundtrip.same_connection(&changed));
+        // Old saved snapshots have no policy field and retain transport defaults.
+        let mut old = serde_json::to_value(host).unwrap();
+        old.as_object_mut().unwrap().remove("algorithms");
+        let old: Host = serde_json::from_value(old).unwrap();
+        assert_eq!(old.algorithms, Default::default());
+    }
+
+    #[test]
+    fn algorithm_errors_are_scoped_and_do_not_disable_unrelated_hosts() {
+        let directory = tempfile::tempdir().unwrap();
+        let config = directory.path().join("config");
+        std::fs::write(&config, "Host bad\n Ciphers aes128-ctr trailing\n KexAlgorithms -*\n MACs unsupported-mac\nHost good\n Ciphers aes128-ctr\nMatch originalhost bad\n MACs hmac-sha2-512\n").unwrap();
+        let found = discover_files(&[config], directory.path());
+        let good = found.hosts.iter().find(|h| h.name == "good").unwrap();
+        assert!(good.diagnostics.is_empty());
+        let bad = found.hosts.iter().find(|h| h.name == "bad").unwrap();
+        assert_eq!(bad.diagnostics.len(), 3);
+        for (index, name) in [(2, "Ciphers"), (3, "KexAlgorithms"), (4, "MACs")] {
+            assert!(bad
+                .diagnostics
+                .iter()
+                .any(|d| d.contains(&format!("config:{index}: {name}:"))));
+        }
+    }
     #[test]
     fn macos_default_sendenv_is_session_only_and_never_reads_environment_values() {
         let directory = tempfile::tempdir().unwrap();

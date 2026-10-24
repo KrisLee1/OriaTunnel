@@ -29,10 +29,13 @@
 | 参数设置行 | `src/components/parameter-field.tsx` | ParameterTitle/Field/Switch：独立标签与 circle-question-mark 提示，只有实际 SSH 参数才加括号标注；数字输入行 80px 宽，支持单位关联，不把提示按钮嵌入 label |
 | 转发编辑 | `src/features/tunnels/rule-editor.tsx` | L/R/D、主机选择/草稿、高级参数与访问侧；ConnectionFields 由主机与转发复用 |
 | 图标选择与显示 | `src/features/tunnels/connection-icon.tsx` | ConnectionIconPicker：内置图标/Emoji 分页、双语搜索、自定义单个符号、默认色点及双向展开动画；ConnectionIcon 供列表与连接图共用，清单见同目录 JSON |
+| 边缘创建方向 | `src/features/tunnels/canvas-creation.ts` | 保存触发侧及端点偏移，按实测尺寸与占用位置安置新主机卡片，保留已有卡片位置和 L/R/D 箭头语义 |
 | 连接颜色 | `src/features/tunnels/connection-color.tsx` | ConnectionColorPicker 主题/预设/自定义圆形色板；ConnectionColorDot 列表名称前的颜色标识 |
+| 此电脑边缘添加 | `src/features/tunnels/local-add-forward.tsx`、`local-add-geometry.ts` | 最近边缘接近触发，40px 图标按钮与 14px 间距不随缩放变化；卡片/融球一体背景轮廓、键盘与减少动态效果、拖动避让、弹窗关闭后收回，复用现有新建转发流程 |
 | 来源设置 | `src/features/hosts/source-settings.tsx` | 沿用设置 ItemGroup 卡片与 Item 行，附加来源复用 FilePathsEditor、右侧自动检测开关、卡片底部保存；标题由设置弹窗组合，不在组件内连接 SSH |
 | 主机选择与标签 | `src/features/hosts/host-picker.tsx`、`host-tags.tsx` | 仅从已添加主机按标签分组选择稳定 ID、标识认证方式；标签多选及创建，去除首尾空格和重复项，保存前只修改草稿 |
-| 主机发现与已添加集合 | `src/features/hosts/host-discovery.tsx`、`host-collection.ts` | 添加弹窗搜索配置候选、刷新或手动添加；已添加集合包含明确选择、手动主机、规则及跳板依赖，不自动测试或连接 |
+| 主机发现与已添加集合 | `src/features/hosts/host-discovery.tsx`、`host-collection.ts` | 原生复选框多选、按筛选全选、搜索保留选择；整组保存后回列表或回填转发草稿，不自动打开详情、测试或连接；已添加集合包含明确选择、手动主机、规则及跳板依赖 |
+| 认证偏好与按需输入 | `src/features/hosts/host-auth.ts` | 显示配置的密钥/代理偏好及 Rust 实际认证方式；自动认证先连接，按新运行代次的认证失败再显示凭据输入，保留指纹核对 |
 | 文件路径列表 | `src/features/hosts/file-paths-editor.tsx` | 附加 SSH 配置与私钥候选共用，标题右侧添加、逐行输入/原生选文件/危险色移除，允许空列表；路径标签、说明与选择器由调用方提供，选择期间锁定列表、取消保持原值、卸载不回填 |
 | 私钥候选路径 | `src/features/hosts/identity-files-editor.tsx` | 组合 FilePathsEditor，提供私钥标签与选择器错误文案；只修改路径草稿，不读取密钥正文 |
 | 运行诊断与日志 | `src/features/tunnels/runtime-details.tsx`、`activity-view.tsx` | Rust 指标、目标 TCP 证据及采样图；日志配合 `activity-model.ts` 按主机/转发/历史事件状态筛选与分组，不模拟状态或应用健康 |

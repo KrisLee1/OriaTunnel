@@ -89,6 +89,8 @@ struct PortableHost {
     connection: ConnectionOptions,
     proxy_jump: Option<String>,
     identities_only: bool,
+    #[serde(default)]
+    algorithms: crate::model::AlgorithmOptions,
     identity_files: Vec<String>,
     identity_files_omitted: bool,
     connection_blocked: bool,
@@ -251,6 +253,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
             return Err("配置包主机字段无效或 ID 重复".into());
         }
         h.connection.validate()?;
+        crate::ssh_algorithms::preferred(&h.algorithms)?;
     }
     let mut rule_ids = BTreeSet::new();
     for r in &package.rules {
@@ -291,6 +294,7 @@ impl PortableHost {
             auth_method: self.auth_method.clone(),
             tags: self.tags.clone(),
             identities_only: self.identities_only,
+            algorithms: self.algorithms.clone(),
             proxy_jump,
             ..Default::default()
         }
@@ -754,6 +758,43 @@ mod tests {
                 .rules[0]
                 .no_remote_command
         );
+    }
+    #[test]
+    fn algorithm_policy_survives_portable_round_trip_and_invalid_policies_are_rejected() {
+        let mut value = fixture();
+        let options = serde_json::json!({"ciphers":"aes128-ctr", "kexAlgorithms":"curve25519-sha256", "macs":"hmac-sha2-256"});
+        value["hosts"][0]["algorithms"] = options.clone();
+        let plan = parsed(&value)
+            .unwrap()
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    rule_ids: vec!["rule".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let host_name = value["hosts"][0]["name"].as_str().unwrap();
+        let snapshot = Snapshot {
+            hosts: plan.hosts,
+            rules: plan.rules,
+            ..Default::default()
+        };
+        let exported =
+            crate::config_export::package(&snapshot, &[snapshot.rules[0].id.clone()], false)
+                .unwrap();
+        let exported_host = exported["hosts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|h| h["name"] == host_name)
+            .unwrap();
+        assert_eq!(exported_host["algorithms"], options);
+        assert!(parsed(&exported).is_ok());
+        for invalid in ["unsupported-cipher", "-*", "aes128-ctr,", "none"] {
+            value["hosts"][0]["algorithms"]["ciphers"] = invalid.into();
+            assert!(parsed(&value).is_err());
+        }
     }
     #[test]
     fn rejects_secret_fields_malformed_graphs_versions_and_oversized_input_without_echoing_values()

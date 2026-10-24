@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
-  CheckIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
   ServerIcon,
@@ -12,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Host } from "@/types";
-import { hostAuthLabels } from "./host-auth";
+import { hostAuthLabels, hostAuthMethod } from "./host-auth";
 
 const AnimatedRefreshIcon = motion.create(RefreshCwIcon);
 
@@ -44,15 +43,16 @@ export function HostDiscovery({
   close: () => void;
   refresh: () => void;
   manual: () => void;
-  select: (id: string) => void;
+  select: (ids: string[]) => void;
 }) {
   const { t } = useTranslation("tunnel");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
   const [refreshTurns, setRefreshTurns] = useState(0);
   const reducedMotion = useReducedMotion();
   const list = discoveredHosts(hosts, query);
-  const choice = list.find((host) => host.id === selected);
+  const choices = discoveredHosts(hosts, "").filter((host) => selected.includes(host.id));
+  const visibleSelected = list.filter((host) => selected.includes(host.id)).length;
   return (
     <Modal
       title={t("newHost")}
@@ -68,6 +68,22 @@ export function HostDiscovery({
           onChange={(event) => setQuery(event.target.value)}
         />
       )}
+      {!!list.length && (
+        <div className="rule-batch-controls">
+          <label className="rule-select-all">
+            <input type="checkbox" checked={visibleSelected === list.length}
+              ref={(node) => { if (node) node.indeterminate = visibleSelected > 0 && visibleSelected < list.length; }}
+              disabled={busy || !available}
+              onChange={(event) => setSelected((current) => event.target.checked
+                ? [...new Set([...current, ...list.map((host) => host.id)])]
+                : current.filter((id) => !list.some((host) => host.id === id)))} />
+            <span>{t("selectAll")}</span>
+          </label>
+          <span className="rule-selection-count" aria-live="polite">
+            {t("selectionSummary", { selected: choices.length, count: discoveredHosts(hosts, "").length })}
+          </span>
+        </div>
+      )}
       <div className="host-discovery-list" aria-busy={busy}>
         {list.length ? (
           <ScrollArea className="h-full" viewportClassName="p-2">
@@ -77,15 +93,19 @@ export function HostDiscovery({
               aria-label={t("discoveredHosts")}
             >
               {list.map((host) => (
-                <Button
+                <label
                   key={host.id}
-                  type="button"
-                  variant="ghost"
                   className="host-discovery-option"
-                  aria-pressed={selected === host.id}
-                  disabled={busy || !available}
-                  onClick={() => setSelected(host.id)}
+                  data-selected={selected.includes(host.id)}
+                  data-disabled={busy || !available}
                 >
+                  <input type="checkbox" name="discoveredHosts" value={host.id}
+                    className="size-4 shrink-0 accent-primary"
+                    aria-label={host.name}
+                    disabled={busy || !available}
+                    checked={selected.includes(host.id)}
+                    onChange={(event) => setSelected((current) => event.target.checked
+                      ? [...current, host.id] : current.filter((id) => id !== host.id))} />
                   <ServerIcon aria-hidden="true" />
                   <span>
                     <strong>{host.name}</strong>
@@ -102,10 +122,9 @@ export function HostDiscovery({
                     )}
                   </span>
                   <span className="source-badge">
-                    {t(hostAuthLabels[host.authMethod])}
+                    {t(hostAuthLabels[hostAuthMethod(host)])}
                   </span>
-                  {selected === host.id && <CheckIcon aria-hidden="true" />}
-                </Button>
+                </label>
               ))}
             </div>
           </ScrollArea>
@@ -163,12 +182,12 @@ export function HostDiscovery({
         </Button>
         <Button
           type="button"
-          disabled={busy || !available || !choice}
+          disabled={busy || !available || !choices.length}
           onClick={() => {
-            if (choice) select(choice.id);
+            if (choices.length) select(choices.map((host) => host.id));
           }}
         >
-          {t("addDiscoveredHost")}
+          {t("addDiscoveredHost")} {choices.length > 0 && `(${choices.length})`}
         </Button>
       </div>
     </Modal>
