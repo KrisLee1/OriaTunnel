@@ -65,23 +65,6 @@ SSH 주소, 포트, 사용자 이름, 인증 방식을 준비하세요. 접근�
 
 설치 후 OriaTunnel을 실행하고 [빠른 시작](#빠른-시작)에 따라 SSH 호스트를 추가하고 포워딩을 만드세요. 일상적인 사용에는 Node.js, pnpm, Rust가 필요하지 않습니다.
 
-## macOS: “손상되었기 때문에 열 수 없습니다”
-
-<img src="../assets/screenshots/macos-damaged-warning.png" alt="macOS Gatekeeper" width="360">
-
-현재 macOS 빌드에는 **Developer ID 서명과 Apple 공증이 없습니다**. 인터넷에서 다운로드하면 Gatekeeper가 아래와 같은 경고로 실행을 차단할 수 있습니다. SSH 오류가 아니지만, 이 경고만으로 실제 손상이나 변조를 배제할 수도 없습니다.
-
-1. 이 저장소의 Releases에서 기기 아키텍처에 맞는 패키지를 다시 다운로드하고 압축을 푼 뒤 응용 프로그램 폴더로 옮기세요. 공개된 체크섬이 있으면 비교하세요.
-2. 개발자를 확인할 수 없거나 Apple이 검사할 수 없다는 경고라면, 신뢰할 수 있고 변조되지 않은 앱에 한해 ‘시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기’를 확인하세요. [Apple 안내](https://support.apple.com/102445)를 참고하세요.
-3. 이 저장소에서 받은 완전하고 변조되지 않은 미공증 패키지를 신뢰하며 다운로드 격리 속성 때문에 계속 차단되는 경우에만, 터미널에서 **OriaTunnel.app만** 해당 속성을 확인하고 제거한 뒤 다시 여세요. 개인 폴더에 설치했다면 경로를 `"$HOME/Applications/OriaTunnel.app"`로 바꾸세요.
-
-```sh
-xattr -l "/Applications/OriaTunnel.app"
-sudo xattr -rd com.apple.quarantine /Applications/OriaTunnel.app
-```
-
-이 작업은 해당 복사본의 다운로드 격리 검사를 건너뛰며 **서명, 공증 또는 손상 복구를 수행하지 않습니다**. 출처나 무결성이 불확실하거나 악성 소프트웨어 경고가 있거나 문제가 계속되면 중단하고 macOS 버전, 칩 아키텍처, 패키지 이름과 함께 Issues에 신고하세요. Gatekeeper 전체를 끄거나 다운로드 폴더 전체의 격리 속성을 제거하지 마세요.
-
 ## 사용자 문서
 
 [전체 사용자 가이드(중국어 간체)](../USAGE.md)에서 호스트 관리, 인증, 포워딩 사용 예시, 백그라운드 실행, 자주 발생하는 문제를 설명합니다.

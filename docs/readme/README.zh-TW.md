@@ -65,23 +65,6 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 連接埠轉送桌面工具。
 
 安裝後啟動 OriaTunnel，再依[快速上手](#快速上手)新增 SSH 主機並建立轉送。日常使用不需要 Node.js、pnpm 或 Rust。
 
-## macOS 顯示「已損毀，無法打開」
-
-<img src="../assets/screenshots/macos-damaged-warning.png" alt="macOS Gatekeeper" width="360">
-
-目前 macOS 組建尚未使用 **Developer ID 簽署與 Apple 公證**。從網際網路下載後，Gatekeeper 可能阻擋開啟並顯示下圖。這不是 SSH 錯誤，但也不能僅憑提示排除檔案真的損毀或遭修改。
-
-1. 僅從本儲存庫 Releases 下載符合裝置架構的安裝包，重新下載並解壓後放入「應用程式」。若提供校驗值，先比對。
-2. 若提示無法驗證開發者或 Apple 無法檢查，確認來源可信且未遭修改後，可嘗試「系統設定 → 隱私權與安全性 → 強制打開」。參閱 [Apple 說明](https://support.apple.com/102445)。
-3. 僅限確認完整、未修改且來自本儲存庫的未公證安裝包，若下載隔離標記仍阻擋開啟，可在終端機只查看並移除 **OriaTunnel.app** 的標記，再重新開啟。個人目錄安裝請將路徑改為 `"$HOME/Applications/OriaTunnel.app"`。
-
-```sh
-xattr -l "/Applications/OriaTunnel.app"
-sudo xattr -rd com.apple.quarantine /Applications/OriaTunnel.app
-```
-
-移除標記會略過該副本的下載隔離檢查，**不會補上簽署、公證或修復損毀**。若來源或完整性存疑、出現惡意軟體警告或仍無法開啟，請停止並到 Issues 提供 macOS 版本、晶片架構與安裝包名稱。不要全面停用 Gatekeeper，也不要對整個下載目錄移除隔離標記。
-
 ## 使用文件
 
 [完整使用指南（簡體中文）](../USAGE.md)說明主機管理、驗證、各種轉送的完整範例、背景執行與常見問題：

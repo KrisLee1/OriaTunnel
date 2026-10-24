@@ -21,6 +21,19 @@
 
 - 关于页问题反馈（2026-10-25）：问题反馈位于关于页外链栏 KrisLee 之后，沿用同样式按钮，指向 https://github.com/KrisLee1/OriaTunnel/issues，复用 ExternalLink 与 Lucide 图标，补齐八语言。关于入口专项、类型和生产构建通过，开发进程热更新。
 
+## Intel macOS 签名构建（2026-10-25）
+
+- 签名打包入口支持显式 `--target x86_64-apple-darwin` / `aarch64-apple-darwin`，默认本机架构行为保留。目标 App、DMG 与 ZIP 分别放在各自 target 目录，图标后处理仅接受白名单输出目录及同目录 App；提交公证前强制核对二进制架构。
+- 已安装 Intel Rust 目标；16 项隔离参数/输出路径/跨架构配对检查、Shell 语法、23 文件文档校验及 diff 空白检查通过。前端类型/生产构建、Intel release 交叉编译与 Developer ID 签名通过，Mach-O 确认为 x86_64、最低系统版本为 11.0。Apple 分别接受 App 和最终 DMG 公证，票据装订、验证及 Gatekeeper 检查均通过。
+- Intel `0.1.0` 的 App、`OriaTunnel_0.1.0_x64.dmg` 和同名 ZIP 位于 `src-tauri/target/x86_64-apple-darwin/release/bundle/`。ZIP 解压后的 DMG 字节与 Finder 图标元数据一致；只读挂载后的 App 架构、签名、公证票据和文件一致性通过，保留卷图标。收据、架构/签名证据及 SHA-256 记录在忽略目录 `outputs/macos-signing/`。
+- 开发指南补充可复用的 Intel 签名构建命令与跨架构产物位置。既有 Apple Silicon DMG/ZIP 的 SHA-256 保持一致，图标生成带来的源文件变化已恢复至本轮开始前内容。未在 Intel 实体设备运行验收，未安装/启动 release App、连接真实 SSH、提交、推送或公开发布。
+
+## macOS 正式签名与 README 清理（2026-10-25）
+
+- 新增 `pnpm package:mac:signed`：从本机钥匙串选择指定团队的 Developer ID Application 身份，启用 Hardened Runtime；通过保存的 notarytool 配置提交 App，接受并装订后放入 DMG，再完成卷/Finder 图标处理、最终 DMG 签名与公证、装订和 ZIP 包装。默认构建本机原生架构，显式目标支持见上节；不生成 Tauri 自动更新包或发布版本，凭据正文不进入仓库或输出。
+- 开发指南补齐证书、公证、换 Mac 导入 `.p12` 与重新保存公证凭据，以及提交超时查询方式。按用户要求删除全部 8 语言 README 的「已损坏」章节、警告截图引用和隔离标记移除命令。
+- 验证：Shell 语法、8 项参数/身份/凭据前置失败专项、23 文件文档校验及 diff 空白检查通过；前端类型/生产构建和原生 release 构建通过，签名团队与 Hardened Runtime 已核对。Apple 已分别接受 App 和最终 DMG 公证，票据装订、验证和 Gatekeeper 均通过；ZIP 解压后的 DMG 字节与图标元数据、只读挂载后包内 App 签名/票据与文件一致性通过，保留卷图标。产物为 Apple Silicon `0.1.0`，公证收据与 SHA-256 记录见忽略目录 `outputs/macos-signing/`。未安装/启动 release App、连接真实 SSH 主机、提交、推送或公开发布。
+
 ## 服务工具栏与终端顶栏留白（2026-10-25）
 
 - 服务工具栏按最新要求直接复用主机工具栏：左侧搜索，右侧分类/选择/文件操作紧凑成组；移除服务页的 display: contents 和全部左对齐覆盖，避免控件等距铺满整行。搜索宽度、组间/组内间距及窄屏换行均沿用主机页。

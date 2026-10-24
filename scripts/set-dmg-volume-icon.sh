@@ -2,22 +2,34 @@
 
 set -euo pipefail
 
-if [[ $# -ne 2 ]]; then
-  echo "Usage: set-dmg-volume-icon.sh <dmg-path> <icon.icns>" >&2
+if [[ $# -lt 2 || $# -gt 3 ]]; then
+  echo "Usage: set-dmg-volume-icon.sh <dmg-path> <icon.icns> [stapled-app-path]" >&2
   exit 1
 fi
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 dmg_path=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 icon_path=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
-expected_dmg_dir="$project_root/src-tauri/target/release/bundle/dmg"
+dmg_dir=$(dirname "$dmg_path")
+case "$dmg_dir" in
+  "$project_root/src-tauri/target/release/bundle/dmg"|\
+  "$project_root/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"|\
+  "$project_root/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg") ;;
+  *) echo "DMG must be under a supported macOS release bundle directory." >&2; exit 1 ;;
+esac
+bundle_root=$(dirname "$dmg_dir")
 
-if [[ ! -f "$dmg_path" || "$dmg_path" != "$expected_dmg_dir"/*.dmg ]]; then
-  echo "DMG must be an existing release bundle under $expected_dmg_dir" >&2
+if [[ ! -f "$dmg_path" || "$dmg_path" != *.dmg ]]; then
+  echo "DMG must be an existing .dmg release bundle." >&2
   exit 1
 fi
 if [[ ! -f "$icon_path" || "${icon_path##*.}" != "icns" ]]; then
   echo "Installer volume icon must be an existing .icns file" >&2
+  exit 1
+fi
+app_path="${3:-}"
+if [[ -n "$app_path" && ( "$app_path" != "$bundle_root/macos/OriaTunnel.app" || ! -d "$app_path" ) ]]; then
+  echo "The stapled app must be the OriaTunnel.app from the same release bundle directory." >&2
   exit 1
 fi
 
@@ -46,6 +58,14 @@ if [[ -z "$mounted_device" ]]; then
 fi
 
 cp "$icon_path" "$mount_dir/.VolumeIcon.icns"
+if [[ -n "$app_path" ]]; then
+  if [[ ! -d "$mount_dir/OriaTunnel.app" || -L "$mount_dir/OriaTunnel.app" ]]; then
+    echo "Cannot replace the app: the mounted image does not contain the expected app bundle." >&2
+    exit 1
+  fi
+  rm -rf "$mount_dir/OriaTunnel.app"
+  ditto "$app_path" "$mount_dir/OriaTunnel.app"
+fi
 SetFile -c icnC "$mount_dir/.VolumeIcon.icns"
 SetFile -a C "$mount_dir"
 sync

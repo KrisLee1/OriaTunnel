@@ -104,7 +104,7 @@ SSH 配置语义对照测试还需要系统 OpenSSH 客户端，使用独立配�
 
 ## 构建与打包
 
-打包应在对应操作系统上进行，输出位于 `src-tauri/target/release/`。
+打包应在对应操作系统上进行，默认输出位于 `src-tauri/target/release/`；签名打包入口显式传入 `--target` 时位于 `src-tauri/target/<target>/release/`。
 
 | 目标                | 命令                           | 主要输出                                               |
 | ------------------- | ------------------------------ | ------------------------------------------------------ |
@@ -112,10 +112,60 @@ SSH 配置语义对照测试还需要系统 OpenSSH 客户端，使用独立配�
 | Windows NSIS 安装器 | `pnpm package:win`             | `src-tauri/target/release/bundle/nsis/`                |
 | macOS 独立应用      | `pnpm tauri build`             | `src-tauri/target/release/bundle/macos/OriaTunnel.app` |
 | macOS DMG 与 ZIP    | `pnpm package:mac`             | `src-tauri/target/release/bundle/dmg/`                 |
+| macOS 签名、公证 App / DMG / ZIP | `pnpm package:mac:signed` | 同上，另有 `bundle/macos/OriaTunnel.app` |
+| macOS Intel 签名、公证 App / DMG / ZIP | `pnpm package:mac:signed --target x86_64-apple-darwin` | `src-tauri/target/x86_64-apple-darwin/release/bundle/` |
 
 使用 Tauri 构建命令嵌入前端，普通 `cargo build --release` 不能代替独立桌面应用构建。macOS 的 `pnpm tauri build --debug` 可生成支持上述调试数据目录的 app。
 
-`pnpm icons` 从仓库内的应用图标导出图、托盘 SVG 和安装包 SVG 生成各平台图标。打包脚本会调用它，并在 macOS 上设置 DMG 卷图标、Finder 文件图标，生成保留图标元数据的 ZIP。签名、公证和公开发布需要另行配置及授权；构建成功不等于已发布。
+`pnpm icons` 从仓库内的应用图标导出图、托盘 SVG 和安装包 SVG 生成各平台图标。打包脚本会调用它，并在 macOS 上设置 DMG 卷图标、Finder 文件图标，生成保留图标元数据的 ZIP。普通打包命令不负责公证；正式签名、公证使用下一节入口。构建成功不等于已公开发布。
+
+### macOS 签名、公证与换机
+
+在需要正式打包的 Mac 上先完成以下一次性配置；日常开发运行不需要发布证书或公证凭据。
+
+1. Xcode → Settings → Accounts / Apple Accounts，登录开发者账号并选择团队。Manage Certificates → ＋ → **Developer ID Application**，创建本机可用的签名身份。账号须具备创建此类证书的权限。
+2. 在 [Apple 账户](https://account.apple.com/)的「登录与安全 → 应用专用密码」中生成公证专用密码。
+3. 在本机终端运行下面的命令，将示例邮箱替换成开发者账号邮箱。按终端提示输入应用专用密码；密码不放入命令参数、Shell 配置或仓库。
+
+```sh
+xcrun notarytool store-credentials "OriaTunnel-notary" \
+  --apple-id "developer@example.com" \
+  --team-id "67577AA9ZH"
+```
+
+确认显示凭据已保存后，在仓库根目录执行：
+
+```sh
+pnpm package:mac:signed
+```
+
+脚本自动选择团队 `67577AA9ZH` 的有效 Developer ID Application 身份；存在多个身份时，用 `APPLE_SIGNING_IDENTITY` 指定完整证书名称。`ORIATUNNEL_APPLE_TEAM_ID` 可覆盖团队，`ORIATUNNEL_NOTARY_PROFILE` 可覆盖钥匙串配置名。脚本只通过 `notarytool --keychain-profile` 使用凭据，不读取或打印密码正文。
+
+此入口默认构建当前 Mac 的原生架构 release，也接受 `--target x86_64-apple-darwin`（Intel）或 `--target aarch64-apple-darwin`（Apple Silicon）。首次跨架构构建先安装对应 Rust 目标；例如在 Apple Silicon Mac 构建 Intel 版：
+
+```sh
+rustup target add x86_64-apple-darwin
+pnpm package:mac:signed --target x86_64-apple-darwin
+```
+
+显式目标的 App、DMG 与 ZIP 位于 `src-tauri/target/<target>/release/bundle/`，不会覆盖默认原生架构的产物。签名入口不接受其他 Tauri 参数、`CARGO_TARGET_DIR` 或 `CARGO_BUILD_TARGET` 覆盖。
+
+脚本启用 Hardened Runtime，并在提交公证前核对 App 二进制架构及签名。上传 App 公证并装订票据后，将带票据的 App 放入 DMG；卷图标与 Finder 图标处理完成后，对最终 DMG 重新签名、公证和装订，最后生成保留图标元数据的 ZIP。App 与 DMG 均通过 `codesign`、`stapler` 和 Gatekeeper 检查后才报告成功。签名入口不生成自动更新压缩包，也不创建或发布 GitHub Release。交叉构建及公证成功不等于已在对应架构的实体设备上完成运行验收。
+
+公证需要联网，Apple 的处理时间不固定。每次公证默认等待 15 分钟，`ORIATUNNEL_NOTARY_TIMEOUT` 可指定如 `30m`；超时不会取消 Apple 服务器上的任务。提交 ID 与结果保存在忽略目录 `outputs/macos-signing/`。先用原提交 ID 查询或继续等待，避免重复上传；`SUBMISSION_ID` 替换为提交收据中的 ID：
+
+```sh
+xcrun notarytool info SUBMISSION_ID --keychain-profile "OriaTunnel-notary"
+xcrun notarytool wait SUBMISSION_ID --keychain-profile "OriaTunnel-notary" --timeout 30m
+```
+
+上述等待命令只确认公证状态，不会自动完成中断脚本后续的装订、DMG 处理或 ZIP 包装。
+
+换另一台 Mac 构建时，源码和锁文件正常同步，并按本指南准备开发工具。签名身份可从原 Mac 的 Xcode 证书管理器导出为带密码的 `.p12`（包含证书及对应私钥），在新 Mac 导入登录钥匙串；单独复制 `.cer` 不包含签名所需的私钥。也可在新 Mac 为同一团队创建新的 Developer ID Application 证书。公证凭据在新 Mac 重新执行上面的 `store-credentials` 保存即可，无须复制整个钥匙串。
+
+`.p12`、导出密码及应用专用密码通过安全渠道另行保管，不进入仓库或聊天。若需构建自动更新包，还要单独迁移既有 Tauri 更新私钥；Apple 证书不能替代更新签名。Windows / Linux 电脑可继续开发对应平台，正式 macOS 构建签名应在本地或 CI 的 macOS 环境进行；本项目当前尚未配置 GitHub Actions 发布流水线。
+
+参考：[Apple 签名身份导出](https://developer.apple.com/documentation/xcode/sharing-your-teams-signing-certificates)、[公证凭据保存](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool)。
 
 ## 应用更新开发
 

@@ -65,23 +65,6 @@ Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releas
 
 Launch OriaTunnel after installation, then follow the [quick start](#quick-start) to add an SSH host and create a forward. Everyday use does not require Node.js, pnpm, or Rust.
 
-## macOS: “is damaged and can’t be opened”
-
-<img src="../assets/screenshots/macos-damaged-warning.png" alt="macOS Gatekeeper" width="360">
-
-The current macOS builds do not have **Developer ID signing or Apple notarization**. Gatekeeper may block an Internet download with the alert below. This is not an SSH error; the alert alone also cannot rule out actual damage or modification.
-
-1. Download only from this repository’s Releases, choose your device architecture, extract again, and move the app into Applications. Compare published checksums when available.
-2. For an unidentified-developer or “Apple cannot check” warning, trusted and unmodified apps may offer **System Settings → Privacy & Security → Open Anyway**. See [Apple’s guidance](https://support.apple.com/102445).
-3. Only for a complete, unmodified package you trust from this repository: if download quarantine still blocks the unnotarized app, inspect and remove that attribute **only from OriaTunnel.app**, then reopen it. For a user-local installation, replace the path with `"$HOME/Applications/OriaTunnel.app"`.
-
-```sh
-xattr -l "/Applications/OriaTunnel.app"
-sudo xattr -rd com.apple.quarantine /Applications/OriaTunnel.app
-```
-
-Removing quarantine bypasses download quarantine checks for this copy; it does **not** sign, notarize, or repair the app. Stop and report an issue if its origin/integrity is uncertain, malware is reported, or it still fails. Include macOS version, chip architecture, and package filename. Do not disable Gatekeeper globally or remove quarantine from the entire Downloads folder.
-
 ## User documentation
 
 The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, authentication, worked forwarding examples, background operation, and common problems:

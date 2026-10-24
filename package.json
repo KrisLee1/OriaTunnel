@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/icon.mjs",
     "package:mac": "bash scripts/package-mac.sh",
+    "package:mac:signed": "bash scripts/package-mac.sh --signed",
     "package:win": "node scripts/icon.mjs && tauri build --bundles nsis",
     "tauri": "tauri",
     "test": "vitest run"
