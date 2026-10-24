@@ -19,13 +19,9 @@ OriaTunnel is an SSH port forwarding desktop app for Windows and macOS. See your
 
 Isolated demo configuration: 3 example hosts and 6 L / R / D forwards, all stopped. No real servers or credentials.
 
-![Connection map](../assets/screenshots/connection-map.png)
-
-![Forward list](../assets/screenshots/forwards.png)
-
-![SSH hosts](../assets/screenshots/hosts.png)
-
-![Logs](../assets/screenshots/logs.png)
+| ![Connection map](../assets/screenshots/connection-map.png) | ![Forward list](../assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![SSH hosts](../assets/screenshots/hosts.png) | ![Logs](../assets/screenshots/logs.png) |
 
 ## What you can do
 

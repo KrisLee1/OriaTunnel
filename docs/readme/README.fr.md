@@ -19,13 +19,9 @@ OriaTunnel est une application de bureau de redirection de ports SSH pour Window
 
 Configuration de démonstration isolée : 3 hôtes et 6 redirections L / R / D, toutes arrêtées. Aucun serveur réel ni identifiant de connexion.
 
-![Carte des connexions](../assets/screenshots/connection-map.png)
-
-![Liste des redirections](../assets/screenshots/forwards.png)
-
-![Hôtes SSH](../assets/screenshots/hosts.png)
-
-![Journaux](../assets/screenshots/logs.png)
+| ![Carte des connexions](../assets/screenshots/connection-map.png) | ![Liste des redirections](../assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![Hôtes SSH](../assets/screenshots/hosts.png) | ![Journaux](../assets/screenshots/logs.png) |
 
 ## Fonctionnalités
 

@@ -19,13 +19,9 @@ OriaTunnel ist eine Desktop-App zur SSH-Portweiterleitung für Windows und macOS
 
 Isolierte Demokonfiguration: 3 Beispielhosts und 6 L-/R-/D-Weiterleitungen, alle gestoppt. Keine echten Server oder Zugangsdaten.
 
-![Verbindungsübersicht](../assets/screenshots/connection-map.png)
-
-![Weiterleitungsliste](../assets/screenshots/forwards.png)
-
-![SSH-Hosts](../assets/screenshots/hosts.png)
-
-![Protokolle](../assets/screenshots/logs.png)
+| ![Verbindungsübersicht](../assets/screenshots/connection-map.png) | ![Weiterleitungsliste](../assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![SSH-Hosts](../assets/screenshots/hosts.png) | ![Protokolle](../assets/screenshots/logs.png) |
 
 ## Funktionen
 

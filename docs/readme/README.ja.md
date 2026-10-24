@@ -19,13 +19,9 @@ OriaTunnel は、Windows と macOS 向けの SSH ポート転送デスクトッ�
 
 独立したデモ設定：ホスト3台、L / R / D 転送6件。すべて停止中で、実際のサーバーや認証情報は含みません。
 
-![接続マップ](../assets/screenshots/connection-map.png)
-
-![転送一覧](../assets/screenshots/forwards.png)
-
-![SSH ホスト](../assets/screenshots/hosts.png)
-
-![ログ](../assets/screenshots/logs.png)
+| ![接続マップ](../assets/screenshots/connection-map.png) | ![転送一覧](../assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![SSH ホスト](../assets/screenshots/hosts.png) | ![ログ](../assets/screenshots/logs.png) |
 
 ## できること
 

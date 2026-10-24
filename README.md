@@ -19,13 +19,9 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 端口转发桌面工具。通过
 
 以下截图使用独立演示配置：3 台示例主机、6 条 L / R / D 转发，全部保持停止，不包含真实服务器或凭据。
 
-![连接图](docs/assets/screenshots/connection-map.png)
-
-![转发列表](docs/assets/screenshots/forwards.png)
-
-![SSH 主机](docs/assets/screenshots/hosts.png)
-
-![日志](docs/assets/screenshots/logs.png)
+| ![连接图](docs/assets/screenshots/connection-map.png) | ![转发列表](docs/assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![SSH 主机](docs/assets/screenshots/hosts.png) | ![日志](docs/assets/screenshots/logs.png) |
 
 ## 能做什么
 

@@ -19,13 +19,9 @@ OriaTunnel — настольное приложение для перенапр
 
 Изолированная демонстрационная конфигурация: 3 примера хостов и 6 перенаправлений L / R / D, все остановлены. Реальных серверов и учётных данных нет.
 
-![Карта соединений](../assets/screenshots/connection-map.png)
-
-![Список перенаправлений](../assets/screenshots/forwards.png)
-
-![SSH-хосты](../assets/screenshots/hosts.png)
-
-![Журнал](../assets/screenshots/logs.png)
+| ![Карта соединений](../assets/screenshots/connection-map.png) | ![Список перенаправлений](../assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![SSH-хосты](../assets/screenshots/hosts.png) | ![Журнал](../assets/screenshots/logs.png) |
 
 ## Возможности
 

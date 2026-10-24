@@ -19,13 +19,9 @@ OriaTunnel은 Windows와 macOS용 SSH 포트 포워딩 데스크톱 앱입니다
 
 격리된 데모 설정: 예제 호스트 3개와 L / R / D 포워딩 6개가 모두 중지 상태입니다. 실제 서버나 자격 증명은 포함하지 않습니다.
 
-![연결 지도](../assets/screenshots/connection-map.png)
-
-![포워딩 목록](../assets/screenshots/forwards.png)
-
-![SSH 호스트](../assets/screenshots/hosts.png)
-
-![로그](../assets/screenshots/logs.png)
+| ![연결 지도](../assets/screenshots/connection-map.png) | ![포워딩 목록](../assets/screenshots/forwards.png) |
+| :---: | :---: |
+| ![SSH 호스트](../assets/screenshots/hosts.png) | ![로그](../assets/screenshots/logs.png) |
 
 ## 주요 기능
 
