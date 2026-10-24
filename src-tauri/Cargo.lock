@@ -2939,6 +2939,7 @@ dependencies = [
  "dirs 6.0.0",
  "futures-util",
  "glob",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",

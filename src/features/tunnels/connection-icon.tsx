@@ -1,5 +1,25 @@
 import { useId, useState, type CSSProperties } from "react";
 import {
+  DatabaseBackupIcon,
+  ServerCogIcon,
+  WebhookIcon,
+  FolderSyncIcon,
+  NotebookPenIcon,
+  MicrochipIcon,
+  ScanTextIcon,
+  WaypointsIcon,
+  DatabaseZapIcon,
+  RadioTowerIcon,
+  FileCodeIcon,
+  GitForkIcon,
+  PanelsTopLeftIcon,
+  AudioLinesIcon,
+  BinaryIcon,
+  DnaIcon,
+  AtomIcon,
+  CircuitBoardIcon,
+  SigmaIcon,
+  MonitorCogIcon,
   ChevronDownIcon,
   ServerIcon,
   DatabaseIcon,
@@ -66,9 +86,31 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { RuleIcon } from "@/types";
 import { ConnectionColorDot } from "./connection-color";
+import serviceIcons from "@/assets/service-icons.json";
 import catalog from "./connection-icon-catalog.json";
 
 const icons = {
+  "database-backup": DatabaseBackupIcon,
+  "server-cog": ServerCogIcon,
+  webhook: WebhookIcon,
+  "folder-sync": FolderSyncIcon,
+  notebook: NotebookPenIcon,
+  microchip: MicrochipIcon,
+  ocr: ScanTextIcon,
+  pipeline: WaypointsIcon,
+  "database-fast": DatabaseZapIcon,
+  "radio-tower": RadioTowerIcon,
+  "file-code": FileCodeIcon,
+  "git-fork": GitForkIcon,
+  "web-app": PanelsTopLeftIcon,
+  audio: AudioLinesIcon,
+  binary: BinaryIcon,
+  dna: DnaIcon,
+  atom: AtomIcon,
+  circuit: CircuitBoardIcon,
+  sigma: SigmaIcon,
+  "remote-desktop": MonitorCogIcon,
+
   server: ServerIcon,
   database: DatabaseIcon,
   globe: GlobeIcon,
@@ -158,7 +200,11 @@ export function ConnectionIcon({
     icon.kind === "builtin" && Object.hasOwn(icons, icon.value)
       ? icons[icon.value as keyof typeof icons]
       : undefined;
-  if (icon.kind === "builtin" && !Glyph)
+  const brand =
+    icon.kind === "builtin" && Object.hasOwn(serviceIcons.icons, icon.value)
+      ? serviceIcons.icons[icon.value as keyof typeof serviceIcons.icons]
+      : undefined;
+  if (icon.kind === "builtin" && !Glyph && !brand)
     return <ConnectionColorDot color={color} />;
   return (
     <span
@@ -166,7 +212,24 @@ export function ConnectionIcon({
       style={{ color: color || "var(--oria-color-primary)" }}
       aria-hidden="true"
     >
-      {Glyph ? <Glyph size={18} /> : icon.value}
+      {Glyph ? (
+        <Glyph size={18} />
+      ) : brand ? (
+        <svg
+          viewBox={brand.viewBox}
+          width="18"
+          height="18"
+          fill="currentColor"
+          aria-hidden="true"
+          focusable="false"
+        >
+          {brand.paths.map((path, i) => (
+            <path key={i} d={path} />
+          ))}
+        </svg>
+      ) : (
+        icon.value
+      )}
     </span>
   );
 }
@@ -175,10 +238,14 @@ export function ConnectionIconPicker({
   value,
   color,
   onChange,
+  fieldLabel,
+  initialCategory = "builtin",
 }: {
   value: RuleIcon | null;
   color: string | null;
   onChange: (icon: RuleIcon | null) => void;
+  fieldLabel?: string;
+  initialCategory?: "builtin" | "service";
 }) {
   const { t, i18n } = useTranslation("tunnel");
   const [query, setQuery] = useState("");
@@ -209,10 +276,16 @@ export function ConnectionIconPicker({
     : selected
       ? label(selected)
       : value.value;
-  const options = (kind: RuleIcon["kind"]) => {
+  const options = (kind: RuleIcon["kind"], category?: "service") => {
     const entries = (
       kind === "builtin"
-        ? catalog.icons.map((item) => ({ ...item, value: item.id }))
+        ? catalog.icons
+            .filter((item) =>
+              category
+                ? item.category === category
+                : item.category !== "service",
+            )
+            .map((item) => ({ ...item, value: item.id }))
         : catalog.emojis
     ).filter(matches);
     return (
@@ -248,7 +321,7 @@ export function ConnectionIconPicker({
   };
   return (
     <div className="field">
-      <span id={id}>{t("connectionIcon")}</span>
+      <span id={id}>{fieldLabel ?? t("connectionIcon")}</span>
       <div className="connection-icon-picker">
         <Button
           type="button"
@@ -280,12 +353,25 @@ export function ConnectionIconPicker({
               <div className="connection-icon-body">
                 <div className="connection-icon-tools">
                   <Tabs
-                    defaultValue={value?.kind === "emoji" ? "emoji" : "builtin"}
+                    defaultValue={
+                      value?.kind === "emoji"
+                        ? "emoji"
+                        : value?.kind === "builtin" &&
+                            catalog.icons.find((i) => i.id === value.value)
+                              ?.category === "service"
+                          ? "service"
+                          : value
+                            ? "builtin"
+                            : initialCategory
+                    }
                   >
                     <div className="connection-icon-tools-row">
                       <TabsList aria-label={t("iconLibrary")} variant="soft">
                         <TabsTrigger value="builtin">
                           {t("builtinIcons")}
+                        </TabsTrigger>
+                        <TabsTrigger value="service">
+                          {t("serviceIcons", { ns: "commands" })}
                         </TabsTrigger>
                         <TabsTrigger value="emoji">Emoji</TabsTrigger>
                       </TabsList>
@@ -307,6 +393,9 @@ export function ConnectionIconPicker({
                     />
                     <TabsContent value="builtin">
                       {options("builtin")}
+                    </TabsContent>
+                    <TabsContent value="service">
+                      {options("builtin", "service")}
                     </TabsContent>
                     <TabsContent value="emoji">
                       {options("emoji")}

@@ -54,7 +54,8 @@
     "copyright": "© {{year}} KrisLee",
     "website": "官网",
     "author": "KrisLee",
-    "moreApps": "更多应用"
+    "moreApps": "更多应用",
+    "feedback": "问题反馈"
   },
   "goUpdate": "去更新"
 }

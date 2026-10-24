@@ -15,6 +15,7 @@ export function RuleActions({
   onEdit,
   onCopy,
   onDelete,
+  serviceActions,
   children,
 }: {
   rule: Rule;
@@ -22,6 +23,7 @@ export function RuleActions({
   onEdit: (rule: Rule) => void;
   onCopy: (rule: Rule) => void;
   onDelete: (rule: Rule) => void;
+  serviceActions?: ReactNode;
   children: ReactNode;
 }) {
   const { t } = useTranslation("tunnel");
@@ -64,6 +66,7 @@ export function RuleActions({
       >
         <CopyPlusIcon />
       </Button>
+      {serviceActions}
       <Button
         type="button"
         variant="ghost"

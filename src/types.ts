@@ -128,6 +128,8 @@ export interface ImportPreview {
   // The preview contains only the Rust-validated allowlist, never the input document.
   token: string;
   fileName: string;
+  version?: number;
+  services?: ImportServicePreview[];
   hosts: {
     id: string;
     name: string;
@@ -153,10 +155,12 @@ export type ImportSource =
   | { kind: "path"; path: string };
 export interface ImportChoices {
   ruleIds: string[];
+  serviceIds?: string[];
   reuseHosts: Record<string, string>;
   forwardOnly: boolean;
 }
 export interface Snapshot {
+  services?: RemoteService[];
   hosts: Host[];
   addedHostIds?: string[];
   rules: Rule[];
@@ -173,3 +177,63 @@ export interface Snapshot {
   autostartSupported: boolean;
   autostartError?: string;
 }
+
+export type CommandKind = "start" | "stop" | "restart" | "status" | "logs" | "custom";
+export interface CommandArgument { name: string; value: string | null }
+export interface CommandEnvironment { name: string; value: string }
+export interface CommandInvocation { executable: string; arguments: CommandArgument[]; environment?: CommandEnvironment[]; script?: string }
+export interface ServiceLink { id: string; revision: string; selected: boolean }
+export interface PresetAction {
+  invocation?: CommandInvocation | null;
+  mode?: "command" | "terminal";
+  id: string; kind: CommandKind; label: string; command: string;
+  timeoutSecs: number; successCodes: number[]; confirm: boolean;
+}
+export interface RemoteService {
+  category?: string | null;
+  color?: string | null; icon?: RuleIcon | null;
+  id: string; name: string; executionHostId?: string; ruleIds: string[];
+  revision: string; noLocalEnvironment: boolean; actions: PresetAction[]; control?: ServiceControl; executionEnabled?: boolean;
+}
+export interface CommandRun {
+  id: string; requestId: string; serviceId: string; actionId: string; serviceRevision: string;
+  hostId: string; hostName: string; endpoint: string; actionLabel: string;
+  phase: string; submitted: boolean; exitCode: number | null; exitSignal: string | null;
+  error: string | null; startedAt: number; finishedAt: number | null;
+  fingerprint: string | null; verificationEndpoint: string | null; revision: number; truncated: boolean;
+  outputBytes?:number; discardedBytes?:number;
+  steps?: ServiceStep[]; workflowRuleId?: string | null; workflowForwardCreated?: boolean; workflowForwardRunId?: string | null;
+}
+export interface CommandOutput { sequence: number; stream: "stdout" | "stderr"; bytes: number[] }
+export interface CommandEvent { run: CommandRun; output: CommandOutput[]; reset: boolean }
+
+export interface TerminalSession {
+  ruleId?:string|null;
+  routeHostIds: string[];
+  id: string; requestId: string; clientId: string; hostId: string; hostName: string; endpoint: string;
+  serviceId: string | null; actionId: string | null; label: string; phase: string; revision: number;
+  startedAt: number; finishedAt: number | null; submitted: boolean; exitCode: number | null; exitSignal: string | null; error: string | null;
+  fingerprint: string | null; verificationEndpoint: string | null; cols: number; rows: number;
+}
+export interface TerminalFrame { id: string; sequence: number; bytes: number[] }
+export interface OpenTerminalRequest {
+  hostId: string; requestId: string; clientId: string; cols: number; rows: number; noLocalEnvironment: boolean;
+  serviceId?: string; actionId?: string; ruleId?:string; revision?: string; confirmed: boolean;
+  secrets: Record<string, string>; rememberHostIds: string[];
+}
+
+export interface ServiceControl {
+  statusProbe: {actionId:string;mode:"output"|"exitCode"|"json";runningCodes:number[];stoppedCodes:number[];failedCodes:number[]}|null;
+  healthProbe: {command:string;readyCodes:number[];notReadyCodes:number[];repeatable:boolean;timeoutSecs:number;intervalSecs:number;budgetSecs:number}|null;
+  startActionId:string|null;checkAfterActions:boolean;ttlSecs:number;
+}
+export interface ServiceFact {value:string;checkedAt:number|null;validUntil:number|null;sourceRunId:string|null;expired:boolean}
+export interface ServiceObservation {ruleId?:string|null;serviceId:string;serviceRevision:string;hostIdentity:string;status:ServiceFact;health:ServiceFact;revision:number}
+export interface ServiceStep {kind:string;phase:string;attempt:number;exitCode:number|null;error:string|null;startedAt:number;finishedAt:number|null}
+export type ServiceOperation = "action"|"checkStatus"|"checkHealth"|"connect";
+export interface StartServiceRequest {serviceId:string;revision:string;requestId:string;operation:ServiceOperation;actionId?:string;ruleId?:string;confirmed:boolean;secrets:Record<string,string>;rememberHostIds:string[]}
+
+export interface ImportServicePreview {
+  id:string;name:string;executionHostId:string;endpoint:string;ruleIds:string[];noLocalEnvironment:boolean;actions:PresetAction[];control:ServiceControl;conflict:boolean;
+}
+export interface ServiceTemplate {category?:string|null;name?:string;color?:string;icon?:RuleIcon;actions:PresetAction[];control:ServiceControl;resource:string;shell:string}

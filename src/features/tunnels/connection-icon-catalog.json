@@ -279,6 +279,268 @@
       "id": "workflow",
       "zh": "工作流",
       "en": "Workflow"
+    },
+    {
+      "id": "database-backup",
+      "zh": "数据库备份",
+      "en": "Database backup"
+    },
+    {
+      "id": "server-cog",
+      "zh": "服务管理",
+      "en": "Service manager"
+    },
+    {
+      "id": "webhook",
+      "zh": "Webhook 回调",
+      "en": "Webhook"
+    },
+    {
+      "id": "folder-sync",
+      "zh": "文件同步",
+      "en": "File sync"
+    },
+    {
+      "id": "notebook",
+      "zh": "笔记本 Jupyter",
+      "en": "Notebook Jupyter"
+    },
+    {
+      "id": "microchip",
+      "zh": "推理 加速器 GPU",
+      "en": "Inference accelerator GPU"
+    },
+    {
+      "id": "ocr",
+      "zh": "文字识别 OCR",
+      "en": "Text recognition OCR"
+    },
+    {
+      "id": "pipeline",
+      "zh": "推理流水线",
+      "en": "Inference pipeline"
+    },
+    {
+      "id": "database-fast",
+      "zh": "缓存 数据服务",
+      "en": "Cache data service"
+    },
+    {
+      "id": "radio-tower",
+      "zh": "广播 流服务",
+      "en": "Broadcast streaming"
+    },
+    {
+      "id": "file-code",
+      "zh": "代码服务",
+      "en": "Code service"
+    },
+    {
+      "id": "git-fork",
+      "zh": "代码托管",
+      "en": "Git hosting"
+    },
+    {
+      "id": "web-app",
+      "zh": "Web 应用",
+      "en": "Web application"
+    },
+    {
+      "id": "audio",
+      "zh": "语音识别 合成",
+      "en": "Speech recognition synthesis"
+    },
+    {
+      "id": "binary",
+      "zh": "模型权重",
+      "en": "Model weights"
+    },
+    {
+      "id": "dna",
+      "zh": "生物计算",
+      "en": "Bioinformatics"
+    },
+    {
+      "id": "atom",
+      "zh": "科学计算",
+      "en": "Scientific computing"
+    },
+    {
+      "id": "circuit",
+      "zh": "计算设备",
+      "en": "Compute hardware"
+    },
+    {
+      "id": "sigma",
+      "zh": "数学计算",
+      "en": "Mathematics"
+    },
+    {
+      "id": "remote-desktop",
+      "zh": "远程桌面 VNC",
+      "en": "Remote desktop VNC"
+    },
+    {
+      "id": "apachetomcat",
+      "zh": "Tomcat",
+      "en": "Tomcat",
+      "category": "service"
+    },
+    {
+      "id": "nginx",
+      "zh": "nginx",
+      "en": "nginx",
+      "category": "service"
+    },
+    {
+      "id": "docker",
+      "zh": "Docker",
+      "en": "Docker",
+      "category": "service"
+    },
+    {
+      "id": "jupyter",
+      "zh": "JupyterLab",
+      "en": "JupyterLab",
+      "category": "service"
+    },
+    {
+      "id": "gitea",
+      "zh": "Gitea",
+      "en": "Gitea",
+      "category": "service"
+    },
+    {
+      "id": "ollama",
+      "zh": "Ollama",
+      "en": "Ollama",
+      "category": "service"
+    },
+    {
+      "id": "huggingface",
+      "zh": "Hugging Face",
+      "en": "Hugging Face",
+      "category": "service"
+    },
+    {
+      "id": "nvidia",
+      "zh": "NVIDIA TensorRT-LLM",
+      "en": "NVIDIA TensorRT-LLM",
+      "category": "service"
+    },
+    {
+      "id": "pytorch",
+      "zh": "PyTorch",
+      "en": "PyTorch",
+      "category": "service"
+    },
+    {
+      "id": "tensorflow",
+      "zh": "TensorFlow",
+      "en": "TensorFlow",
+      "category": "service"
+    },
+    {
+      "id": "redis",
+      "zh": "Redis",
+      "en": "Redis",
+      "category": "service"
+    },
+    {
+      "id": "postgresql",
+      "zh": "PostgreSQL",
+      "en": "PostgreSQL",
+      "category": "service"
+    },
+    {
+      "id": "mysql",
+      "zh": "MySQL",
+      "en": "MySQL",
+      "category": "service"
+    },
+    {
+      "id": "mongodb",
+      "zh": "MongoDB",
+      "en": "MongoDB",
+      "category": "service"
+    },
+    {
+      "id": "kubernetes",
+      "zh": "Kubernetes",
+      "en": "Kubernetes",
+      "category": "service"
+    },
+    {
+      "id": "grafana",
+      "zh": "Grafana",
+      "en": "Grafana",
+      "category": "service"
+    },
+    {
+      "id": "prometheus",
+      "zh": "Prometheus",
+      "en": "Prometheus",
+      "category": "service"
+    },
+    {
+      "id": "caddy",
+      "zh": "Caddy",
+      "en": "Caddy",
+      "category": "service"
+    },
+    {
+      "id": "traefikproxy",
+      "zh": "Traefik",
+      "en": "Traefik",
+      "category": "service"
+    },
+    {
+      "id": "apachekafka",
+      "zh": "Apache Kafka",
+      "en": "Apache Kafka",
+      "category": "service"
+    },
+    {
+      "id": "rabbitmq",
+      "zh": "RabbitMQ",
+      "en": "RabbitMQ",
+      "category": "service"
+    },
+    {
+      "id": "elasticsearch",
+      "zh": "Elasticsearch",
+      "en": "Elasticsearch",
+      "category": "service"
+    },
+    {
+      "id": "minio",
+      "zh": "MinIO",
+      "en": "MinIO",
+      "category": "service"
+    },
+    {
+      "id": "jenkins",
+      "zh": "Jenkins",
+      "en": "Jenkins",
+      "category": "service"
+    },
+    {
+      "id": "gitlab",
+      "zh": "GitLab",
+      "en": "GitLab",
+      "category": "service"
+    },
+    {
+      "id": "portainer",
+      "zh": "Portainer",
+      "en": "Portainer",
+      "category": "service"
+    },
+    {
+      "id": "dsh",
+      "zh": "DeepSeek Harness 鲸鱼 DSH",
+      "en": "DeepSeek Harness whale DSH",
+      "category": "service"
     }
   ],
   "emojis": [

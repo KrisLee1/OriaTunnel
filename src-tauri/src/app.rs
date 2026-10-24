@@ -1,3 +1,11 @@
+#[path = "app_commands.rs"]
+pub mod command_api;
+#[path = "app_service.rs"]
+pub mod service_api;
+#[path = "app_sessions.rs"]
+mod sessions;
+#[path = "app_terminal.rs"]
+pub mod terminal_api;
 use crate::{model::*, ssh_config, tunnel};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -42,6 +50,11 @@ struct LoginCredentials {
     remember: std::collections::BTreeSet<String>,
 }
 pub struct AppState {
+    commands: Arc<crate::commands::Manager>,
+    observations: Arc<crate::service_control::Observations>,
+    terminals: Arc<crate::terminal::Manager>,
+    terminal_workers: tokio::sync::Mutex<BTreeMap<String, JoinHandle<()>>>,
+    command_workers: tokio::sync::Mutex<BTreeMap<String, JoinHandle<()>>>,
     vault: crate::credentials::Vault,
     credential_errors: Mutex<BTreeMap<String, String>>,
     config: Mutex<Config>,
@@ -83,6 +96,11 @@ impl AppState {
             Config::default()
         };
         let state = Self {
+            commands: Arc::new(Default::default()),
+            observations: Arc::new(Default::default()),
+            terminals: Arc::new(Default::default()),
+            terminal_workers: Default::default(),
+            command_workers: Default::default(),
             vault: crate::credentials::Vault::new(&path),
             credential_errors: Mutex::new(BTreeMap::new()),
             config: Mutex::new(config),
@@ -107,6 +125,77 @@ impl AppState {
     fn persist(&self, config: &Config) -> Result<(), String> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?
+        }
+        if !config.services.is_empty() && self.path.exists() {
+            let backup = self.path.with_extension("pre-commands.json");
+            if !backup.exists() {
+                use std::io::Write;
+                let original = std::fs::read(&self.path).map_err(|_| "backupFailed")?;
+                let result = (|| -> std::io::Result<()> {
+                    let mut file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&backup)?;
+                    file.write_all(&original)?;
+                    file.sync_all()
+                })();
+                if result.is_err() {
+                    let _ = std::fs::remove_file(&backup);
+                    return Err("backupFailed".into());
+                }
+            }
+        }
+        if self.path.exists() && !config.services.is_empty() {
+            let original = std::fs::read(&self.path).map_err(|_| "backupFailed")?;
+            let old: serde_json::Value =
+                serde_json::from_slice(&original).map_err(|_| "backupFailed")?;
+            let legacy = old
+                .get("services")
+                .and_then(|s| s.as_array())
+                .is_some_and(|services| services.iter().any(|s| s.get("control").is_none()));
+            let backup = self.path.with_extension("pre-service-checks.json");
+            if legacy && !backup.exists() {
+                use std::io::Write;
+                let saved = (|| -> std::io::Result<()> {
+                    let mut file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&backup)?;
+                    file.write_all(&original)?;
+                    file.sync_all()
+                })();
+                if saved.is_err() {
+                    let _ = std::fs::remove_file(&backup);
+                    return Err("backupFailed".into());
+                }
+            }
+        }
+        if self.path.exists() && !config.services.is_empty() {
+            let original = std::fs::read(&self.path).map_err(|_| "backupFailed")?;
+            let old: serde_json::Value =
+                serde_json::from_slice(&original).map_err(|_| "backupFailed")?;
+            let legacy = old
+                .get("services")
+                .and_then(|s| s.as_array())
+                .is_some_and(|services| {
+                    services.iter().any(|s| s.get("executionEnabled").is_none())
+                });
+            let backup = self.path.with_extension("pre-service-sharing.json");
+            if legacy && !backup.exists() {
+                use std::io::Write;
+                let saved = (|| -> std::io::Result<()> {
+                    let mut file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&backup)?;
+                    file.write_all(&original)?;
+                    file.sync_all()
+                })();
+                if saved.is_err() {
+                    let _ = std::fs::remove_file(&backup);
+                    return Err("backupFailed".into());
+                }
+            }
         }
         let tmp = self.path.with_extension("tmp");
         std::fs::write(&tmp, serde_json::to_vec_pretty(config).unwrap())
@@ -155,6 +244,7 @@ impl AppState {
         let mut next = current.clone();
         next.hosts.extend(plan.hosts);
         next.rules.extend(plan.rules);
+        next.services.extend(plan.services);
         self.persist(&next)?;
         *current = next;
         *pending = None;
@@ -300,6 +390,7 @@ impl AppState {
             }
         }
         Snapshot {
+            services: config.services.clone(),
             hosts,
             added_host_ids: added_host_ids.into_iter().collect(),
             rules: config.rules.clone(),
@@ -336,6 +427,26 @@ impl AppState {
         crate::desktop::update_tray(app, &snapshot);
         let _ = app.emit("tunnel://snapshot", snapshot);
     }
+    pub(crate) fn tray_service_activity(&self) -> crate::desktop::TrayServiceActivity {
+        let mut activity = crate::desktop::TrayServiceActivity::default();
+        for run in self.commands.list().into_iter().filter(|run| run.active()) {
+            activity.busy.insert(run.service_id);
+        }
+        for session in self
+            .terminals
+            .list()
+            .into_iter()
+            .filter(|session| session.active())
+        {
+            if let Some(service) = session.service_id {
+                activity.busy.insert(service.clone());
+                if let (Some(rule), Some(action)) = (session.rule_id, session.action_id) {
+                    activity.terminals.insert((service, rule, action));
+                }
+            }
+        }
+        activity
+    }
     pub async fn shutdown(&self) {
         self.shutting_down
             .store(true, std::sync::atomic::Ordering::SeqCst);
@@ -350,13 +461,31 @@ impl AppState {
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
     pub async fn active_work_ids(&self) -> Vec<String> {
-        self.workers
+        let mut ids: Vec<_> = self
+            .workers
             .lock()
             .await
             .iter()
             .filter(|(_, worker)| !worker.join.is_finished())
             .map(|(id, _)| id.clone())
-            .collect()
+            .collect();
+        ids.extend(
+            self.command_workers
+                .lock()
+                .await
+                .iter()
+                .filter(|(_, job)| !job.is_finished())
+                .map(|(id, _)| id.clone()),
+        );
+        ids.extend(
+            self.terminal_workers
+                .lock()
+                .await
+                .iter()
+                .filter(|(_, job)| !job.is_finished())
+                .map(|(id, _)| id.clone()),
+        );
+        ids
     }
     pub async fn prepare_update(&self, expected: &[String]) -> Result<(), String> {
         self.update_installing
@@ -420,6 +549,10 @@ impl AppState {
     }
     async fn stop_all_checked(&self) -> Result<(), String> {
         let mut workers = self.workers.lock().await;
+        self.commands.cancel_all();
+        self.terminals.cancel_all();
+        let terminal_jobs = std::mem::take(&mut *self.terminal_workers.lock().await);
+        let command_jobs = std::mem::take(&mut *self.command_workers.lock().await);
         let jobs = std::mem::take(&mut *workers);
         for worker in jobs.values() {
             worker.cancel.cancel();
@@ -427,6 +560,12 @@ impl AppState {
         let mut failed = false;
         for (_, worker) in jobs {
             failed |= worker.join.await.is_err();
+        }
+        for (_, job) in terminal_jobs {
+            failed |= job.await.is_err();
+        }
+        for (_, job) in command_jobs {
+            failed |= job.await.is_err();
         }
         self.trust.lock().unwrap().clear();
         let ids = self
@@ -442,6 +581,9 @@ impl AppState {
         } else {
             Ok(())
         }
+    }
+    pub fn interrupt_terminals(&self) {
+        self.terminals.cancel_all();
     }
     pub fn close_to_tray(&self) -> bool {
         self.config.lock().unwrap().close_to_tray
@@ -529,6 +671,22 @@ impl AppState {
         Ok(())
     }
     fn remove_host(&self, id: &str, expected_rule_ids: &[String]) -> Result<Vec<String>, String> {
+        if self
+            .commands
+            .list()
+            .iter()
+            .any(|r| r.active() && r.route_host_ids.iter().any(|h| h == id))
+        {
+            return Err("hostUsedByService".into());
+        }
+        if self
+            .terminals
+            .list()
+            .iter()
+            .any(|session| session.active() && session.route_host_ids.iter().any(|used| used == id))
+        {
+            return Err("hostUsedByTerminal".into());
+        }
         let mut c = self.config.lock().unwrap();
         let mut hosts = self.discovery.lock().unwrap().hosts.clone();
         hosts.extend(c.hosts.clone());
@@ -810,12 +968,11 @@ pub fn save_host(
     state.publish(&app);
     Ok(state.snapshot())
 }
-#[tauri::command]
-pub fn save_rule(
-    state: tauri::State<Arc<AppState>>,
-    app: tauri::AppHandle,
+fn save_rule_profile(
+    state: &AppState,
     mut rule: Rule,
-) -> Result<Snapshot, String> {
+    service_links: Option<Vec<command_api::ServiceLink>>,
+) -> Result<(), String> {
     rule.validate()?;
     let host = state
         .snapshot()
@@ -832,12 +989,35 @@ pub fn save_rule(
     {
         let mut c = state.config.lock().unwrap();
         let mut next = c.clone();
+        if let Some(links) = service_links {
+            let changed = command_api::bind_rule_services(&mut next, &rule.id, &links)?;
+            if changed.iter().any(|id| {
+                state.terminals.busy(id)
+                    || state
+                        .commands
+                        .list()
+                        .iter()
+                        .any(|r| &r.service_id == id && r.active())
+            }) {
+                return Err("serviceBusy".into());
+            }
+        }
         next.host_snapshots.insert(host.id.clone(), host);
         next.rules.retain(|r| r.id != rule.id);
         next.rules.push(rule);
         state.persist(&next)?;
         *c = next;
     }
+    Ok(())
+}
+#[tauri::command]
+pub fn save_rule(
+    state: tauri::State<Arc<AppState>>,
+    app: tauri::AppHandle,
+    rule: Rule,
+    service_links: Option<Vec<command_api::ServiceLink>>,
+) -> Result<Snapshot, String> {
+    save_rule_profile(&state, rule, service_links)?;
     state.publish(&app);
     Ok(state.snapshot())
 }
@@ -968,9 +1148,38 @@ async fn launch(
     interactive: bool,
     credentials: LoginCredentials,
 ) -> Result<(), String> {
+    launch_impl(state, app, rule, test_only, interactive, credentials, None).await
+}
+async fn launch_impl(
+    state: Arc<AppState>,
+    app: tauri::AppHandle,
+    rule: Rule,
+    test_only: bool,
+    interactive: bool,
+    credentials: LoginCredentials,
+    expected_route: Option<Vec<Host>>,
+) -> Result<(), String> {
     let id = rule.id.clone();
     let mut workers = state.workers.lock().await;
     state.allow_launch()?;
+    if expected_route.is_some() {
+        if let Some(old) = workers.get(&id).filter(|w| !w.join.is_finished()) {
+            return Err(if old.rule.same_connection(&rule) {
+                "forwardAlreadyActive"
+            } else {
+                "forwardChanged"
+            }
+            .into());
+        }
+        if !state
+            .snapshot()
+            .rules
+            .iter()
+            .any(|saved| saved.id == rule.id && saved.same_connection(&rule))
+        {
+            return Err("forwardChanged".into());
+        }
+    }
     if let Some(old) = workers.remove(&id) {
         old.cancel.cancel();
         let _ = old.join.await;
@@ -991,6 +1200,17 @@ async fn launch(
     }
     let host_key = format!("{}:{}", host.address, host.port);
     let jumps = resolve_jumps(&hosts, &host)?;
+    if let Some(expected) = expected_route {
+        let actual: Vec<_> = jumps.iter().chain(std::iter::once(&host)).collect();
+        if actual.len() != expected.len()
+            || actual
+                .iter()
+                .zip(&expected)
+                .any(|(a, b)| a.id != b.id || !a.same_connection(b))
+        {
+            return Err("forwardChanged".into());
+        }
+    }
     if !interactive {
         let config = state.config.lock().unwrap();
         for h in jumps.iter().chain(std::iter::once(&host)) {
@@ -1258,6 +1478,7 @@ pub async fn stop_rule(
     app: tauri::AppHandle,
     id: String,
 ) -> Result<(), String> {
+    state.commands.cancel_for_rule(&id);
     let mut workers = state.workers.lock().await;
     if let Some(worker) = workers.remove(&id) {
         worker.cancel.cancel();
@@ -1473,6 +1694,7 @@ pub async fn stop_batch(
         .filter(|id| seen.insert(id.clone()))
         .collect::<Vec<_>>();
     for id in &ids {
+        state.commands.cancel_for_rule(id);
         if let Some(worker) = workers.remove(id) {
             worker.cancel.cancel();
             jobs.push(worker);
@@ -1496,8 +1718,16 @@ pub async fn export_config(
     state: tauri::State<'_, Arc<AppState>>,
     ids: Vec<String>,
     include_key_paths: bool,
+    service_ids: Option<Vec<String>>,
+    window: tauri::WebviewWindow,
 ) -> Result<Option<String>, String> {
-    let value = crate::config_export::package(&state.snapshot(), &ids, include_key_paths)?;
+    command_api::local(&window)?;
+    let value = crate::config_export::package_with_services(
+        &state.snapshot(),
+        &ids,
+        &service_ids.unwrap_or_default(),
+        include_key_paths,
+    )?;
     tokio::task::spawn_blocking(move || {
         let Some(path) = rfd::FileDialog::new()
             .set_title("保存 OriaTunnel 配置文件")
@@ -1555,7 +1785,9 @@ pub fn set_autostart(
 pub async fn preview_import_file(
     state: tauri::State<'_, Arc<AppState>>,
     source: crate::config_import::ImportSource,
+    window: tauri::WebviewWindow,
 ) -> Result<crate::config_import::Preview, String> {
+    command_api::local(&window)?;
     *state.import.lock().unwrap() = None;
     let (bytes, name) = tokio::task::spawn_blocking(move || source.read())
         .await
@@ -1563,19 +1795,28 @@ pub async fn preview_import_file(
     state.stage_import(&bytes, name)
 }
 #[tauri::command]
-pub fn commit_import(
-    state: tauri::State<Arc<AppState>>,
+pub async fn commit_import(
+    state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
     token: String,
     choices: crate::config_import::Choices,
+    window: tauri::WebviewWindow,
 ) -> Result<Snapshot, String> {
+    command_api::local(&window)?;
+    let _launch = state.workers.lock().await;
+    state.allow_launch()?;
     state.apply_import(&token, &choices)?;
     state.publish(&app);
     Ok(state.snapshot())
 }
 #[tauri::command]
-pub fn cancel_import(state: tauri::State<Arc<AppState>>) {
+pub fn cancel_import(
+    state: tauri::State<Arc<AppState>>,
+    window: tauri::WebviewWindow,
+) -> Result<(), String> {
+    command_api::local(&window)?;
     *state.import.lock().unwrap() = None;
+    Ok(())
 }
 #[cfg(test)]
 mod tests {

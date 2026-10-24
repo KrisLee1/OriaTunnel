@@ -5,6 +5,7 @@ import { Modal, Field, ModalActions } from "@/components/tunnel-form";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import { useNativeFileDrop } from "@/hooks/use-native-file-drop";
+import { ServiceReview } from "@/features/commands/service-review";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -46,7 +47,7 @@ export function ImportConfig({
     setError(
       message.includes("preview_import_file")
         ? t("importBackendUpdateRequired")
-        : message,
+        : t(`error.${message}`, { ns: "commands", defaultValue: message }),
     );
   };
   async function load(source: () => Promise<ImportSource>) {
@@ -120,7 +121,11 @@ export function ImportConfig({
   return (
     <Modal
       title={t("importConfig")}
-      description={t(preview ? "importHint" : "importFileHint")}
+      description={
+        preview?.services?.length
+          ? t("sharing.previewHint", { ns: "commands" })
+          : t(preview ? "importHint" : "importFileHint")
+      }
       close={() => {
         if (!disabled) close();
       }}
@@ -145,7 +150,12 @@ export function ImportConfig({
             hosts={hosts}
             busy={disabled}
             close={close}
-            submit={(choices) => submit(preview.token, choices)}
+            submit={(choices) =>
+              submit(preview.token, choices).catch((cause) => {
+                showError(cause);
+                return false;
+              })
+            }
           />
         </>
       ) : (
@@ -218,7 +228,7 @@ export function ImportConfig({
   );
 }
 
-function ImportConfigReview({
+export function ImportConfigReview({
   preview,
   hosts,
   busy,
@@ -235,6 +245,7 @@ function ImportConfigReview({
   const [selected, setSelected] = useState(
     preview.rules.filter((r) => !r.commandOmitted).map((r) => r.id),
   );
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [reuseHosts, setReuseHosts] = useState<Record<string, string>>({});
   const [forwardOnly, setForwardOnly] = useState(false);
   const blocked =
@@ -334,6 +345,53 @@ function ImportConfigReview({
           )}
         </div>
       ))}
+      {!!preview.services?.length && (
+        <>
+          <h3>
+            {t("sharing.services", { ns: "commands" })} ·{" "}
+            {preview.services.length}
+          </h3>
+          <p className="inline-error">
+            {t("sharing.importHint", { ns: "commands" })}
+          </p>
+          {preview.services.map((service) => {
+            return (
+              <section className="import-entry themed-surface" key={service.id}>
+                <label className="check-field">
+                  <input
+                    type="checkbox"
+                    disabled={busy}
+                    checked={selectedServices.includes(service.id)}
+                    onChange={(e) =>
+                      setSelectedServices((ids) =>
+                        e.target.checked
+                          ? [...ids, service.id]
+                          : ids.filter((id) => id !== service.id),
+                      )
+                    }
+                  />
+                  {service.name}
+                </label>
+                {service.conflict && (
+                  <p className="muted">
+                    {t("sharing.nameConflict", { ns: "commands" })}
+                  </p>
+                )}
+                <p className="muted">
+                  {t("sharing.linksHint", { ns: "commands" })}
+                </p>
+                <details>
+                  <summary>{t("sharing.review", { ns: "commands" })}</summary>
+                  <ServiceReview
+                    service={service}
+                    endpoint={t("boundTargetHint", { ns: "commands" })}
+                  />
+                </details>
+              </section>
+            );
+          })}
+        </>
+      )}
       {preview.rules.some((r) => r.commandOmitted) && (
         <label className="check-field">
           <input
@@ -345,18 +403,35 @@ function ImportConfigReview({
           {t("importForwardOnly")}
         </label>
       )}
-      <p className="muted">{t("importStopped")}</p>
+      <p className="muted">
+        {preview.services?.length
+          ? t("sharing.importStopped", { ns: "commands" })
+          : t("importStopped")}
+      </p>
       <ModalActions>
         <Button variant="ghost" disabled={busy} onClick={close}>
           {t("cancel")}
         </Button>
         <Button
-          disabled={busy || !selected.length || blocked}
+          disabled={
+            busy || (!selected.length && !selectedServices.length) || blocked
+          }
           onClick={() =>
-            void submit({ ruleIds: selected, reuseHosts, forwardOnly })
+            void submit({
+              ruleIds: selected,
+              serviceIds: selectedServices,
+              reuseHosts,
+              forwardOnly,
+            })
           }
         >
-          {t("importSelected", { count: selected.length })}
+          {selectedServices.length
+            ? t("sharing.importSelected", {
+                ns: "commands",
+                services: selectedServices.length,
+                forwards: selected.length,
+              })
+            : t("importSelected", { count: selected.length })}
         </Button>
       </ModalActions>
     </>

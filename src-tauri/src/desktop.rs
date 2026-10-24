@@ -30,9 +30,65 @@ struct TrayGroup {
 struct TrayMenu {
     start: Vec<TrayGroup>,
     stop: Vec<TrayGroup>,
+    services: Vec<TrayService>,
+    hosts: Vec<TrayHost>,
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TrayHost {
+    id: String,
+    label: String,
+    enabled: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TrayService {
+    id: String,
+    label: String,
+    targets: Vec<TrayServiceTarget>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TrayServiceTarget {
+    label: String,
+    actions: Vec<TrayServiceAction>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TrayServiceAction {
+    label: String,
+    enabled: bool,
+    request: TrayServiceRequest,
+}
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TrayServiceRequest {
+    service_id: String,
+    revision: String,
+    rule_id: String,
+    action_id: String,
+    stop_terminal: bool,
+}
+impl TrayServiceRequest {
+    fn menu_id(&self) -> String {
+        format!("tray:service:{}", serde_json::to_string(self).unwrap())
+    }
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct TrayServiceActivity {
+    pub busy: std::collections::BTreeSet<String>,
+    pub terminals: std::collections::BTreeSet<(String, String, String)>,
+}
+const TRAY_PANELS: [(&str, &str, &str); 2] = [
+    (
+        "tray:service-commands",
+        "服务命令",
+        "tunnel://open-service-commands",
+    ),
+    ("tray:ssh-terminal", "SSH 终端", "tunnel://open-terminal"),
+];
 impl TrayMenu {
+    #[cfg(test)]
     fn from_snapshot(snapshot: &crate::model::Snapshot) -> Self {
+        Self::with_activity(snapshot, &TrayServiceActivity::default())
+    }
+    fn with_activity(snapshot: &crate::model::Snapshot, activity: &TrayServiceActivity) -> Self {
         let mut menu = Self::default();
         for rule in &snapshot.rules {
             let running = snapshot
@@ -69,6 +125,84 @@ impl TrayMenu {
                 name: rule.name.clone(),
             });
         }
+        menu.hosts = snapshot
+            .hosts
+            .iter()
+            .filter(|host| snapshot.added_host_ids.contains(&host.id) && !host.hidden)
+            .map(|host| TrayHost {
+                id: host.id.clone(),
+                label: format!(
+                    "{} · {}@{}:{}",
+                    host.name, host.user, host.address, host.port
+                ),
+                enabled: host.diagnostics.is_empty(),
+            })
+            .collect();
+        for service in &snapshot.services {
+            let mut targets = Vec::new();
+            for rule in snapshot
+                .rules
+                .iter()
+                .filter(|rule| service.rule_ids.contains(&rule.id))
+            {
+                let host = snapshot.hosts.iter().find(|host| host.id == rule.host_id);
+                let ready = service.execution_enabled
+                    && host.is_some_and(|host| host.diagnostics.is_empty())
+                    && !activity.busy.contains(&service.id);
+                let foreground = service.actions.iter().find(|action| {
+                    action.kind == "start"
+                        && action.mode == crate::commands::ExecutionMode::Terminal
+                        && activity.terminals.contains(&(
+                            service.id.clone(),
+                            rule.id.clone(),
+                            action.id.clone(),
+                        ))
+                });
+                let request = |action_id: &str, stop_terminal: bool| TrayServiceRequest {
+                    service_id: service.id.clone(),
+                    revision: service.revision.clone(),
+                    rule_id: rule.id.clone(),
+                    action_id: action_id.into(),
+                    stop_terminal,
+                };
+                let mut actions: Vec<_> = service
+                    .actions
+                    .iter()
+                    .filter(|action| !(foreground.is_some() && action.kind == "stop"))
+                    .map(|action| TrayServiceAction {
+                        label: action.label.clone(),
+                        enabled: ready,
+                        request: request(&action.id, false),
+                    })
+                    .collect();
+                let terminal_start = service.actions.iter().find(|action| {
+                    action.kind == "start"
+                        && action.mode == crate::commands::ExecutionMode::Terminal
+                });
+                if let Some(start) = foreground.or(terminal_start
+                    .filter(|_| !service.actions.iter().any(|action| action.kind == "stop")))
+                {
+                    actions.push(TrayServiceAction {
+                        label: "停止".into(),
+                        enabled: foreground.is_some(),
+                        request: request(&start.id, true),
+                    });
+                }
+                targets.push(TrayServiceTarget {
+                    label: format!(
+                        "{} · {}",
+                        rule.name,
+                        host.map(|host| host.name.as_str()).unwrap_or("来源失效")
+                    ),
+                    actions,
+                });
+            }
+            menu.services.push(TrayService {
+                id: service.id.clone(),
+                label: service.name.clone(),
+                targets,
+            });
+        }
         menu
     }
     fn ids(&self, start: bool) -> Vec<String> {
@@ -89,6 +223,18 @@ struct TraySummary {
     revision: u64,
     menu: TrayMenu,
     tooltip: String,
+    activity: TrayServiceActivity,
+}
+pub(crate) fn update_service_tray(app: &tauri::AppHandle) {
+    let Some(summary) = app.try_state::<std::sync::Mutex<TraySummary>>() else {
+        return;
+    };
+    let state = crate::app::state(app);
+    let activity = state.tray_service_activity();
+    if summary.lock().unwrap().activity == activity {
+        return;
+    }
+    update_tray(app, &state.snapshot());
 }
 fn tooltip(snapshot: &crate::model::Snapshot) -> String {
     let (mut listening, mut retrying, mut attention) = (0, 0, 0);
@@ -107,8 +253,8 @@ fn tooltip(snapshot: &crate::model::Snapshot) -> String {
     format!("OriaTunnel · 监听 {listening} · 重连 {retrying} · 需处理 {attention}")
 }
 pub fn update_tray(app: &tauri::AppHandle, snapshot: &crate::model::Snapshot) {
-    let menu = TrayMenu::from_snapshot(snapshot);
-    let tooltip = tooltip(snapshot);
+    let snapshot = snapshot.clone();
+    let tooltip = tooltip(&snapshot);
     let revision = snapshot.revision;
     let handle = app.clone();
     // Native menus belong to the UI thread. Do not hold a shared lock while
@@ -124,15 +270,22 @@ pub fn update_tray(app: &tauri::AppHandle, snapshot: &crate::model::Snapshot) {
         let Some(tray) = handle.tray_by_id("main-tray") else {
             return;
         };
-        if previous.menu != menu {
+        let activity = crate::app::state(&handle).tray_service_activity();
+        let menu = TrayMenu::with_activity(&snapshot, &activity);
+        let mut updated = previous.menu == menu;
+        if !updated {
             if let Ok(native_menu) = build_tray_menu(&handle, &menu) {
                 if tray.set_menu(Some(native_menu)).is_ok() {
                     previous.menu = menu;
+                    updated = true;
                 }
             }
         }
         if previous.tooltip != tooltip && tray.set_tooltip(Some(&tooltip)).is_ok() {
             previous.tooltip = tooltip;
+        }
+        if updated {
+            previous.activity = activity;
         }
         previous.revision = revision;
     });
@@ -146,6 +299,75 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
         true,
         None::<&str>,
     )?)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    let services = Submenu::new(app, "服务命令", true)?;
+    services.append(&MenuItem::with_id(
+        app,
+        "tray:service-commands",
+        "打开命令面板",
+        true,
+        None::<&str>,
+    )?)?;
+    if !model.services.is_empty() {
+        services.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    for (service_index, service) in model.services.iter().enumerate() {
+        let submenu = Submenu::new(app, &service.label, !service.targets.is_empty())?;
+        if service.targets.is_empty() {
+            submenu.append(&MenuItem::with_id(
+                app,
+                format!("tray:service-unbound:{service_index}"),
+                "未关联转发",
+                false,
+                None::<&str>,
+            )?)?;
+        }
+        for (index, target) in service.targets.iter().enumerate() {
+            if index > 0 {
+                submenu.append(&PredefinedMenuItem::separator(app)?)?;
+            }
+            submenu.append(&MenuItem::with_id(
+                app,
+                format!("tray:service-heading:{service_index}:{index}"),
+                &target.label,
+                false,
+                None::<&str>,
+            )?)?;
+            for action in &target.actions {
+                submenu.append(&MenuItem::with_id(
+                    app,
+                    action.request.menu_id(),
+                    &action.label,
+                    action.enabled,
+                    None::<&str>,
+                )?)?;
+            }
+        }
+        services.append(&submenu)?;
+    }
+    menu.append(&services)?;
+    let terminals = Submenu::new(app, "SSH 终端", true)?;
+    terminals.append(&MenuItem::with_id(
+        app,
+        "tray:ssh-terminal",
+        "打开 SSH 终端",
+        true,
+        None::<&str>,
+    )?)?;
+    if !model.hosts.is_empty() {
+        terminals.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    for host in &model.hosts {
+        terminals.append(&MenuItem::with_id(
+            app,
+            format!("tray:ssh-host:{}", host.id),
+            &host.label,
+            host.enabled,
+            None::<&str>,
+        )?)?;
+    }
+    menu.append(&terminals)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
     for (start, label, all_label, groups) in [
         (true, "启动转发", "全部启动", &model.start),
         (false, "停止转发", "全部停止", &model.stop),
@@ -224,6 +446,37 @@ pub fn install_application_menu(app: &tauri::AppHandle) -> tauri::Result<()> {
 }
 
 fn handle_menu(app: &tauri::AppHandle, id: &str) {
+    if let Some((_, _, event)) = TRAY_PANELS.iter().find(|(panel_id, _, _)| *panel_id == id) {
+        show(app);
+        let _ = app.emit_to("main", event, ());
+        return;
+    }
+    if id.starts_with("tray:ssh-host:") || id.starts_with("tray:service:") {
+        let state = crate::app::state(app);
+        let model = TrayMenu::with_activity(&state.snapshot(), &state.tray_service_activity());
+        if let Some(host) = model
+            .hosts
+            .iter()
+            .find(|host| host.enabled && format!("tray:ssh-host:{}", host.id) == id)
+        {
+            show(app);
+            let _ = app.emit_to(
+                "main",
+                "tunnel://open-terminal",
+                serde_json::json!({"hostId": host.id}),
+            );
+        } else if let Some(action) = model
+            .services
+            .iter()
+            .flat_map(|service| &service.targets)
+            .flat_map(|target| &target.actions)
+            .find(|action| action.enabled && action.request.menu_id() == id)
+        {
+            show(app);
+            let _ = app.emit_to("main", "tunnel://tray-service-action", &action.request);
+        }
+        return;
+    }
     match id {
         "show" => show(app),
         "quit" => app.exit(0),
@@ -240,7 +493,10 @@ fn handle_menu(app: &tauri::AppHandle, id: &str) {
                 return;
             };
             // Re-check current state: a menu can be clicked just as a run changes.
-            let model = TrayMenu::from_snapshot(&crate::app::state(app).snapshot());
+            let model = TrayMenu::with_activity(
+                &crate::app::state(app).snapshot(),
+                &crate::app::state(app).tray_service_activity(),
+            );
             let ids: Vec<_> = model
                 .ids(start)
                 .into_iter()
@@ -321,7 +577,8 @@ pub fn acquire(directory: &Path, app: tauri::AppHandle) -> std::io::Result<Optio
 }
 pub fn install_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let snapshot = crate::app::state(app).snapshot();
-    let model = TrayMenu::from_snapshot(&snapshot);
+    let activity = crate::app::state(app).tray_service_activity();
+    let model = TrayMenu::with_activity(&snapshot, &activity);
     let tooltip = tooltip(&snapshot);
     let menu = build_tray_menu(app, &model)?;
     let mut tray = TrayIconBuilder::with_id("main-tray")
@@ -360,6 +617,7 @@ pub fn install_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         revision: snapshot.revision,
         menu: model,
         tooltip,
+        activity,
     }));
     Ok(())
 }
@@ -415,6 +673,133 @@ mod tray_menu_tests {
             status: status.into(),
             ..Default::default()
         }
+    }
+    fn service() -> crate::commands::Service {
+        serde_json::from_value(serde_json::json!({
+            "id":"service", "name":"DSH", "revision":"v1", "ruleIds":["a","b"], "noLocalEnvironment":true,
+            "actions":[
+                {"id":"start:one", "kind":"start", "label":"启动", "command":"dsh web --port 3080", "mode":"terminal", "timeoutSecs":0, "successCodes":[0], "confirm":false},
+                {"id":"stop", "kind":"stop", "label":"原生停止", "command":"native-stop", "timeoutSecs":60, "successCodes":[0], "confirm":true}
+            ]
+        })).unwrap()
+    }
+    #[test]
+    fn terminal_submenu_includes_only_visible_added_hosts_and_retains_blocked_state() {
+        let snapshot = Snapshot {
+            hosts: vec![
+                Host {
+                    id: "added".into(),
+                    name: "Added".into(),
+                    user: "user".into(),
+                    address: "example.invalid".into(),
+                    port: 2222,
+                    ..Default::default()
+                },
+                Host {
+                    id: "blocked".into(),
+                    diagnostics: vec!["blocked".into()],
+                    ..Default::default()
+                },
+                Host {
+                    id: "hidden".into(),
+                    hidden: true,
+                    ..Default::default()
+                },
+                Host {
+                    id: "discovered".into(),
+                    ..Default::default()
+                },
+            ],
+            added_host_ids: vec!["added".into(), "blocked".into(), "hidden".into()],
+            ..Default::default()
+        };
+        let menu = TrayMenu::from_snapshot(&snapshot);
+        assert_eq!(
+            menu.hosts
+                .iter()
+                .map(|host| host.id.as_str())
+                .collect::<Vec<_>>(),
+            ["added", "blocked"]
+        );
+        assert!(menu.hosts[0].enabled);
+        assert!(menu.hosts[0].label.contains("user@example.invalid:2222"));
+        assert!(!menu.hosts[1].enabled);
+    }
+    #[test]
+    fn service_submenu_binds_each_action_to_revision_and_forward_and_tracks_foreground_stop() {
+        let mut snapshot = Snapshot {
+            services: vec![service()],
+            hosts: vec![
+                Host {
+                    id: "host-a".into(),
+                    name: "Host A".into(),
+                    ..Default::default()
+                },
+                Host {
+                    id: "host-b".into(),
+                    name: "Host B".into(),
+                    ..Default::default()
+                },
+            ],
+            rules: vec![rule("a", "host-a"), rule("b", "host-b")],
+            ..Default::default()
+        };
+        let idle = TrayMenu::from_snapshot(&snapshot);
+        assert_eq!(idle.services.len(), 1);
+        assert_eq!(idle.services[0].label, "DSH");
+        assert_eq!(idle.services[0].targets.len(), 2);
+        assert!(idle.services[0].targets[0].label.contains("Host A"));
+        assert!(idle.services[0].targets[1].label.contains("Host B"));
+        assert!(idle
+            .services
+            .iter()
+            .flat_map(|group| &group.targets)
+            .flat_map(|target| &target.actions)
+            .all(|action| action.enabled));
+        let mut activity = TrayServiceActivity::default();
+        activity.busy.insert("service".into());
+        activity
+            .terminals
+            .insert(("service".into(), "a".into(), "start:one".into()));
+        let running = TrayMenu::with_activity(&snapshot, &activity);
+        assert!(!running.services[0].targets[0].actions[0].enabled);
+        let stop = running.services[0].targets[0]
+            .actions
+            .iter()
+            .find(|action| action.request.stop_terminal)
+            .unwrap();
+        assert!(stop.enabled);
+        assert_eq!(stop.request.rule_id, "a");
+        assert_eq!(stop.request.action_id, "start:one");
+        assert!(!running.services[0].targets[0]
+            .actions
+            .iter()
+            .any(|action| action.label == "原生停止"));
+        assert!(running.services[0].targets[1]
+            .actions
+            .iter()
+            .all(|action| !action.enabled && !action.request.stop_terminal));
+        assert_ne!(
+            idle.services[0].targets[0].actions[0].request.menu_id(),
+            idle.services[0].targets[1].actions[0].request.menu_id()
+        );
+        snapshot.services[0].revision = "v2".into();
+        let edited = TrayMenu::from_snapshot(&snapshot);
+        assert_ne!(
+            idle.services[0].targets[0].actions[0].request.menu_id(),
+            edited.services[0].targets[0].actions[0].request.menu_id()
+        );
+        snapshot.services[0].execution_enabled = false;
+        assert!(TrayMenu::from_snapshot(&snapshot)
+            .services
+            .iter()
+            .flat_map(|group| &group.targets)
+            .flat_map(|target| &target.actions)
+            .all(|action| !action.enabled));
+        snapshot.services[0].rule_ids.clear();
+        assert!(TrayMenu::from_snapshot(&snapshot).services[0]
+            .targets
+            .is_empty());
     }
     #[test]
     fn partitions_every_runtime_phase_and_excludes_host_tests() {

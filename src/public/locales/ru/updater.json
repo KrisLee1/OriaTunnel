@@ -54,7 +54,8 @@
     "copyright": "© {{year}} KrisLee",
     "website": "Официальный сайт",
     "author": "KrisLee",
-    "moreApps": "Другие приложения"
+    "moreApps": "Другие приложения",
+    "feedback": "Сообщить о проблеме"
   },
   "goUpdate": "Обновить"
 }

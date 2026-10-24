@@ -12,6 +12,16 @@ import {
   ResponsiveModalFooter,
 } from "./ui/responsive-modal";
 const ModalFooterTarget = createContext<HTMLDivElement | null>(null);
+const ModalTitleTarget = createContext<HTMLDivElement | null | undefined>(
+  undefined,
+);
+
+// Feature actions stay beside their form logic, outside the accessible title.
+export function ModalTitleActions({ children }: { children: ReactNode }) {
+  const target = useContext(ModalTitleTarget);
+  if (target === undefined) return <>{children}</>;
+  return target ? createPortal(children, target) : null;
+}
 
 // Keep feature actions next to their logic while placing them outside the scroll body.
 // Submit buttons must name their form when rendered through this slot.
@@ -60,6 +70,7 @@ export function Modal({
 }) {
   const entrance = useEntranceMotion(4);
   const [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null);
+  const [titleTarget, setTitleTarget] = useState<HTMLDivElement | null>(null);
   return (
     <ResponsiveModal
       open
@@ -69,20 +80,28 @@ export function Modal({
     >
       <ResponsiveModalContent className={className}>
         <ModalFooterTarget.Provider value={footerTarget}>
-          <ResponsiveModalHeader>
-            <ResponsiveModalTitle>{title}</ResponsiveModalTitle>
-          </ResponsiveModalHeader>
-          <ResponsiveModalBody>
-            <motion.div className="form-body" {...entrance}>
-              {description && (
-                <ResponsiveModalDescription>
-                  {description}
-                </ResponsiveModalDescription>
-              )}
-              {children}
-            </motion.div>
-          </ResponsiveModalBody>
-          <div className="business-modal-footer" ref={setFooterTarget} />
+          <ModalTitleTarget.Provider value={titleTarget}>
+            <ResponsiveModalHeader>
+              <div className="business-modal-title-row">
+                <ResponsiveModalTitle>{title}</ResponsiveModalTitle>
+                <div
+                  className="business-modal-title-actions"
+                  ref={setTitleTarget}
+                />
+              </div>
+            </ResponsiveModalHeader>
+            <ResponsiveModalBody>
+              <motion.div className="form-body" {...entrance}>
+                {description && (
+                  <ResponsiveModalDescription>
+                    {description}
+                  </ResponsiveModalDescription>
+                )}
+                {children}
+              </motion.div>
+            </ResponsiveModalBody>
+            <div className="business-modal-footer" ref={setFooterTarget} />
+          </ModalTitleTarget.Provider>
         </ModalFooterTarget.Provider>
       </ResponsiveModalContent>
     </ResponsiveModal>

@@ -437,6 +437,8 @@ pub fn rule_uses_host(rule: &Rule, hosts: &[Host], id: &str) -> bool {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
+    #[serde(default)]
+    pub services: Vec<crate::commands::Service>,
     pub hosts: Vec<Host>,
     pub rules: Vec<Rule>,
     pub trusted_keys: std::collections::BTreeMap<String, String>,
@@ -455,6 +457,7 @@ pub struct HostMetadata {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            services: Vec::new(),
             hosts: Vec::new(),
             rules: Vec::new(),
             trusted_keys: Default::default(),
@@ -470,6 +473,7 @@ impl Default for Config {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
+    pub services: Vec<crate::commands::Service>,
     pub hosts: Vec<Host>,
     pub added_host_ids: Vec<String>,
     pub rules: Vec<Rule>,

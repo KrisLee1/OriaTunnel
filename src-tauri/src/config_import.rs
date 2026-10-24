@@ -1,4 +1,4 @@
-//! Strict portable-package boundary. No trust, runtime, command, or credential input.
+//! Strict v1/v2 package boundary. v2 commands remain disabled until separately reviewed.
 use crate::model::{
     AuthMethod, ConnectionOptions, ForwardKind, Host, ReconnectPolicy, Rule, RuleIcon,
     ServiceProtocol, Snapshot,
@@ -75,6 +75,8 @@ pub struct Package {
     rules: Vec<PortableRule>,
     credentials_included: bool,
     runtime_included: bool,
+    #[serde(default)]
+    services: Option<Vec<PortableService>>,
 }
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -119,10 +121,48 @@ struct PortableRule {
     auto_connect: bool,
     repeat_command_on_reconnect: bool,
 }
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortableService {
+    #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    color: Option<String>,
+    #[serde(default)]
+    icon: Option<crate::model::RuleIcon>,
+    id: String,
+    name: String,
+    #[serde(default)]
+    execution_host_id: String,
+    rule_ids: Vec<String>,
+    no_local_environment: bool,
+    actions: Vec<crate::commands::Action>,
+    control: crate::service_control::Control,
+}
+impl PortableService {
+    fn definition(&self) -> crate::commands::Service {
+        crate::commands::Service {
+            category: self.category.clone(),
+            color: self.color.clone(),
+            icon: self.icon.clone(),
+            id: self.id.clone(),
+            name: self.name.clone(),
+            execution_host_id: self.execution_host_id.clone(),
+            rule_ids: self.rule_ids.clone(),
+            revision: String::new(),
+            no_local_environment: self.no_local_environment,
+            actions: self.actions.clone(),
+            control: self.control.clone(),
+            execution_enabled: false,
+        }
+    }
+}
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Choices {
     pub rule_ids: Vec<String>,
+    #[serde(default)]
+    pub service_ids: Vec<String>,
     pub reuse_hosts: BTreeMap<String, String>,
     pub forward_only: bool,
 }
@@ -131,6 +171,8 @@ pub struct Choices {
 pub struct Preview {
     pub token: String,
     pub file_name: String,
+    version: u32,
+    services: Vec<ServicePreview>,
     hosts: Vec<HostPreview>,
     rules: Vec<RulePreview>,
 }
@@ -157,9 +199,18 @@ struct RulePreview {
     listener_conflict: bool,
     command_omitted: bool,
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ServicePreview {
+    #[serde(flatten)]
+    definition: PortableService,
+    endpoint: String,
+    conflict: bool,
+}
 pub struct Plan {
     pub hosts: Vec<Host>,
     pub rules: Vec<Rule>,
+    pub services: Vec<crate::commands::Service>,
 }
 fn text(value: &str) -> bool {
     value.len() <= 4096 && !value.chars().any(char::is_control)
@@ -219,18 +270,23 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
         }
     }
     if package.format != "oria-tunnel"
-        || package.version != 1
+        || !matches!(package.version, 1 | 2)
+        || (package.version == 1 && value.get("services").is_some())
+        || (package.version == 2 && package.services.is_none())
         || package.credentials_included
         || package.runtime_included
     {
-        return Err("仅支持不含凭据和运行态的 OriaTunnel v1 配置包".into());
+        return Err("仅支持不含凭据和运行态的 OriaTunnel v1/v2 配置包".into());
     }
-    if package.hosts.is_empty()
+    if (package.hosts.is_empty() && (package.version == 1 || !package.rules.is_empty()))
         || package.hosts.len() > 500
-        || package.rules.is_empty()
+        || (package.rules.is_empty() && package.services.as_ref().is_none_or(Vec::is_empty))
         || package.rules.len() > 1000
+        || package.services.as_ref().is_some_and(|s| s.len() > 256)
     {
-        return Err("配置包应包含 1–500 台主机及 1–1000 条规则".into());
+        return Err(
+            "配置包最多包含 500 台主机、1000 条规则和 256 个服务，规则或服务不能全为空".into(),
+        );
     }
     let mut ids = BTreeSet::new();
     for h in &package.hosts {
@@ -268,6 +324,23 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
             return Err("配置包规则无效、ID 重复、缺少主机或缺少命令省略标记".into());
         }
         r.to_rule(r.id.clone(), r.host_id.clone()).validate()?;
+    }
+    let mut service_ids = BTreeSet::new();
+    for service in package.services.iter().flatten() {
+        if !id(&service.id)
+            || !text(&service.name)
+            || service.actions.iter().any(|a| !text(&a.label))
+            || !service_ids.insert(&service.id)
+            || (!service.execution_host_id.is_empty() && !ids.contains(&service.execution_host_id))
+            || service.rule_ids.iter().any(|id| !rule_ids.contains(id))
+            || service.rule_ids.iter().collect::<BTreeSet<_>>().len() != service.rule_ids.len()
+        {
+            return Err("invalidServicePackage".into());
+        }
+        service
+            .definition()
+            .validate()
+            .map_err(|_| "invalidServicePackage")?;
     }
     // Validate the complete dependency graph before offering an import, including unselected routes.
     let hosts = package
@@ -330,6 +403,25 @@ impl Package {
         Preview {
             token,
             file_name,
+            version: self.version,
+            services: self
+                .services
+                .iter()
+                .flatten()
+                .map(|s| ServicePreview {
+                    definition: s.clone(),
+                    endpoint: self
+                        .hosts
+                        .iter()
+                        .find(|h| h.id == s.execution_host_id)
+                        .map(|h| format!("{}@{}:{}", h.user, h.address, h.port))
+                        .unwrap_or_default(),
+                    conflict: snapshot
+                        .services
+                        .iter()
+                        .any(|old| old.id == s.id || old.name == s.name),
+                })
+                .collect(),
             hosts: self
                 .hosts
                 .iter()
@@ -373,8 +465,8 @@ impl Package {
         }
     }
     pub fn prepare(&self, snapshot: &Snapshot, choices: &Choices) -> Result<Plan, String> {
-        if choices.rule_ids.is_empty() {
-            return Err("请选择至少一条规则".into());
+        if choices.rule_ids.is_empty() && choices.service_ids.is_empty() {
+            return Err("请选择至少一条规则或一个服务".into());
         }
         let wanted: BTreeSet<_> = choices.rule_ids.iter().collect();
         if wanted.len() != choices.rule_ids.len()
@@ -383,6 +475,17 @@ impl Package {
                 .any(|id| !self.rules.iter().any(|r| &r.id == *id))
         {
             return Err("导入选择无效".into());
+        }
+        let selected_services: BTreeSet<_> = choices.service_ids.iter().collect();
+        if selected_services.len() != choices.service_ids.len()
+            || selected_services
+                .iter()
+                .any(|id| !self.services.iter().flatten().any(|s| &s.id == *id))
+        {
+            return Err("invalidServicePackage".into());
+        }
+        if snapshot.services.len() + selected_services.len() > 256 {
+            return Err("servicePackageLimit".into());
         }
         for (old, existing) in &choices.reuse_hosts {
             if !self.hosts.iter().any(|h| &h.id == old)
@@ -476,6 +579,12 @@ impl Package {
         for h in &hosts {
             crate::model::resolve_jumps(&candidates, h)?;
         }
+        let rule_mapping: BTreeMap<_, _> = self
+            .rules
+            .iter()
+            .filter(|r| wanted.contains(&r.id))
+            .map(|r| (r.id.clone(), uuid::Uuid::new_v4().to_string()))
+            .collect();
         let mut rules = self
             .rules
             .iter()
@@ -483,17 +592,63 @@ impl Package {
             .map(|r| {
                 // These exported flags are deliberately ignored, even if set true in input.
                 let _ = (r.auto_connect, r.repeat_command_on_reconnect);
-                r.to_rule(
-                    uuid::Uuid::new_v4().to_string(),
-                    mapping[&r.host_id].clone(),
-                )
+                r.to_rule(rule_mapping[&r.id].clone(), mapping[&r.host_id].clone())
             })
             .collect::<Vec<_>>();
         let mut rule_names = snapshot.rules.iter().map(|r| r.name.clone()).collect();
         for rule in &mut rules {
             rule.name = unique_name(&rule.name, &mut rule_names);
         }
-        Ok(Plan { hosts, rules })
+        let mut service_names = snapshot.services.iter().map(|s| s.name.clone()).collect();
+        let mut services = Vec::new();
+        for imported in self
+            .services
+            .iter()
+            .flatten()
+            .filter(|s| selected_services.contains(&s.id))
+        {
+            let mut service = imported.definition();
+            service.id = uuid::Uuid::new_v4().to_string();
+            service.revision = uuid::Uuid::new_v4().to_string();
+            service.name = unique_name(&service.name, &mut service_names);
+            service.execution_host_id.clear();
+            service.rule_ids = imported
+                .rule_ids
+                .iter()
+                .filter_map(|id| rule_mapping.get(id).cloned())
+                .collect();
+            let action_mapping: BTreeMap<_, _> = service
+                .actions
+                .iter()
+                .map(|a| (a.id.clone(), uuid::Uuid::new_v4().to_string()))
+                .collect();
+            for action in &mut service.actions {
+                action.id = action_mapping[&action.id].clone();
+                if ["start", "stop", "restart", "custom"].contains(&action.kind.as_str()) {
+                    action.confirm = true;
+                }
+            }
+            if let Some(p) = &mut service.control.status_probe {
+                p.action_id = action_mapping[&p.action_id].clone();
+            }
+            service.control.start_action_id = service
+                .control
+                .start_action_id
+                .as_ref()
+                .map(|id| action_mapping[id].clone());
+            if let Some(p) = &mut service.control.health_probe {
+                p.repeatable = false;
+            }
+            service.control.check_after_actions = false;
+            service.execution_enabled = false;
+            service.validate().map_err(|_| "invalidServicePackage")?;
+            services.push(service);
+        }
+        Ok(Plan {
+            hosts,
+            rules,
+            services,
+        })
     }
 }
 #[cfg(test)]
@@ -922,5 +1077,436 @@ mod tests {
         assert_eq!(route[0].user, "user");
         assert_eq!(route[1].user, "other");
         assert_eq!(route[1].port, 2201);
+    }
+    fn service_fixture() -> serde_json::Value {
+        let mut value = fixture();
+        value["version"] = 2.into();
+        let t = crate::service_templates::build("systemdUser", "model").unwrap();
+        let mut control = t.control;
+        control.check_after_actions = true;
+        control.health_probe = Some(crate::service_control::HealthProbe {
+            command: "HEALTH_CANARY".into(),
+            ready_codes: vec![0],
+            not_ready_codes: vec![1],
+            repeatable: true,
+            timeout_secs: 2,
+            interval_secs: 1,
+            budget_secs: 10,
+        });
+        value["services"] = serde_json::json!([{"id":"service","name":"Model","executionHostId":"host","ruleIds":["rule"],"noLocalEnvironment":true,"actions":t.actions,"control":control}]);
+        value
+    }
+    #[test]
+    fn service_appearance_and_structured_arguments_survive_sharing_without_execution_permission() {
+        let mut value = service_fixture();
+        value["services"][0]["category"] = "inference".into();
+        let mut invalid_category = value.clone();
+        invalid_category["services"][0]["category"] = "not-a-category".into();
+        assert!(parsed(&invalid_category).is_err());
+        value["services"][0]["color"] = "#67ad98".into();
+        value["services"][0]["icon"] = serde_json::json!({"kind":"builtin","value":"brain"});
+        let invocation = crate::commands::Invocation {
+            script: None,
+            environment: vec![crate::commands::EnvironmentVariable {
+                name: "MODEL_PORT".into(),
+                value: "8000".into(),
+            }],
+            executable: "model-server".into(),
+            arguments: vec![crate::commands::CommandArgument {
+                name: "--model".into(),
+                value: Some("path with 'quotes' $(literal) 中文".into()),
+            }],
+        };
+        value["services"][0]["actions"][0]["command"] = invocation.render().unwrap().into();
+        value["services"][0]["actions"][0]["invocation"] =
+            serde_json::to_value(&invocation).unwrap();
+        let plan = parsed(&value)
+            .unwrap()
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    rule_ids: vec!["rule".into()],
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let service = &plan.services[0];
+        assert_eq!(service.category.as_deref(), Some("inference"));
+        assert_eq!(
+            service.actions[0].invocation.as_ref().unwrap().environment[0].name,
+            "MODEL_PORT"
+        );
+        assert_eq!(
+            service.actions[0].invocation.as_ref().unwrap().environment[0].value,
+            "8000"
+        );
+        assert_eq!(service.color.as_deref(), Some("#67ad98"));
+        assert!(service.icon.is_some());
+        assert!(!service.execution_enabled);
+        assert_eq!(
+            service.actions[0]
+                .invocation
+                .as_ref()
+                .unwrap()
+                .render()
+                .unwrap(),
+            invocation.render().unwrap()
+        );
+        let snapshot = Snapshot {
+            hosts: plan.hosts,
+            rules: plan.rules,
+            services: plan.services,
+            ..Default::default()
+        };
+        let exported = crate::config_export::package_with_services(
+            &snapshot,
+            &[snapshot.rules[0].id.clone()],
+            &[snapshot.services[0].id.clone()],
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            exported["services"][0]["icon"],
+            value["services"][0]["icon"]
+        );
+        assert!(exported["services"][0].get("executionEnabled").is_none());
+        assert_eq!(exported["services"][0]["category"], "inference");
+        assert!(parsed(&exported).is_ok());
+        value["services"][0]["actions"][0]["command"] = "tampered".into();
+        assert!(parsed(&value).is_err());
+    }
+    #[test]
+    fn unlimited_terminal_duration_survives_sharing_without_enabling_execution() {
+        let mut value = service_fixture();
+        value["services"][0]["actions"][0]["mode"] = "terminal".into();
+        value["services"][0]["actions"][0]["timeoutSecs"] = 0.into();
+        value["services"][0]["control"]["startActionId"] = serde_json::Value::Null;
+        let plan = parsed(&value)
+            .unwrap()
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    rule_ids: vec!["rule".into()],
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            plan.services[0].actions[0].mode,
+            crate::commands::ExecutionMode::Terminal
+        );
+        assert_eq!(plan.services[0].actions[0].timeout_secs, 0);
+        assert!(!plan.services[0].execution_enabled);
+        let snapshot = Snapshot {
+            hosts: plan.hosts,
+            rules: plan.rules,
+            services: plan.services,
+            ..Default::default()
+        };
+        let exported = crate::config_export::package_with_services(
+            &snapshot,
+            &[snapshot.rules[0].id.clone()],
+            &[snapshot.services[0].id.clone()],
+            false,
+        )
+        .unwrap();
+        assert_eq!(exported["services"][0]["actions"][0]["timeoutSecs"], 0);
+        assert!(parsed(&exported).is_ok());
+        value["services"][0]["actions"][0]["mode"] = "command".into();
+        assert!(parsed(&value).is_err());
+    }
+    #[test]
+    fn v2_remaps_all_ids_links_and_probe_references_and_revokes_execution() {
+        let value = service_fixture();
+        let package = parsed(&value).unwrap();
+        let plan = package
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    rule_ids: vec!["rule".into()],
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let s = &plan.services[0];
+        assert!(!s.execution_enabled);
+        assert_eq!(s.require_execution().unwrap_err(), "serviceDisabled");
+        assert_ne!(s.id, "service");
+        assert!(!s.revision.is_empty());
+        assert_eq!(s.rule_ids, [plan.rules[0].id.clone()]);
+        assert!(s.execution_host_id.is_empty());
+        assert_eq!(plan.hosts.len(), 2);
+        assert!(!s.control.check_after_actions);
+        assert!(!s.control.health_probe.as_ref().unwrap().repeatable);
+        assert_eq!(
+            s.control.health_probe.as_ref().unwrap().command,
+            "HEALTH_CANARY"
+        );
+        assert_eq!(
+            s.control.status_probe.as_ref().unwrap().action_id,
+            s.actions[3].id
+        );
+        assert_eq!(
+            s.control.start_action_id.as_ref().unwrap(),
+            &s.actions[0].id
+        );
+        for (a, old) in s
+            .actions
+            .iter()
+            .zip(value["services"][0]["actions"].as_array().unwrap())
+        {
+            assert_ne!(a.id, old["id"].as_str().unwrap());
+            assert_eq!(a.command, old["command"].as_str().unwrap());
+            if ["start", "stop", "restart"].contains(&a.kind.as_str()) {
+                assert!(a.confirm);
+            }
+        }
+        let preview = serde_json::to_value(package.preview(
+            &Snapshot::default(),
+            "token".into(),
+            "test.json".into(),
+        ))
+        .unwrap();
+        assert_eq!(preview["version"], 2);
+        assert_eq!(
+            preview["services"][0]["control"]["healthProbe"]["command"],
+            "HEALTH_CANARY"
+        );
+        assert!(preview["services"][0].get("executionEnabled").is_none());
+    }
+    #[test]
+    fn v2_service_only_reuses_explicit_host_and_discards_unselected_links_and_dependencies() {
+        let value = service_fixture();
+        let package = parsed(&value).unwrap();
+        let snapshot = Snapshot {
+            hosts: vec![Host {
+                id: "existing".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let choices = Choices {
+            service_ids: vec!["service".into()],
+            reuse_hosts: BTreeMap::from([("host".into(), "existing".into())]),
+            ..Default::default()
+        };
+        let plan = package.prepare(&snapshot, &choices).unwrap();
+        assert!(plan.hosts.is_empty());
+        assert!(plan.rules.is_empty());
+        assert!(plan.services[0].rule_ids.is_empty());
+        assert!(plan.services[0].execution_host_id.is_empty());
+        let snapshot = Snapshot {
+            services: plan.services,
+            ..Default::default()
+        };
+        let plan = package
+            .prepare(
+                &snapshot,
+                &Choices {
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(plan.services[0].name, "Model (2)");
+        assert!(plan.hosts.is_empty());
+        assert!(package
+            .prepare(
+                &snapshot,
+                &Choices {
+                    service_ids: vec!["service".into(), "service".into()],
+                    ..Default::default()
+                }
+            )
+            .is_err());
+    }
+    #[test]
+    fn v2_rejects_unknown_executable_fields_invalid_references_and_version_downgrade() {
+        for path in [
+            "/services/0",
+            "/services/0/actions/0",
+            "/services/0/control",
+            "/services/0/control/statusProbe",
+            "/services/0/control/healthProbe",
+        ] {
+            for field in [
+                "password",
+                "executionEnabled",
+                "revision",
+                "runtime",
+                "secret",
+            ] {
+                let mut value = service_fixture();
+                value.pointer_mut(path).unwrap()[field] = "DO_NOT_ECHO".into();
+                let error = parsed(&value).err().unwrap();
+                assert!(!error.contains("DO_NOT_ECHO"));
+            }
+        }
+        for (path, replacement) in [
+            ("/services/0/executionHostId", serde_json::json!("missing")),
+            ("/services/0/ruleIds", serde_json::json!(["missing"])),
+            (
+                "/services/0/control/startActionId",
+                serde_json::json!("missing"),
+            ),
+            (
+                "/services/0/control/statusProbe/actionId",
+                serde_json::json!("missing"),
+            ),
+        ] {
+            let mut value = service_fixture();
+            *value.pointer_mut(path).unwrap() = replacement;
+            assert!(parsed(&value).is_err());
+        }
+        let mut value = service_fixture();
+        value["version"] = 1.into();
+        assert!(parsed(&value).is_err());
+        value["services"] = serde_json::Value::Null;
+        assert!(parsed(&value).is_err());
+        value["version"] = 2.into();
+        assert!(parsed(&value).is_err());
+        value = service_fixture();
+        value["version"] = 99.into();
+        assert!(parsed(&value).is_err());
+        let mut value = service_fixture();
+        let s = value["services"][0].clone();
+        value["services"] = serde_json::json!([s.clone(), s]);
+        assert!(parsed(&value).is_err());
+        let mut value = service_fixture();
+        value["services"][0]["actions"][0]["command"] = "x".repeat(65537).into();
+        assert!(parsed(&value).is_err());
+        let mut value = service_fixture();
+        let mut services = Vec::new();
+        for i in 0..257 {
+            let mut s = value["services"][0].clone();
+            s["id"] = format!("s-{i}").into();
+            services.push(s);
+        }
+        value["services"] = serde_json::json!(services);
+        assert!(parsed(&value).is_err());
+    }
+    #[test]
+    fn v2_explicit_export_excludes_credentials_trust_runtime_and_unselected_services() {
+        let plan = parsed(&service_fixture())
+            .unwrap()
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    rule_ids: vec!["rule".into()],
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let mut snapshot = Snapshot {
+            hosts: plan.hosts,
+            rules: plan.rules,
+            services: plan.services,
+            ..Default::default()
+        };
+        let sid = snapshot.services[0].id.clone();
+        let rid = snapshot.rules[0].id.clone();
+        snapshot.services[0].execution_enabled = true;
+        snapshot.services[0].revision = "REVISION_CANARY".into();
+        snapshot.hosts[0]
+            .identity_files
+            .push("SECRET_PATH_CANARY".into());
+        let mut other = snapshot.services[0].clone();
+        other.id = "other".into();
+        other.actions[0].command = "UNSELECTED_CANARY".into();
+        snapshot.services.push(other);
+        let v1 = crate::config_export::package_with_services(
+            &snapshot,
+            std::slice::from_ref(&rid),
+            &[],
+            false,
+        )
+        .unwrap();
+        assert_eq!(v1["version"], 1);
+        assert!(v1.get("services").is_none());
+        assert!(!v1.to_string().contains("HEALTH_CANARY"));
+        for rules in [vec![], vec![rid]] {
+            let value = crate::config_export::package_with_services(
+                &snapshot,
+                &rules,
+                std::slice::from_ref(&sid),
+                false,
+            )
+            .unwrap();
+            assert_eq!(value["version"], 2);
+            let text = value.to_string();
+            for canary in [
+                "UNSELECTED_CANARY",
+                "REVISION_CANARY",
+                "SECRET_PATH_CANARY",
+                "executionEnabled",
+            ] {
+                assert!(!text.contains(canary));
+            }
+            assert!(text.contains("HEALTH_CANARY"));
+            let package = parsed(&value).unwrap();
+            let plan = package
+                .prepare(
+                    &Snapshot::default(),
+                    &Choices {
+                        rule_ids: rules,
+                        service_ids: vec![sid.clone()],
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            assert!(!plan.services[0].execution_enabled);
+            assert_eq!(plan.services[0].rule_ids.len(), plan.rules.len());
+        }
+    }
+    #[test]
+    fn v2_export_limits_the_pretty_file_bytes_not_only_compact_json() {
+        let plan = parsed(&service_fixture())
+            .unwrap()
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let mut snapshot = Snapshot {
+            hosts: plan.hosts,
+            services: plan.services,
+            ..Default::default()
+        };
+        snapshot.services[0].control = Default::default();
+        let a = snapshot.services[0].actions[0].clone();
+        snapshot.services[0].actions = (0..32)
+            .map(|i| crate::commands::Action {
+                id: format!("a-{i}"),
+                command: "x".into(),
+                ..a.clone()
+            })
+            .collect();
+        let ids = vec![snapshot.services[0].id.clone()];
+        let mut value =
+            crate::config_export::package_with_services(&snapshot, &[], &ids, false).unwrap();
+        let base = serde_json::to_vec(&value).unwrap().len();
+        let length = 1 + (MAX_BYTES - base) / 32;
+        assert!(length <= 65536);
+        for (action, portable) in snapshot.services[0]
+            .actions
+            .iter_mut()
+            .zip(value["services"][0]["actions"].as_array_mut().unwrap())
+        {
+            action.command = "x".repeat(length);
+            portable["command"] = action.command.clone().into();
+        }
+        assert!(serde_json::to_vec(&value).unwrap().len() <= MAX_BYTES);
+        assert!(serde_json::to_vec_pretty(&value).unwrap().len() > MAX_BYTES);
+        assert_eq!(
+            crate::config_export::package_with_services(&snapshot, &[], &ids, false).unwrap_err(),
+            "servicePackageLimit"
+        );
     }
 }

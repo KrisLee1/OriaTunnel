@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Host } from "@/types";
 import {
@@ -21,10 +21,12 @@ export function HostPicker({
   hosts,
   value,
   onChange,
+  actions,
 }: {
   hosts: Host[];
   value: string;
   onChange: (id: string) => void;
+  actions?: ReactNode;
 }) {
   const { t } = useTranslation("tunnel");
   const groups = useMemo<HostOptionGroup[]>(
@@ -42,7 +44,14 @@ export function HostPicker({
       .find((item) => item.host.id === value) || null;
   return (
     <div className="field" role="group" aria-label={t("host")}>
-      <span>{t("host")}</span>
+      {actions ? (
+        <div className="field-heading">
+          <span>{t("host")}</span>
+          <div className="field-heading-actions">{actions}</div>
+        </div>
+      ) : (
+        <span>{t("host")}</span>
+      )}
       <Combobox<HostOption>
         items={groups}
         value={selected}

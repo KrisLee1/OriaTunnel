@@ -87,7 +87,7 @@ function ResponsiveModalContent({
 }) {
   const { isMobile } = useResponsiveModal();
   const { t } = useTranslation();
-  const layoutClassName = "responsive-modal-surface mx-auto flex min-h-0 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col";
+  const layoutClassName = "responsive-modal-surface mx-auto flex min-h-0 max-h-[calc(100dvh-var(--aide-chrome-top)-2rem)] w-[calc(100%-2rem)] flex-col";
   return isMobile
     ? <DrawerContent className={cn("floating-surface modal-surface m-1.5 gap-0 overflow-hidden rounded-xl shadow-md after:hidden", layoutClassName, className)}>{children}</DrawerContent>
     : <DialogContent closeLabel={t("modal.close")} className={cn("min-w-2xs gap-0 overflow-hidden p-0", layoutClassName, className)}>{children}</DialogContent>;

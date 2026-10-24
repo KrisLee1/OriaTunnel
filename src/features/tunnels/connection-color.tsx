@@ -27,9 +27,11 @@ export function ConnectionColorDot({ color }: { color: string | null }) {
 export function ConnectionColorPicker({
   value,
   onChange,
+  fieldLabel,
 }: {
   value: string | null;
   onChange: (color: string | null) => void;
+  fieldLabel?: string;
 }) {
   const { t } = useTranslation("tunnel");
   const [lastCustom, setLastCustom] = useState(value || "#ef797d");
@@ -37,8 +39,12 @@ export function ConnectionColorPicker({
   const customSelected =
     !!normalized && !presets.some((preset) => preset.color === normalized);
   return (
-    <div className="field" role="group" aria-label={t("connectionColor")}>
-      <span>{t("connectionColor")}</span>
+    <div
+      className="field"
+      role="group"
+      aria-label={fieldLabel ?? t("connectionColor")}
+    >
+      <span>{fieldLabel ?? t("connectionColor")}</span>
       <div className="connection-color-palette">
         {[{ color: null, label: "themeColor" }, ...presets].map((option) => (
           <Button

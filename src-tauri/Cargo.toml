@@ -44,3 +44,6 @@ tauri = { version = "2", features = ["test"] }
 tempfile = "3"
 rand = "0.10"
 futures-util = "0.3"
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"

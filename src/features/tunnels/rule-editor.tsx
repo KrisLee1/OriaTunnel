@@ -1,11 +1,18 @@
 import { useTranslation } from "react-i18next";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { ServerPlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, ModalActions } from "@/components/tunnel-form";
-import type { ConnectionOptions, Host, Rule } from "@/types";
+import type {
+  ConnectionOptions,
+  Host,
+  Rule,
+  RemoteService,
+  ServiceLink,
+} from "@/types";
 import { defaultConnection, rulePath } from "./rule-model";
+import { ServicePicker } from "@/features/commands/service-picker";
 import { ServiceProtocolPicker } from "./service-protocol";
 import { ConnectionColorPicker } from "./connection-color";
 import { ConnectionIconPicker } from "./connection-icon";
@@ -84,27 +91,49 @@ export function ConnectionFields({
 export function RuleEditor({
   draft,
   hosts,
+  services = [],
+  selectedServiceIds,
+  onServicesChange,
   busy,
   reconnect,
   onChange,
   onAddHost,
   onManageHosts,
+  onManageServices,
   onSave,
   onCancel,
 }: {
   draft: Rule;
   hosts: Host[];
+  services?: RemoteService[];
+  selectedServiceIds?: string[];
+  onServicesChange?: (ids: string[]) => void;
   busy: boolean;
   reconnect: boolean;
   onChange: (r: Rule) => void;
   onAddHost: () => void;
   onManageHosts: () => void;
-  onSave: (start: boolean) => void;
+  onManageServices?: () => void;
+  onSave: (start: boolean, serviceLinks?: ServiceLink[]) => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation("tunnel");
   const selected = hosts.find((h) => h.id === draft.hostId);
   const formId = useId();
+  const [localServiceIds, setLocalServiceIds] = useState(() =>
+    services.filter((s) => s.ruleIds.includes(draft.id)).map((s) => s.id),
+  );
+  const serviceIds = selectedServiceIds ?? localServiceIds;
+  const setServiceIds = onServicesChange ?? setLocalServiceIds;
+  const save = (launch: boolean) =>
+    onSave(
+      launch,
+      services.map((s) => ({
+        id: s.id,
+        revision: s.revision,
+        selected: serviceIds.includes(s.id),
+      })),
+    );
   const eligible = selected && !selected.diagnostics.length;
   const change = (r: Partial<Rule>) => onChange({ ...draft, ...r });
   return (
@@ -112,7 +141,7 @@ export function RuleEditor({
       id={formId}
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(false);
+        save(false);
       }}
     >
       <Field label={t("name")}>
@@ -135,6 +164,22 @@ export function RuleEditor({
         hosts={hosts}
         value={draft.hostId}
         onChange={(hostId) => change({ hostId })}
+        actions={
+          <>
+            <Button type="button" variant="ghost" size="xs" onClick={onAddHost}>
+              <ServerPlusIcon aria-hidden="true" />
+              {t("addHost")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={onManageHosts}
+            >
+              {t("manageHosts")}
+            </Button>
+          </>
+        }
       />
       {!hosts.length && <p className="muted">{t("noHostsBody")}</p>}
       {selected?.diagnostics.map((d, i) => (
@@ -142,15 +187,24 @@ export function RuleEditor({
           {d}
         </p>
       ))}
-      <div className="inline-actions">
-        <Button type="button" variant="outline" size="sm" onClick={onAddHost}>
-          <ServerPlusIcon />
-          {t("addHost")}
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onManageHosts}>
-          {t("manageHosts")}
-        </Button>
-      </div>
+      <ServicePicker
+        services={services}
+        value={serviceIds}
+        onChange={setServiceIds}
+        disabled={busy}
+        actions={
+          onManageServices && (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={onManageServices}
+            >
+              {t("manageServices", { ns: "commands" })}
+            </Button>
+          )
+        }
+      />
       <Field label={t("forwardType")}>
         <Select
           items={[
@@ -427,7 +481,7 @@ export function RuleEditor({
             onClick={(e) => {
               if (e.currentTarget.form?.reportValidity()) {
                 e.preventDefault();
-                onSave(true);
+                save(true);
               }
             }}
           >

@@ -4,7 +4,8 @@ const en = {
   openService: "Open service",
   serviceSelectProtocol: "Select a service protocol first",
   serviceDynamic: "SOCKS5 has no fixed service endpoint",
-  serviceRemoteLoopback: "A remote loopback listener cannot be accessed directly from this computer",
+  serviceRemoteLoopback:
+    "A remote loopback listener cannot be accessed directly from this computer",
   serviceStartFirst: "Start the forward and wait until it is listening",
   serviceReconnect: "Reconnect after configuration changes",
   serviceDesktopOnly: "Open services in the desktop app",
@@ -49,12 +50,14 @@ const en = {
   importSelected: "Import {{count}} rules",
   groupHosts: "Group hosts",
   groupAuth: "By authentication",
-  hostUsedAsJump: "Another host uses this jump route. Update that route before deleting.",
+  hostUsedAsJump:
+    "Another host uses this jump route. Update that route before deleting.",
   groupStatus: "By status",
   groupForward: "By forward",
   groupHost: "By SSH host",
   groupLogs: "Group logs",
-  logHostAssociationHint: "Host association follows current forward configuration. Deleted forwards keep their original identifiers.",
+  logHostAssociationHint:
+    "Host association follows current forward configuration. Deleted forwards keep their original identifiers.",
   groupNoneLogs: "No grouping",
   filterLogHost: "Filter logs by SSH host",
   filterLogForward: "Filter logs by forward",
@@ -68,7 +71,8 @@ const en = {
   filterPassed: "Passed",
   filterErrors: "Failures and errors",
   discoveredHosts: "Discovered SSH hosts",
-  discoverHostsHint: "Find hosts in your local SSH client configuration. Choose an existing host or enter one manually.",
+  discoverHostsHint:
+    "Find hosts in your local SSH client configuration. Choose an existing host or enter one manually.",
   discoveringHosts: "Discovering SSH hosts...",
   noDiscoveredHosts: "No SSH hosts discovered",
   addDiscoveredHost: "Add",
@@ -148,8 +152,7 @@ const en = {
   autoConnectHint:
     "Off by default. Requires trusted host keys for every hop and a key or Agent. Passwords and key passphrases are never stored; missing authentication requires manual start.",
   autostart: "Launch at startup",
-  autostartHint:
-    "Start in the background after signing in.",
+  autostartHint: "Start in the background after signing in.",
   "needs-attention": "Needs attention",
   "status-authentication-error": "Authentication failed",
   "status-host-key-error": "Verify host key",
@@ -188,7 +191,8 @@ const en = {
   batchAuthHint:
     "Enter credentials per host, including jump hosts, or leave blank to reuse saved passwords. Each rule starts independently.",
   batchRequestSubmitted: "{{action}} requests submitted · {{count}}",
-  batchRequestPartial: "{{action}} requests: {{count}} submitted, {{rejected}} failed",
+  batchRequestPartial:
+    "{{action}} requests: {{count}} submitted, {{rejected}} failed",
   batchRequestFailed: "Unable to submit the request",
   undoDelete: "Undo deletion",
   exportConfig: "Export configuration",
@@ -205,7 +209,8 @@ const en = {
   addSource: "Add configuration file",
   chooseSource: "Choose SSH configuration file {{count}}",
   removeSource: "Remove configuration path {{count}}",
-  sourcePickerUpdateRequired: "Start the updated app to use the SSH configuration file picker.",
+  sourcePickerUpdateRequired:
+    "Start the updated app to use the SSH configuration file picker.",
   autoSyncHosts: "Automatically detect configuration changes",
   autoSyncHint:
     "Checks every 2 seconds and on focus. When disabled, startup loading and manual Refresh still work. No configuration commands or connections are executed by discovery.",
@@ -214,7 +219,8 @@ const en = {
   addIdentity: "Add key candidate",
   chooseIdentity: "Choose private key file {{count}}",
   removeIdentity: "Remove private key path {{count}}",
-  identityPickerUpdateRequired: "Start the updated app to use the private key file picker.",
+  identityPickerUpdateRequired:
+    "Start the updated app to use the private key file picker.",
   fieldSources: "Resolved field sources",
   sourceForwards: "Forwards in source configuration",
   sourceForwardsHint:
@@ -292,7 +298,8 @@ const en = {
   commandHint:
     "This command runs on the SSH server when started. Do not put secrets here: the command is saved with the rule. Output is discarded; no interactive terminal is opened.",
   trayAndStartup: "Tray and startup",
-  sessionOptionsHint: "Source session options ({{options}}) do not affect forwarding or host tests. Remote commands are unavailable for this host until those options are supported.",
+  sessionOptionsHint:
+    "Source session options ({{options}}) do not affect forwarding or host tests. Remote commands are unavailable for this host until those options are supported.",
   overrideConnection: "Override host connection options",
   inheritConnection: "Use the host’s timeout and keepalive settings.",
   connectTimeout: "Connection and handshake timeout (seconds)",
@@ -315,20 +322,25 @@ const en = {
     "All forwards continue when the window hides to the tray. Restore from the tray icon; use Exit to stop all forwards and quit.",
   quit: "Exit OriaTunnel",
   delete: "Delete",
-  deleteHostHint:
-    "Deleting this host also removes these forwards:",
-  copyHost: "Create editable copy",
-  configHostDeleteHint: "This host is managed by an SSH configuration file. Remove it from the source configuration.",
+  deleteHostHint: "Deleting this host also removes these forwards:",
+  copyHost: "Add from this host",
+  configHostDeleteHint:
+    "This host is managed by an SSH configuration file. Remove it from the source configuration.",
   copyRule: "Create a forward from this one",
   deleteSelected: "Delete selected ({{count}})",
-  deleteRulesHint: "Delete {{count}} selected forwards and stop their active connections. Undo restores the whole selection in a stopped state.",
-  deleteHostCascadeHint: "Deleting this host also deletes the following {{count}} forwards and stops their active connections. SSH source files remain unchanged.",
-  deleteHostOnlyHint: "Remove this host from the app. SSH source files remain unchanged.",
-  deleteUndoHint: "Undo deletion from the Forwards page to restore the host and forwards in a stopped state.",
+  deleteRulesHint:
+    "Delete {{count}} selected forwards and stop their active connections. Undo restores the whole selection in a stopped state.",
+  deleteHostCascadeHint:
+    "Deleting this host also deletes the following {{count}} forwards and stops their active connections. SSH source files remain unchanged.",
+  deleteHostOnlyHint:
+    "Remove this host from the app. SSH source files remain unchanged.",
+  deleteUndoHint:
+    "Undo deletion from the Forwards page to restore the host and forwards in a stopped state.",
   confirmDelete: "Confirm deletion",
   configUpdated: "Host configuration changed; reconnect to apply.",
   canvas: "Connection Map",
-  movePortHint: "Drag to move; Shift + arrow changes sides; double-click or Delete restores automatic placement",
+  movePortHint:
+    "Drag to move; Shift + arrow changes sides; double-click or Delete restores automatic placement",
   tunnels: "Forwards",
   hosts: "SSH hosts",
   add: "New forward",
@@ -369,9 +381,11 @@ const en = {
   hidePassword: "Hide password",
   passwordSaved: "Password saved on this device",
   passwordStorageNeedsAttention: "Saved password unavailable",
-  savedPasswordPlaceholder: "Leave blank to use saved password; enter a new one to replace it",
+  savedPasswordPlaceholder:
+    "Leave blank to use saved password; enter a new one to replace it",
   clearSavedPassword: "Clear saved password",
-  passwordStorageUnavailable: "Password storage unavailable. Restart with the updated backend.",
+  passwordStorageUnavailable:
+    "Password storage unavailable. Restart with the updated backend.",
   start: "Start",
   stop: "Stop",
   settings: "Settings",
@@ -381,7 +395,8 @@ const en = {
   mode: "Color mode",
   language: "Language",
   noHosts: "No SSH hosts yet",
-  noHostsBody: "Add a host from discovered SSH configuration or enter its details manually.",
+  noHostsBody:
+    "Add a host from discovered SSH configuration or enter its details manually.",
   noRules: "No forwards yet",
   source: "Source",
   sourceMissing: "Host source is missing",
@@ -473,7 +488,8 @@ const zh: typeof en = {
   groupForward: "按转发",
   groupHost: "按 SSH 主机",
   groupLogs: "日志分组",
-  logHostAssociationHint: "主机归属按当前转发配置关联，已删除的转发保留原始标识。",
+  logHostAssociationHint:
+    "主机归属按当前转发配置关联，已删除的转发保留原始标识。",
   groupNoneLogs: "不分组",
   filterLogHost: "按 SSH 主机筛选日志",
   filterLogForward: "按转发筛选日志",
@@ -487,7 +503,8 @@ const zh: typeof en = {
   filterPassed: "通过",
   filterErrors: "失败与错误",
   discoveredHosts: "发现的 SSH 主机",
-  discoverHostsHint: "从本机 SSH 客户端配置中发现主机，可选择已有主机或手动填写。",
+  discoverHostsHint:
+    "从本机 SSH 客户端配置中发现主机，可选择已有主机或手动填写。",
   discoveringHosts: "正在发现 SSH 主机...",
   noDiscoveredHosts: "未发现 SSH 主机",
   addDiscoveredHost: "添加",
@@ -566,8 +583,7 @@ const zh: typeof en = {
   autoConnectHint:
     "默认关闭。每跳都需已核对指纹并具备私钥或系统代理；不保存密码或私钥口令，缺少认证时需手动启动。",
   autostart: "开机自启",
-  autostartHint:
-    "登录系统后在后台启动。",
+  autostartHint: "登录系统后在后台启动。",
   "needs-attention": "需处理",
   "status-authentication-error": "认证失败",
   "status-host-key-error": "需核对指纹",
@@ -606,7 +622,8 @@ const zh: typeof en = {
   batchAuthHint:
     "按主机填写本次凭据（含跳板），已有保存密码可留空。每条规则独立启动，部分失败不影响其他规则。",
   batchRequestSubmitted: "已提交{{action}}请求（{{count}} 条）",
-  batchRequestPartial: "{{action}}请求：{{count}} 条已提交，{{rejected}} 条未能提交",
+  batchRequestPartial:
+    "{{action}}请求：{{count}} 条已提交，{{rejected}} 条未能提交",
   batchRequestFailed: "请求未能提交",
   undoDelete: "撤销删除",
   exportConfig: "导出配置",
@@ -705,7 +722,8 @@ const zh: typeof en = {
   commandHint:
     "启动时在 SSH 主机上执行此命令。命令随规则保存，请勿填写秘密；不打开交互终端，不保存输出。",
   trayAndStartup: "托盘与启动",
-  sessionOptionsHint: "来源会话选项（{{options}}）不影响纯转发和主机测试；这些选项尚未支持，此主机暂不能执行远程命令。",
+  sessionOptionsHint:
+    "来源会话选项（{{options}}）不影响纯转发和主机测试；这些选项尚未支持，此主机暂不能执行远程命令。",
   overrideConnection: "覆盖主机连接参数",
   inheritConnection: "使用主机的超时与保活设置。",
   connectTimeout: "连接与握手超时（秒）",
@@ -728,12 +746,14 @@ const zh: typeof en = {
   quit: "退出 OriaTunnel",
   delete: "删除",
   deleteHostHint: "删除此主机时将一并删除以下转发：",
-  copyHost: "创建可编辑副本",
+  copyHost: "从此主机添加",
   configHostDeleteHint: "此主机由 SSH 配置文件管理，请在源配置中移除。",
   copyRule: "从此转发新建",
   deleteSelected: "批量删除（{{count}}）",
-  deleteRulesHint: "将删除所选 {{count}} 条转发并停止其活动连接。撤销可整组恢复，恢复后保持停止。",
-  deleteHostCascadeHint: "删除此主机将一并删除以下 {{count}} 条转发，并停止其活动连接。SSH 配置源文件不会被修改。",
+  deleteRulesHint:
+    "将删除所选 {{count}} 条转发并停止其活动连接。撤销可整组恢复，恢复后保持停止。",
+  deleteHostCascadeHint:
+    "删除此主机将一并删除以下 {{count}} 条转发，并停止其活动连接。SSH 配置源文件不会被修改。",
   deleteHostOnlyHint: "将从应用中移除此主机，SSH 配置源文件不会被修改。",
   deleteUndoHint: "可在转发页面撤销删除，恢复主机及转发后保持停止状态。",
   confirmDelete: "确认删除",
@@ -773,8 +793,7 @@ const zh: typeof en = {
   auth: "认证",
   authForHost: "认证 · {{name}}",
   connect: "连接",
-  authHelp:
-    "输入密码或私钥口令；使用已保存密码、私钥或系统代理时可留空。",
+  authHelp: "输入密码或私钥口令；使用已保存密码、私钥或系统代理时可留空。",
   rememberPassword: "记住密码",
   showPassword: "显示密码",
   hidePassword: "隐藏密码",
@@ -836,35 +855,44 @@ i18n.addResourceBundle("zh-CN", "tunnel", zh);
 // Keep new interaction messages available in every supported shell language.
 for (const [language, messages] of Object.entries({
   en: {
-    authFallbackHelp: "Private key or SSH agent authentication did not complete. Enter the private key passphrase if the key is encrypted, or the server password for password authentication.",
+    authFallbackHelp:
+      "Private key or SSH agent authentication did not complete. Enter the private key passphrase if the key is encrypted, or the server password for password authentication.",
     privateKeyPassphrase: "Private key passphrase",
   },
   "zh-CN": {
-    authFallbackHelp: "私钥或 SSH 代理未能完成认证。私钥已加密时请输入私钥口令；使用密码认证时请输入服务器密码。",
+    authFallbackHelp:
+      "私钥或 SSH 代理未能完成认证。私钥已加密时请输入私钥口令；使用密码认证时请输入服务器密码。",
     privateKeyPassphrase: "私钥口令",
   },
   "zh-TW": {
-    authFallbackHelp: "私鑰或 SSH 代理未能完成驗證。私鑰已加密時請輸入私鑰密碼；使用密碼驗證時請輸入伺服器密碼。",
+    authFallbackHelp:
+      "私鑰或 SSH 代理未能完成驗證。私鑰已加密時請輸入私鑰密碼；使用密碼驗證時請輸入伺服器密碼。",
     privateKeyPassphrase: "私鑰密碼",
   },
   ja: {
-    authFallbackHelp: "秘密鍵または SSH エージェントで認証できませんでした。暗号化された秘密鍵のパスフレーズ、またはパスワード認証用のサーバーパスワードを入力してください。",
+    authFallbackHelp:
+      "秘密鍵または SSH エージェントで認証できませんでした。暗号化された秘密鍵のパスフレーズ、またはパスワード認証用のサーバーパスワードを入力してください。",
     privateKeyPassphrase: "秘密鍵のパスフレーズ",
   },
   ko: {
-    authFallbackHelp: "개인 키 또는 SSH 에이전트 인증을 완료하지 못했습니다. 암호화된 개인 키의 암호문 또는 비밀번호 인증에 사용할 서버 비밀번호를 입력하세요.",
+    authFallbackHelp:
+      "개인 키 또는 SSH 에이전트 인증을 완료하지 못했습니다. 암호화된 개인 키의 암호문 또는 비밀번호 인증에 사용할 서버 비밀번호를 입력하세요.",
     privateKeyPassphrase: "개인 키 암호문",
   },
   de: {
-    authFallbackHelp: "Die Anmeldung mit privatem Schlüssel oder SSH-Agent ist fehlgeschlagen. Geben Sie die Passphrase des verschlüsselten Schlüssels oder das Serverpasswort für die Passwortanmeldung ein.",
+    authFallbackHelp:
+      "Die Anmeldung mit privatem Schlüssel oder SSH-Agent ist fehlgeschlagen. Geben Sie die Passphrase des verschlüsselten Schlüssels oder das Serverpasswort für die Passwortanmeldung ein.",
     privateKeyPassphrase: "Passphrase des privaten Schlüssels",
   },
   fr: {
-    authFallbackHelp: "L’authentification par clé privée ou agent SSH a échoué. Saisissez la phrase secrète de la clé chiffrée, ou le mot de passe du serveur pour une authentification par mot de passe.",
+    authFallbackHelp:
+      "L’authentification par clé privée ou agent SSH a échoué. Saisissez la phrase secrète de la clé chiffrée, ou le mot de passe du serveur pour une authentification par mot de passe.",
     privateKeyPassphrase: "Phrase secrète de la clé privée",
   },
   ru: {
-    authFallbackHelp: "Не удалось пройти аутентификацию с помощью закрытого ключа или SSH-агента. Введите парольную фразу зашифрованного ключа или пароль сервера для входа по паролю.",
+    authFallbackHelp:
+      "Не удалось пройти аутентификацию с помощью закрытого ключа или SSH-агента. Введите парольную фразу зашифрованного ключа или пароль сервера для входа по паролю.",
     privateKeyPassphrase: "Парольная фраза закрытого ключа",
   },
-})) i18n.addResourceBundle(language, "tunnel", messages, true, true);
+}))
+  i18n.addResourceBundle(language, "tunnel", messages, true, true);

@@ -1,3 +1,19 @@
+import terminalen from "@/public/locales/en/terminal.json"
+import terminalzhCN from "@/public/locales/zh-CN/terminal.json"
+import terminalzhTW from "@/public/locales/zh-TW/terminal.json"
+import terminalja from "@/public/locales/ja/terminal.json"
+import terminalko from "@/public/locales/ko/terminal.json"
+import terminalde from "@/public/locales/de/terminal.json"
+import terminalfr from "@/public/locales/fr/terminal.json"
+import terminalru from "@/public/locales/ru/terminal.json"
+import commanden from "@/public/locales/en/commands.json"
+import commandzhCN from "@/public/locales/zh-CN/commands.json"
+import commandzhTW from "@/public/locales/zh-TW/commands.json"
+import commandja from "@/public/locales/ja/commands.json"
+import commandko from "@/public/locales/ko/commands.json"
+import commandde from "@/public/locales/de/commands.json"
+import commandfr from "@/public/locales/fr/commands.json"
+import commandru from "@/public/locales/ru/commands.json"
 import i18n from "i18next"
 import { initReactI18next } from "react-i18next"
 
@@ -22,14 +38,14 @@ const supportedLanguages = ["zh-CN", "zh-TW", "en", "ja", "ko", "de", "fr", "ru"
 type SupportedLanguage = (typeof supportedLanguages)[number]
 
 const resources = {
-  "zh-CN": { common: zhCN, updater: updateZhCN },
-  "zh-TW": { common: zhTW, updater: updateZhTW },
-  en: { common: en, updater: updateEn },
-  ja: { common: ja, updater: updateJa },
-  ko: { common: ko, updater: updateKo },
-  de: { common: de, updater: updateDe },
-  fr: { common: fr, updater: updateFr },
-  ru: { common: ru, updater: updateRu },
+  "zh-CN": { common: zhCN, updater: updateZhCN, commands: commandzhCN, terminal: terminalzhCN },
+  "zh-TW": { common: zhTW, updater: updateZhTW, commands: commandzhTW, terminal: terminalzhTW },
+  en: { common: en, updater: updateEn, commands: commanden, terminal: terminalen },
+  ja: { common: ja, updater: updateJa, commands: commandja, terminal: terminalja },
+  ko: { common: ko, updater: updateKo, commands: commandko, terminal: terminalko },
+  de: { common: de, updater: updateDe, commands: commandde, terminal: terminalde },
+  fr: { common: fr, updater: updateFr, commands: commandfr, terminal: terminalfr },
+  ru: { common: ru, updater: updateRu, commands: commandru, terminal: terminalru },
 }
 
 function resolveInitialLanguage(value: string | null): SupportedLanguage {

@@ -2,6 +2,7 @@ mod activity;
 mod app;
 mod application_icon;
 pub mod batch;
+pub mod commands;
 mod config_export;
 mod config_import;
 mod credentials;
@@ -12,10 +13,13 @@ mod long_running;
 mod macos_material;
 pub mod model;
 mod service;
+pub mod service_control;
+pub mod service_templates;
 mod ssh_algorithms;
 mod ssh_conditions;
 pub mod ssh_config;
 pub mod supervisor;
+pub mod terminal;
 pub mod tunnel;
 mod updater;
 mod window;
@@ -81,6 +85,13 @@ pub fn run() {
             });
             Ok(())
         })
+        .on_page_load(|window, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                if let Some(state) = window.app_handle().try_state::<Arc<app::AppState>>() {
+                    state.interrupt_terminals();
+                }
+            }
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
@@ -106,6 +117,29 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app::snapshot,
+            app::terminal_api::terminal_sessions,
+            app::terminal_api::open_terminal,
+            app::terminal_api::attach_terminal,
+            app::terminal_api::ack_terminal,
+            app::terminal_api::terminal_input,
+            app::terminal_api::resize_terminal,
+            app::terminal_api::close_terminal,
+            app::terminal_api::detach_terminal,
+            app::terminal_api::forget_terminal,
+            app::command_api::save_service_profile,
+            app::command_api::set_service_execution,
+            app::command_api::preview_service_template,
+            app::command_api::delete_service_profile,
+            app::command_api::delete_service_profiles,
+            app::command_api::command_runs,
+            app::command_api::start_command,
+            app::service_api::run_service_operation,
+            app::service_api::service_observations,
+            app::service_api::stop_service_forward,
+            app::command_api::attach_command,
+            app::command_api::ack_command,
+            app::command_api::detach_command,
+            app::command_api::cancel_command,
             updater::update_snapshot,
             updater::check_update,
             updater::download_update,

@@ -180,8 +180,8 @@ pub async fn run_with_password_observer(
         }
     }
 }
-struct Failure {
-    kind: FailureKind,
+pub(crate) struct Failure {
+    pub(crate) kind: FailureKind,
     message: String,
 }
 impl Failure {
@@ -429,53 +429,167 @@ async fn forward(
         secret,
         expected,
     });
-    let (tx, mut rx) = mpsc::channel(128);
-    let mut sessions: Vec<Arc<client::Handle<Client>>> = Vec::new();
-    let transport_cancel = CancellationToken::new();
-    let result=async {
-        for (index,mut hop) in jumps.into_iter().enumerate() {
-            let host=hop.host;
-            host.connection.validate().map_err(|e|Failure::new(FailureKind::Configuration,e))?;
-            let preferred=crate::ssh_algorithms::preferred(&host.algorithms).map_err(|e|Failure::new(FailureKind::Configuration,e))?;
-            let timeout=Duration::from_secs(host.connection.connect_timeout_secs);
-            let started=tokio::time::Instant::now();
-            let socket: Box<dyn SshStream>=if let Some(previous)=sessions.last() {
-                let channel=tokio::select! {biased; _=cancel.cancelled()=>return Ok(()),result=tokio::time::timeout(timeout,previous.channel_open_direct_tcpip(&host.address,host.port as u32,"127.0.0.1",0))=>result.map_err(|_|Failure::new(FailureKind::Timeout,"跳板目标连接超时"))?.map_err(|_|Failure::new(FailureKind::ForwardDenied,"跳板无法连接下一跳或被策略拒绝"))?};
-                Box::new(channel.into_stream())
-            } else {
-                let tcp=tokio::select! {biased; _=cancel.cancelled()=>return Ok(()),result=tokio::time::timeout(timeout,TcpStream::connect((host.address.as_str(),host.port)))=>result.map_err(|_|Failure::new(FailureKind::Timeout,"SSH 连接超时"))?.map_err(network_error)?};
-                Box::new(tcp)
-            };
-            let final_hop=host.id==rule.host_id;
-            let (trust_tx,trust_rx)=watch::channel(false);
-            let handler=Client {expected:hop.expected,prompt:prompt.clone(),endpoint:format!("{}:{}",host.address,host.port),remote_port:(final_hop && rule.kind==ForwardKind::R).then_some(rule.bind_port),incoming:tx.clone(),trust_wait:trust_tx.clone(),key_rejected:Arc::new(false.into())};
-            let config=Arc::new(client::Config {preferred,keepalive_interval:(host.connection.keepalive_interval_secs>0).then(||Duration::from_secs(host.connection.keepalive_interval_secs)),keepalive_max:host.connection.keepalive_max,..Default::default()});
-            update(&runtime,&notify,"connecting",format!("SSH {} · {}",index+1,host.name));
-            let socket=ConnectionStream {inner:socket,cancelled:Box::pin(transport_cancel.clone().cancelled_owned())};
-            let Some(mut ssh)=handshake(config,socket,handler,trust_rx,&cancel,timeout.saturating_sub(started.elapsed())).await? else {return Ok(());};
-            update(&runtime,&notify,"authenticating",host.name.clone());
-            let auth=tokio::select! {biased; _=cancel.cancelled()=>Ok(None),result=authenticate(&mut ssh,&host,&hop.secret)=>result.map(Some)};
-            if let Ok(Some(method)) = &auth {
-                if *method == AuthMethod::Password && !cancel.is_cancelled() {
-                    if let Some(observer) = &observer { observer(&host, &hop.secret, method.clone()); }
-                }
-            }
-            hop.secret.clear();
-            sessions.push(Arc::new(ssh));
-            match auth {Ok(Some(method))=>{if final_hop {runtime.lock().unwrap().auth_method_used=Some(method);}},Ok(None)=>return Ok(()),Err(_)=>return Err(Failure::new(FailureKind::Authentication,"认证失败：请检查认证方式、私钥或本次密码/私钥口令"))}
-        }
-        if test_only {Ok(())}else {serve(sessions.last().unwrap().clone(),&rule,&cancel,&notify,&runtime,&mut rx).await}
-    }.await;
-    for ssh in sessions.iter().rev() {
-        let _ = tokio::time::timeout(
-            Duration::from_secs(2),
-            ssh.disconnect(Disconnect::ByApplication, "Stopped", "en"),
+    let Some(mut connection) = connect(
+        jumps,
+        (!test_only && rule.kind == ForwardKind::R).then_some(rule.bind_port),
+        &cancel,
+        &notify,
+        prompt,
+        &runtime,
+        observer,
+    )
+    .await?
+    else {
+        return Ok(());
+    };
+    let result = if test_only {
+        Ok(())
+    } else {
+        serve(
+            connection.sessions.last().unwrap().clone(),
+            &rule,
+            &cancel,
+            &notify,
+            &runtime,
+            &mut connection.incoming,
         )
-        .await;
-    }
-    transport_cancel.cancel();
+        .await
+    };
+    connection.close().await;
     result
 }
+
+// Shared transport ownership for forwarding, commands, and future PTY sessions.
+// Drop closes the transport even when a caller's future is cancelled or fails.
+pub(crate) struct Connection {
+    sessions: Vec<Arc<client::Handle<Client>>>,
+    incoming: mpsc::Receiver<Channel<client::Msg>>,
+    cancel: CancellationToken,
+}
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+impl Connection {
+    pub async fn open_session(&self) -> Result<Channel<client::Msg>, russh::Error> {
+        self.sessions.last().unwrap().channel_open_session().await
+    }
+    pub async fn close(&self) {
+        for ssh in self.sessions.iter().rev() {
+            let _ = tokio::time::timeout(
+                Duration::from_secs(2),
+                ssh.disconnect(Disconnect::ByApplication, "Stopped", "en"),
+            )
+            .await;
+        }
+        self.cancel.cancel();
+    }
+}
+pub(crate) async fn connect(
+    hops: Vec<HopRequest>,
+    remote_port: Option<u16>,
+    cancel: &CancellationToken,
+    notify: &Notify,
+    prompt: TrustPrompt,
+    runtime: &Arc<Mutex<Runtime>>,
+    observer: Option<PasswordObserver>,
+) -> Result<Option<Connection>, Failure> {
+    let hop_count = hops.len();
+    if hop_count == 0 {
+        return Err(Failure::new(FailureKind::Configuration, "Missing SSH host"));
+    }
+    let (tx, rx) = mpsc::channel(128);
+    let mut connection = Connection {
+        sessions: Vec::new(),
+        incoming: rx,
+        cancel: CancellationToken::new(),
+    };
+    for (index, mut hop) in hops.into_iter().enumerate() {
+        let host = hop.host;
+        host.connection
+            .validate()
+            .map_err(|e| Failure::new(FailureKind::Configuration, e))?;
+        let preferred = crate::ssh_algorithms::preferred(&host.algorithms)
+            .map_err(|e| Failure::new(FailureKind::Configuration, e))?;
+        let timeout = Duration::from_secs(host.connection.connect_timeout_secs);
+        let started = tokio::time::Instant::now();
+        let socket: Box<dyn SshStream> = if let Some(previous) = connection.sessions.last() {
+            let channel = tokio::select! {biased; _=cancel.cancelled()=>return Ok(None),result=tokio::time::timeout(timeout,previous.channel_open_direct_tcpip(&host.address,host.port as u32,"127.0.0.1",0))=>result.map_err(|_|Failure::new(FailureKind::Timeout,"跳板目标连接超时"))?.map_err(|_|Failure::new(FailureKind::ForwardDenied,"跳板无法连接下一跳或被策略拒绝"))?};
+            Box::new(channel.into_stream())
+        } else {
+            let tcp = tokio::select! {biased; _=cancel.cancelled()=>return Ok(None),result=tokio::time::timeout(timeout,TcpStream::connect((host.address.as_str(),host.port)))=>result.map_err(|_|Failure::new(FailureKind::Timeout,"SSH 连接超时"))?.map_err(network_error)?};
+            Box::new(tcp)
+        };
+        let final_hop = index + 1 == hop_count;
+        let (trust_tx, trust_rx) = watch::channel(false);
+        let handler = Client {
+            expected: hop.expected,
+            prompt: prompt.clone(),
+            endpoint: format!("{}:{}", host.address, host.port),
+            remote_port: if final_hop { remote_port } else { None },
+            incoming: tx.clone(),
+            trust_wait: trust_tx.clone(),
+            key_rejected: Arc::new(false.into()),
+        };
+        let config = Arc::new(client::Config {
+            preferred,
+            keepalive_interval: (host.connection.keepalive_interval_secs > 0)
+                .then(|| Duration::from_secs(host.connection.keepalive_interval_secs)),
+            keepalive_max: host.connection.keepalive_max,
+            ..Default::default()
+        });
+        update(
+            runtime,
+            notify,
+            "connecting",
+            format!("SSH {} · {}", index + 1, host.name),
+        );
+        let socket = ConnectionStream {
+            inner: socket,
+            cancelled: Box::pin(connection.cancel.clone().cancelled_owned()),
+        };
+        let Some(mut ssh) = handshake(
+            config,
+            socket,
+            handler,
+            trust_rx,
+            cancel,
+            timeout.saturating_sub(started.elapsed()),
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+        update(runtime, notify, "authenticating", host.name.clone());
+        let auth = tokio::select! {biased; _=cancel.cancelled()=>Ok(None),result=authenticate(&mut ssh,&host,&hop.secret)=>result.map(Some)};
+        if let Ok(Some(method)) = &auth {
+            if *method == AuthMethod::Password && !cancel.is_cancelled() {
+                if let Some(observer) = &observer {
+                    observer(&host, &hop.secret, method.clone());
+                }
+            }
+        }
+        hop.secret.clear();
+        connection.sessions.push(Arc::new(ssh));
+        match auth {
+            Ok(Some(method)) => {
+                if final_hop {
+                    runtime.lock().unwrap().auth_method_used = Some(method);
+                }
+            }
+            Ok(None) => return Ok(None),
+            Err(_) => {
+                return Err(Failure::new(
+                    FailureKind::Authentication,
+                    "认证失败：请检查认证方式、私钥或本次密码/私钥口令",
+                ))
+            }
+        }
+    }
+    Ok(Some(connection))
+}
+
 async fn serve(
     ssh: Arc<client::Handle<Client>>,
     rule: &Rule,

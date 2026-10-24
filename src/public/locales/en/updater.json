@@ -54,7 +54,8 @@
     "copyright": "© {{year}} KrisLee",
     "website": "Website",
     "author": "KrisLee",
-    "moreApps": "More apps"
+    "moreApps": "More apps",
+    "feedback": "Report an issue"
   },
   "goUpdate": "Update"
 }

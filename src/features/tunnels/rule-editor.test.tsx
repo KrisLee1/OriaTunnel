@@ -37,6 +37,29 @@ describe("forward composition and semantics", () => {
     expect(html).not.toContain(text("identity"));
     expect(html).toContain("disabled");
   });
+  it("keeps host actions adjacent to the host selector and service management with services", () => {
+    const html = renderToStaticMarkup(
+      <RuleEditor
+        draft={emptyRule()}
+        hosts={[]}
+        busy={false}
+        reconnect={false}
+        onChange={() => {}}
+        onAddHost={() => {}}
+        onManageHosts={() => {}}
+        onManageServices={() => {}}
+        onSave={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(html.indexOf(text("addHost"))).toBeLessThan(
+      html.indexOf(text("selectHostSearch")),
+    );
+    expect(html.indexOf(text("manageHosts"))).toBeLessThan(
+      html.indexOf(i18n.t("manageServices", { ns: "commands" })),
+    );
+    expect(html).toContain("field-heading-actions");
+  });
   it("renders R endpoints on the correct machine and D without fixed target controls", () => {
     const r = render({ ...emptyRule("h"), kind: "R" }, true);
     expect(r).toContain(text("remoteBindAddress"));
@@ -92,8 +115,12 @@ describe("forward composition and semantics", () => {
     expect(networkChanged(rule, { ...rule, name: "renamed" })).toBe(false);
     expect(networkChanged(rule, { ...rule, autoConnect: true })).toBe(false);
     expect(networkChanged(rule, { ...rule, color: "#7c3aed" })).toBe(false);
-    expect(networkChanged(rule, { ...rule, icon: { kind: "emoji", value: "🚀" } })).toBe(false);
-    expect(networkChanged(rule, { ...rule, serviceProtocol: "vnc" })).toBe(false);
+    expect(
+      networkChanged(rule, { ...rule, icon: { kind: "emoji", value: "🚀" } }),
+    ).toBe(false);
+    expect(networkChanged(rule, { ...rule, serviceProtocol: "vnc" })).toBe(
+      false,
+    );
     expect(networkChanged(rule, { ...rule, targetPort: 8080 })).toBe(true);
   });
 });

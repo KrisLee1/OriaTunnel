@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ArrowUpRightIcon } from "lucide-react";
+import { ArrowUpRightIcon, MessageSquareWarningIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ExternalLink } from "@/components/ui/external-link";
@@ -198,6 +198,7 @@ export function AboutDialog({
           />
           GitHub
         </ExternalLink>
+
         <ExternalLink
           href="https://www.krislee.me"
           className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -208,6 +209,16 @@ export function AboutDialog({
             className="size-4 shrink-0 object-contain"
           />
           {t("about.author")}
+        </ExternalLink>
+        <ExternalLink
+          href="https://github.com/KrisLee1/OriaTunnel/issues"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <MessageSquareWarningIcon
+            aria-hidden="true"
+            className="size-4 shrink-0"
+          />
+          {t("about.feedback")}
         </ExternalLink>
       </div>
       <ApplicationUpdateSetting updates={updates} showVersion={false} />

@@ -357,6 +357,22 @@ body {
 .app-titlebar {
   --aide-titlebar-opacity: 1;
 }
+/* Keep native dragging and window controls available without activating the page behind a modal. */
+.app-modal-overlay {
+  pointer-events: none;
+}
+/* The scrim paints the entire window. Its hit area starts below native chrome;
+   pseudo-element presses still target the owning Base UI backdrop for dismissal. */
+.app-modal-overlay::after {
+  content: "";
+  position: absolute;
+  inset: var(--aide-chrome-top) 0 0;
+  pointer-events: auto;
+}
+body:has([role="dialog"], [role="alertdialog"]) .app-titlebar :is(.window-actions, .header-center),
+body:has([role="dialog"], [role="alertdialog"]) .app-titlebar :is(.window-actions, .header-center) * {
+  pointer-events: none;
+}
 .app-titlebar:has([data-window-active="false"]) {
   --aide-titlebar-opacity: 0.45;
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { installWebviewGuards, isWebviewDebugShortcut } from "./webview-guards";
 
 const shortcut = (key: string, modifiers = {}) => ({
@@ -11,6 +11,54 @@ const shortcut = (key: string, modifiers = {}) => ({
 });
 
 describe("production WebView interaction", () => {
+  it("allows the terminal's application menu keys without enabling native menus or debugging", () => {
+    class TestElement extends EventTarget {
+      insideTerminal = true;
+      insideMenu = false;
+      closest(selector: string) {
+        return (this.insideTerminal && selector === "[data-ssh-terminal]") ||
+          (this.insideMenu && selector === "[data-ssh-terminal-menu]")
+          ? this
+          : null;
+      }
+    }
+    vi.stubGlobal("Element", TestElement);
+    try {
+      const target = new TestElement();
+      const release = installWebviewGuards(target as unknown as Document, true);
+      const send = (type: string, key: string, modifiers = {}) => {
+        const event = Object.assign(
+          new Event(type, { cancelable: true }),
+          shortcut(key, modifiers),
+        );
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      expect(send("keydown", "ContextMenu")).toBe(false);
+      expect(send("keydown", "F10", { shiftKey: true })).toBe(false);
+      expect(send("keydown", "F12")).toBe(true);
+      expect(send("keydown", "i", { ctrlKey: true, shiftKey: true })).toBe(
+        true,
+      );
+      expect(send("contextmenu", "")).toBe(true);
+      target.insideTerminal = false;
+      expect(send("keydown", "ContextMenu")).toBe(true);
+      expect(send("keydown", "F10", { shiftKey: true })).toBe(true);
+      target.insideMenu = true;
+      expect(send("keydown", "c", { ctrlKey: true, shiftKey: true })).toBe(
+        false,
+      );
+      expect(send("keydown", "F10", { shiftKey: true })).toBe(false);
+      expect(send("keydown", "u", { ctrlKey: true })).toBe(true);
+      expect(send("keydown", "F12")).toBe(true);
+      expect(send("keydown", "i", { ctrlKey: true, shiftKey: true })).toBe(
+        true,
+      );
+      release();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("blocks inspection/source/menu entry points while keeping edit and app shortcuts", () => {
     for (const event of [
       shortcut("F12"),

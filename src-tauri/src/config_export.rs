@@ -1,5 +1,5 @@
 //! Export a portable allowlist, never the internal config/trust/runtime document.
-use crate::model::{rule_uses_host, Snapshot};
+use crate::model::{rule_uses_host, Host, Snapshot};
 use serde_json::{json, Value};
 pub fn package(
     snapshot: &Snapshot,
@@ -19,14 +19,16 @@ pub fn package(
                 .ok_or("部分规则已不存在")
         })
         .collect::<Result<_, _>>()?;
-    let hosts:Vec<_>=snapshot.hosts.iter().filter(|h|rules.iter().any(|r|rule_uses_host(r,&snapshot.hosts,&h.id))).map(|h|json!({
-        "id":h.id,"name":h.name,"address":h.address,"port":h.port,"user":h.user,"authMethod":h.auth_method,
-        "tags":h.tags,"connection":h.connection,"proxyJump":h.proxy_jump,"identitiesOnly":h.identities_only,
-        "algorithms":h.algorithms,
-        "identityFiles":if include_key_paths {h.identity_files.clone()}else {Vec::new()},
-        "identityFilesOmitted":!include_key_paths&&!h.identity_files.is_empty(),
-        "connectionBlocked":!h.diagnostics.is_empty(),
-    })).collect();
+    let hosts: Vec<_> = snapshot
+        .hosts
+        .iter()
+        .filter(|h| {
+            rules
+                .iter()
+                .any(|r| rule_uses_host(r, &snapshot.hosts, &h.id))
+        })
+        .map(|h| portable_host(h, include_key_paths))
+        .collect();
     let rules:Vec<_>=rules.iter().map(|r|json!({
         "id":r.id,"name":r.name,"color":r.color,"icon":r.icon,"serviceProtocol":r.service_protocol,"hostId":r.host_id,"kind":r.kind,"bindAddress":r.bind_address,"bindPort":r.bind_port,
         "targetHost":r.target_host,"targetPort":r.target_port,"connection":r.connection,"background":r.background,
@@ -36,6 +38,68 @@ pub fn package(
     Ok(
         json!({"format":"oria-tunnel","version":1,"hosts":hosts,"rules":rules,"credentialsIncluded":false,"runtimeIncluded":false}),
     )
+}
+fn portable_host(h: &Host, include_key_paths: bool) -> Value {
+    json!({
+        "id":h.id,"name":h.name,"address":h.address,"port":h.port,"user":h.user,"authMethod":h.auth_method,
+        "tags":h.tags,"connection":h.connection,"proxyJump":h.proxy_jump,"identitiesOnly":h.identities_only,"algorithms":h.algorithms,
+        "identityFiles":if include_key_paths {h.identity_files.clone()}else{Vec::new()},
+        "identityFilesOmitted":!include_key_paths&&!h.identity_files.is_empty(),"connectionBlocked":!h.diagnostics.is_empty()
+    })
+}
+pub fn package_with_services(
+    snapshot: &Snapshot,
+    ids: &[String],
+    service_ids: &[String],
+    include_key_paths: bool,
+) -> Result<Value, String> {
+    if service_ids.is_empty() {
+        return package(snapshot, ids, include_key_paths);
+    }
+    let wanted: std::collections::BTreeSet<_> = service_ids.iter().collect();
+    if wanted.len() != service_ids.len() || wanted.len() > 256 {
+        return Err("invalidServicePackage".into());
+    }
+    let services = service_ids
+        .iter()
+        .map(|id| {
+            snapshot
+                .services
+                .iter()
+                .find(|s| &s.id == id)
+                .ok_or("serviceMissing")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut value = if ids.is_empty() {
+        json!({"format":"oria-tunnel","version":1,"hosts":[],"rules":[],"credentialsIncluded":false,"runtimeIncluded":false})
+    } else {
+        package(snapshot, ids, include_key_paths)?
+    };
+    let hosts = value["hosts"].as_array().unwrap().clone();
+    let mut profiles = Vec::new();
+    for service in services {
+        service.validate()?;
+        let links: Vec<_> = service
+            .rule_ids
+            .iter()
+            .filter(|id| ids.contains(id))
+            .collect();
+        profiles.push(json!({"id":service.id,"name":service.name,"category":service.category,"color":service.color,"icon":service.icon,"executionHostId":"","ruleIds":links,"noLocalEnvironment":service.no_local_environment,"actions":service.actions,"control":service.control}));
+    }
+    value["version"] = json!(2);
+    value["hosts"] = json!(hosts);
+    value["services"] = json!(profiles);
+    if hosts.len() > 500
+        || serde_json::to_vec_pretty(&value)
+            .map_err(|_| "invalidServicePackage")?
+            .len()
+            > crate::config_import::MAX_BYTES
+    {
+        return Err("servicePackageLimit".into());
+    }
+    // Export is subject to the same strict boundary as the eventual import.
+    crate::config_import::parse(&serde_json::to_vec(&value).map_err(|_| "invalidServicePackage")?)?;
+    Ok(value)
 }
 pub fn write(path: &std::path::Path, value: &Value) -> Result<(), String> {
     let temp = path.with_file_name(format!(".oria-export-{}.tmp", uuid::Uuid::new_v4()));

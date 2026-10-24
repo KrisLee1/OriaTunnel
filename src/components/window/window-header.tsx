@@ -1,4 +1,5 @@
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, type MouseEvent, type ReactNode, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
 
 import {
   WindowControl,
@@ -113,13 +114,13 @@ export function WindowHeader({
     </div>
   )
 
-  return (
+  const header = (
     <header
       ref={headerRef}
       data-tauri-drag-region
       onDoubleClick={handleTitlebarDoubleClick}
       className={cn(
-        "app-titlebar fixed inset-x-0 top-0 z-100 flex select-none justify-between rounded-t-(--window-rounded)",
+        "app-titlebar fixed inset-x-0 top-0 z-40 flex select-none justify-between rounded-t-(--window-rounded)",
         density === "compact" ? "h-8 px-1" : "h-(--aide-chrome-top) px-1 py-1",
       )}
     >
@@ -132,4 +133,7 @@ export function WindowHeader({
       {rightControls}
     </header>
   )
+
+  // Native chrome must sit outside the isolated app surface, above the workspace; modal scrims can shade it without blocking native dragging.
+  return typeof document === "undefined" ? header : createPortal(header, document.body)
 }

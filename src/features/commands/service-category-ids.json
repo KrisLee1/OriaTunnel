@@ -1,0 +1,13 @@
+[
+  "development",
+  "inference",
+  "desktop",
+  "generic",
+  "web",
+  "containers",
+  "databases",
+  "caches",
+  "messaging",
+  "observability",
+  "storage"
+]
