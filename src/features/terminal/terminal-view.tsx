@@ -159,6 +159,7 @@ export default function TerminalView({
         cursorBlink: !reduced.matches,
         screenReaderMode: true,
         allowProposedApi: false,
+        allowTransparency: true,
         linkHandler: {
           activate: (_event, url) => {
             if (/^https?:\/\//i.test(url))
@@ -317,7 +318,8 @@ export default function TerminalView({
           ...Object.fromEntries(
             names.map((name, index) => [name, palette[index]]),
           ),
-          background,
+          // Let the shared workspace material provide opacity and blur.
+          background: `${background}00`,
           foreground,
           cursor: foreground,
           cursorAccent: background,

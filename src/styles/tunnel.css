@@ -1616,17 +1616,18 @@ body,
 .terminal-identity code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
 .terminal-session-notice { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--oria-color-muted-fg); }
 .terminal-session-notice.text-destructive { color: var(--oria-color-destructive); }
-.terminal-ended-screen { flex: 1; min-height: 0; background: var(--oria-color-bg); }
+.terminal-ended-screen { flex: 1; min-height: 0; background: transparent; }
 .terminal-view-area { flex: 1; min-height: 0; min-width: 0; position: relative; }
 .terminal-session-panel, .ssh-terminal-view { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .terminal-search-bar { padding: 4px var(--terminal-content-inset); flex: none; min-width: 0; border-bottom: 1px solid var(--oria-color-border); }
 .terminal-search { flex: 1; min-width: 0; height: 28px; font-size: 12px; }
-.ssh-terminal-screen { flex: 1; min-height: 0; min-width: 0; padding: 6px 4px 6px var(--terminal-content-inset); background: var(--oria-color-bg); user-select: text; }
+.ssh-terminal-screen { flex: 1; min-height: 0; min-width: 0; padding: 6px 4px 6px var(--terminal-content-inset); background: transparent; user-select: text; }
 .ssh-terminal-screen .xterm { height: 100%; }
-.ssh-terminal-screen .xterm-viewport { overscroll-behavior: contain; }
+.ssh-terminal-screen .xterm .xterm-viewport { overscroll-behavior: contain; background-color: transparent; }
+.ssh-terminal-screen .xterm .composition-view { color: var(--oria-color-fg); background: var(--oria-color-bg); }
 .terminal-command-panel { height: 100%; overflow: auto; padding: 0 var(--terminal-content-inset) var(--terminal-content-inset); }
 .terminal-command-panel .preset-result { margin-top: 0; border-top: 0; }
-.terminal-command-panel .preset-output { min-height: 100px; height: 180px; }
+.terminal-command-panel .preset-output { min-height: 100px; height: 180px; background: transparent; }
 .terminal-error { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 4px var(--terminal-content-inset); color: var(--oria-color-destructive); flex: none; overflow-wrap: anywhere; margin: 0; }
 .terminal-empty { padding: var(--terminal-content-inset); color: var(--oria-color-muted-fg); font-size: 12px; }
 

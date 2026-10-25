@@ -110,7 +110,7 @@ pub async fn spawn_shell(
     let utility =
         powershell.join("Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1");
     let utility = utility.to_string_lossy().replace('\'', "''");
-    process.arg(format!("[Console]::WriteLine('fixture-shell-ready'); Import-Module '{utility}' -ErrorAction Stop; [Console]::WriteLine('fixture-modules-ready'); {command}"));
+    process.arg(format!("[Console]::InputEncoding = [Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $OutputEncoding = [Console]::OutputEncoding; [Console]::WriteLine('fixture-shell-ready'); Import-Module '{utility}' -ErrorAction Stop; [Console]::WriteLine('fixture-modules-ready'); {command}"));
     process.cwd(directory.path());
     process.env("HOME", directory.path());
     process.env("USERPROFILE", directory.path());
