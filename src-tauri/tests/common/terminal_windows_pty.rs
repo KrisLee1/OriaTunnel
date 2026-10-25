@@ -114,27 +114,20 @@ pub async fn spawn_shell(
     let cursor_reply = pair.writer.clone();
     let reader = tokio::task::spawn_blocking(move || {
         let mut bytes = [0; 8192];
-        let mut query_position = 0;
+        let mut queries = super::queries::Queries::default();
         loop {
             match reader.read(&mut bytes) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    // ConPTY inherits the cursor by querying its terminal. The
-                    // headless test consumer has no VT emulator; its known
-                    // starting cursor is (1,1). The manual fixture uses xterm's
-                    // real response instead. Match across arbitrary read chunks.
+                    // ConPTY negotiates cursor position and device attributes.
+                    // The headless consumer replies as a basic terminal; the
+                    // manual fixture retains xterm's actual responses.
                     if cfg!(test) {
-                        for byte in &bytes[..n] {
-                            if *byte == b"\x1b[6n"[query_position] {
-                                query_position += 1;
-                                if query_position == 4 {
-                                    if let Some(writer) = cursor_reply.lock().unwrap().as_mut() {
-                                        let _ = writer.write_all(b"\x1b[1;1R");
-                                    }
-                                    query_position = 0;
-                                }
-                            } else {
-                                query_position = usize::from(*byte == 0x1b);
+                        let replies = queries.feed(&bytes[..n]);
+                        if !replies.is_empty() {
+                            if let Some(writer) = cursor_reply.lock().unwrap().as_mut() {
+                                writer.write_all(&replies).unwrap();
+                                writer.flush().unwrap();
                             }
                         }
                     }

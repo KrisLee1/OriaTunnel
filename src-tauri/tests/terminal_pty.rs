@@ -100,7 +100,7 @@ async fn wait_text(bytes: &Arc<Mutex<Vec<u8>>>, start: usize, text: &str) {
     .await
     .unwrap_or_else(|_| {
         panic!(
-            "missing {text:?}: {}",
+            "missing {text:?}: {:?}",
             String::from_utf8_lossy(&bytes.lock().unwrap())
         )
     });
@@ -250,7 +250,7 @@ async fn dedicated_exec_is_a_real_pty_and_honors_exit_codes_and_timeout() {
         assert_eq!(
             result.phase,
             phase,
-            "{}",
+            "{:?}",
             String::from_utf8_lossy(&bytes.lock().unwrap())
         );
         if id == "exec" {

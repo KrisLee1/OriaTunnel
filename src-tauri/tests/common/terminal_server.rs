@@ -1,5 +1,7 @@
 //! Real OS PTY fixture, isolated HOME/cwd, loopback only. Never reads user SSH config or keys.
 #![allow(dead_code)]
+#[path = "terminal_queries.rs"]
+mod queries;
 use russh::{
     keys::{Algorithm, PrivateKey},
     server::{self, Auth, Server as _, Session},

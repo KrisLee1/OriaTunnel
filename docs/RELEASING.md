@@ -57,7 +57,7 @@ git push origin v0.1.0
 | macOS Apple Silicon | `OriaTunnel_X.Y.Z_aarch64.dmg` 及同名 DMG ZIP | `OriaTunnel_X.Y.Z_aarch64.app.tar.gz` 及 `.sig` | `darwin-aarch64` |
 | macOS Intel | `OriaTunnel_X.Y.Z_x64.dmg` 及同名 DMG ZIP | `OriaTunnel_X.Y.Z_x86_64.app.tar.gz` 及 `.sig` | `darwin-x86_64` |
 
-macOS 沿用 `scripts/package-mac.sh --signed --target ...`：App 签名、公证及装订后放进 DMG；保留卷/Finder 文件图标后，对最终 DMG 签名、公证、装订并生成 DMG ZIP。更新 TAR 从最终带票据的 App 生成，禁用 AppleDouble 旁车文件，并重新解包核对单一 App 根目录、签名和装订票据；架构名称在签名前确定；DMG ZIP 不是应用内更新包。
+macOS 沿用 `scripts/package-mac.sh --signed --target ...`：App 签名、公证及装订后放进 DMG；保留卷/Finder 文件图标后，对最终 DMG 签名、公证、装订并生成 DMG ZIP。Apple 票据服务网络错误（stapler 退出码 68）最多重试三次，其他失败立即停止，最终仍须装订及验证成功。更新 TAR 从最终带票据的 App 生成，禁用 AppleDouble 旁车文件，并重新解包核对单一 App 根目录、签名和装订票据；架构名称在签名前确定；DMG ZIP 不是应用内更新包。
 
 Windows 检查应用二进制的 PE 架构和 GUI 子系统；NSIS 自身的引导程序架构不能用来判断包内应用架构。当前流水线提供 Tauri 更新签名，未接入 Windows Authenticode 证书。
 
