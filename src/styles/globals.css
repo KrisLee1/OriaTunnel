@@ -374,8 +374,13 @@ body {
   inset: var(--aide-chrome-top) 0 0;
   pointer-events: auto;
 }
-body:has([role="dialog"], [role="alertdialog"]) .app-titlebar :is(.window-actions, .header-center),
-body:has([role="dialog"], [role="alertdialog"]) .app-titlebar :is(.window-actions, .header-center) * {
+.app-modal-overlay[data-closed],
+.app-modal-overlay[data-closed]::after,
+.modal-surface[data-closed] {
+  pointer-events: none;
+}
+body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-titlebar :is(.window-actions, .header-center),
+body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-titlebar :is(.window-actions, .header-center) * {
   pointer-events: none;
 }
 .app-titlebar:has([data-window-active="false"]) {
@@ -416,6 +421,9 @@ body:has([role="dialog"], [role="alertdialog"]) .app-titlebar :is(.window-action
 .app-titlebar .overlay,
 .window-header-panel.overlay {
   border-color: var(--aide-workspace-border);
+}
+.app-titlebar .overlay {
+  box-shadow: var(--oria-shadow-sm);
 }
 
 /* Match action buttons to the capsule's 2px inset and theme border. */

@@ -28,6 +28,10 @@ body,
 .header-center > * {
   pointer-events: auto;
   max-width: 100%;
+  overflow: visible;
+}
+.header-center [data-slot="tabs-list"] {
+  max-width: 100%;
   overflow: hidden;
 }
 .page-scroll-area {

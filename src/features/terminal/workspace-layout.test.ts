@@ -53,6 +53,7 @@ describe("terminal workspace docking", () => {
     const headerBottom = workspaceChromeBottom(42, 4, [38, 38, 38]);
     expect(headerBottom).toBe(38);
     expect(workspaceChromeBottom(42, 4, [])).toBe(38);
+    expect(workspaceChromeBottom(42, 4, [16, 18])).toBe(38);
     const rect = workspaceBounds("right", 400, false, {
       width: 1180,
       height: 780,

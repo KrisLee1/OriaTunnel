@@ -11,9 +11,9 @@ export function workspaceChromeBottom(
   paddingBottom: number,
   capsuleBottoms: number[],
 ) {
-  return capsuleBottoms.length
-    ? Math.max(...capsuleBottoms)
-    : Math.max(0, headerBottom - paddingBottom);
+  // Capsules may still be moving or measuring during a theme/window change.
+  // Never let a transient smaller rectangle move the workspace into the chrome.
+  return Math.max(0, headerBottom - paddingBottom, ...capsuleBottoms);
 }
 export type WorkspaceViewport = {
   width: number;

@@ -4,6 +4,9 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 ## 可复用能力
 
+- 顶栏功能区只在 Base UI 弹窗带 `data-open` 时锁定；退场节点不继续禁用顶栏，关闭态遮罩及弹窗不拦截指针，终端焦点恢复也只判断已打开弹窗。窗口关闭/最小化/最大化与拖动保持原有独立行为。
+- 顶栏中部与两侧胶囊统一使用 `--oria-shadow-sm`，弱于弹窗的 `--oria-shadow-md`；导航外层允许阴影溢出，只在内部 TabsList 约束内容，防止裁掉外阴影。终端顶部安全边界不得小于顶栏自身下沿扣除透明底部 padding，并在展开前同步重新测量。
+
 - `FirstUsePreferences` 在首个 Rust 快照就绪后显示首次偏好弹窗，组合 `InitialPreferenceSettings`，与设置页共用语言、主题、颜色模式、应用图标及窗口按钮风格/位置控件；不重复实现偏好状态，不包含主题导入或高级窗口材质。选择即时保存/预览；开始使用、关闭或 Escape 都保存 `oria-tunnel.initial-preferences.v1` 完成标记，后续启动不再显示。已有设置原样呈现，不重置偏好；存储不可用时允许关闭并提示下次可能再显示。
 - 应用图标偏好持久保存并在启动时恢复；Windows 同步运行中大小图标及精确指向当前 EXE 的开始菜单/固定任务栏/Known Folder 桌面快捷方式，保留启动参数。macOS 签名 App 仅更新运行中 Dock 图标，Finder 保留原图标，避免 FinderInfo/ResourceFork 破坏严格签名验证；只有未签名开发包可写 Finder 自定义图标。切换失败复用图标错误 Toast。
 

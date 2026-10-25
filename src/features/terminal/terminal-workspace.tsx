@@ -205,7 +205,7 @@ export function TerminalWorkspaceProvider({
     [remember, setRemember] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState<TerminalSession | null>(null),
     [busy, setBusy] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const header = document.querySelector<HTMLElement>(".app-titlebar");
     const resized = () => {
       // The header's transparent bottom padding is not part of its visible capsules.
@@ -243,7 +243,7 @@ export function TerminalWorkspaceProvider({
       observer.disconnect();
       window.removeEventListener("resize", resized);
     };
-  }, []);
+  }, [expanded]);
   const submitting = useRef(false),
     requests = useRef(new Map<string, string>()),
     dismissed = useRef(new Set<string>());
@@ -995,7 +995,7 @@ export function TerminalWorkspaceProvider({
       </motion.aside>
       <AnimatePresence
         onExitComplete={() => {
-          if (!document.querySelector('[role="dialog"], [role="alertdialog"]'))
+          if (!document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open]'))
             document
               .querySelector<HTMLTextAreaElement>(
                 ".terminal-session-panel:not([hidden]):not([data-hidden]) .xterm-helper-textarea",

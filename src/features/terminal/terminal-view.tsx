@@ -412,7 +412,7 @@ export default function TerminalView({
     const schedule = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (document.querySelector('[role="dialog"], [role="alertdialog"]'))
+        if (document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open]'))
           return;
         dialogs.disconnect();
         terminal.current?.focus();
@@ -545,7 +545,7 @@ export default function TerminalView({
             if (
               !visible ||
               paste !== null ||
-              document.querySelector('[role="dialog"], [role="alertdialog"]')
+              document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open]')
             )
               return false;
             return showSearch
