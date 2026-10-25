@@ -4,6 +4,8 @@
 
 ## 发布流水线与首次偏好验收（2026-10-25）
 
+- 用户更新 GitHub 更新私钥后，本机 `oria-tunnel-update.key.pub` 与原应用公钥不同；已同步新公钥并重新验证。带旧公钥的已有手动构建需重新安装兼容版本一次；正式版本和公网清单尚未发布。
+
 - 已拉取 `c4a60bb`；`docs/APP_UPDATE_PLAN.md` 已由 `406b009` 纳入仓库。新增固定工具版本及 Actions SHA 的 Quality gates、Build release draft、Publish verified release：四个原生目标分别验证、构建，单任务复验 receipt/哈希/公钥签名并生成完整静态清单；正式发布重新下载草稿再验签，不覆盖已公开版本。操作入口和 Secrets 统一见 [发布指南](RELEASING.md)。云端工作流是否成功及公开发布状态仍以运行记录为准。
 - GitHub 更新签名预检改为不泄密的格式检查/固定错误分类。`40182857601` 确认现有私钥无法以当前口令解密，尚未确认其可用；用户正在准备原口令/核对密钥以及 Apple 发布凭据。未读取用户私钥正文、口令或导出本机证书，未修改生产公钥。
 - 真实 Mac 专项发现 NSWorkspace 写入 Finder 图标元数据会使签名 App 的严格 codesign 验证失败；现对含 `_CodeSignature` 的 App 保留原 Finder 图标，仅切换 Dock 运行图标并保存偏好。对应 3 项 Mac 专项和独立签名 QA App 连续 Light/Dark/Mono/System 切换后的严格签名检查通过，八语说明已修正。

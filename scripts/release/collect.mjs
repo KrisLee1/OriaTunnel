@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +31,17 @@ export function collect(platform, output) {
     const dmg = path.join(bundle, 'dmg', `OriaTunnel_${version}_${arch}.dmg`);
     copy(dmg); copy(dmg.replace(/\.dmg$/, '.zip'));
     updater = path.join(output, `OriaTunnel_${version}_${spec.arch}.app.tar.gz`);
-    run('tar', ['-czf', updater, '-C', path.dirname(app), path.basename(app)], { env: clean });
+    // The updater strips one leading directory from every entry. AppleDouble
+    // sidecar entries must not appear as unrelated roots in this archive.
+    run('tar', ['-czf', updater, '-C', path.dirname(app), path.basename(app)], { env: { ...clean, COPYFILE_DISABLE: '1' } });
+    const unpacked = fs.mkdtempSync(path.join(os.tmpdir(), 'oria-update-package-'));
+    try {
+      run('tar', ['-xzf', updater, '-C', unpacked], { env: clean });
+      const restored = path.join(unpacked, path.basename(app));
+      if (fs.readdirSync(unpacked).some(name => name !== path.basename(app))) throw new Error('Updater TAR contains unexpected root entries.');
+      run('codesign', ['--verify', '--deep', '--strict', restored], { env: clean });
+      run('xcrun', ['stapler', 'validate', restored], { env: clean });
+    } finally { fs.rmSync(unpacked, { recursive: true, force: true }); }
     copied.push(updater);
   } else {
     updater = copy(path.join(bundle, 'nsis', `OriaTunnel_${version}_${spec.arch}-setup.exe`));

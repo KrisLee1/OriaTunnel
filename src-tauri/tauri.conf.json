@@ -34,7 +34,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENBREU1NEVGMzA1N0JEMUEKUldRYXZWY3c3MVRleW43a2hWT0dUTHpvRHFMb1ZNZGpmVXNUYytyeGVCdlFJVFJLYlV2N25xbUoK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFMkVEOTY4MzJERURCOUMKUldTYzI5NHlhTmt1cnRRaFRlUGczcWFRd2U3UG9nTE1SR2ErWUJ2RzN5MWNvUEU3aHVWeEVvK2oK",
       "endpoints": ["https://github.com/KrisLee1/OriaTunnel/releases/latest/download/latest.json"],
       "requireSignedVersion": true,
       "windows": { "installMode": "passive" }
