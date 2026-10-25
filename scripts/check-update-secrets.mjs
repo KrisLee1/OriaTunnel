@@ -74,5 +74,8 @@ export function checkSecrets({ config = path.join(root, 'src-tauri/tauri.conf.js
   }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { checkSecrets(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+  try { checkSecrets(); } catch (error) {
+    console.error(process.env.GITHUB_ACTIONS ? `::error title=Updater signing preflight::${error.message}` : error.message);
+    process.exitCode = 1;
+  }
 }
