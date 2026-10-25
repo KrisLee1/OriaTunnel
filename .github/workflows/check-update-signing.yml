@@ -2,9 +2,12 @@ name: Check updater signing secrets
 on:
   workflow_dispatch:
   push:
+    branches: [master]
     paths:
       - '.github/workflows/check-update-signing.yml'
       - 'scripts/check-update-secrets.mjs'
+      - 'scripts/check-update-secrets.node-test.mjs'
+      - 'src-tauri/tauri.conf.json'
       - 'tools/update-verifier/**'
 permissions:
   contents: read
@@ -25,6 +28,7 @@ jobs:
           npm install --global pnpm@11.24.0
           rustup toolchain install 1.98.0 --profile minimal
       - run: pnpm install --frozen-lockfile
+      - run: node --test scripts/check-update-secrets.node-test.mjs
       - name: Sign ephemeral probe and verify against the existing public key
         shell: pwsh
         env:
