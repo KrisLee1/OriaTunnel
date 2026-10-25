@@ -138,8 +138,8 @@ if $signed; then
   codesign --verify --deep --strict --verbose=2 "$app_path"
   ditto -c -k --keepParent "$app_path" "$work_dir/OriaTunnel-notarization.zip"
   notarize "$work_dir/OriaTunnel-notarization.zip" app
-  xcrun stapler staple "$app_path"
-  xcrun stapler validate "$app_path"
+  bash "$project_root/scripts/release/stapler.sh" staple "$app_path"
+  bash "$project_root/scripts/release/stapler.sh" validate "$app_path"
   spctl --assess --type execute --verbose=2 "$app_path"
   # Copy the stapled App into the image before final DMG signing and notarization.
   bash "$project_root/scripts/set-dmg-volume-icon.sh" "$dmg_path" "$installer_icon" "$app_path"
@@ -155,8 +155,8 @@ if $signed; then
   codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$dmg_path"
   codesign --verify --strict --verbose=2 "$dmg_path"
   notarize "$dmg_path" dmg
-  xcrun stapler staple "$dmg_path"
-  xcrun stapler validate "$dmg_path"
+  bash "$project_root/scripts/release/stapler.sh" staple "$dmg_path"
+  bash "$project_root/scripts/release/stapler.sh" validate "$dmg_path"
   spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
 fi
 

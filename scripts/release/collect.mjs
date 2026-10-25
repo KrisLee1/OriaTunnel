@@ -25,7 +25,7 @@ export function collect(platform, output) {
   if (spec.os === 'macos') {
     const app = path.join(bundle, 'macos/OriaTunnel.app');
     run('codesign', ['--verify', '--deep', '--strict', app], { env: clean });
-    run('xcrun', ['stapler', 'validate', app], { env: clean });
+    run('bash', [path.join(root, 'scripts/release/stapler.sh'), 'validate', app], { env: clean });
     run('spctl', ['--assess', '--type', 'execute', app], { env: clean });
     const arch = spec.arch === 'aarch64' ? 'aarch64' : 'x64';
     const dmg = path.join(bundle, 'dmg', `OriaTunnel_${version}_${arch}.dmg`);
@@ -40,7 +40,7 @@ export function collect(platform, output) {
       const restored = path.join(unpacked, path.basename(app));
       if (fs.readdirSync(unpacked).some(name => name !== path.basename(app))) throw new Error('Updater TAR contains unexpected root entries.');
       run('codesign', ['--verify', '--deep', '--strict', restored], { env: clean });
-      run('xcrun', ['stapler', 'validate', restored], { env: clean });
+      run('bash', [path.join(root, 'scripts/release/stapler.sh'), 'validate', restored], { env: clean });
     } finally { fs.rmSync(unpacked, { recursive: true, force: true }); }
     copied.push(updater);
   } else {
