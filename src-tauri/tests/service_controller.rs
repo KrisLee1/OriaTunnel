@@ -212,7 +212,7 @@ async fn delayed_real_http_readiness_starts_once_then_forwards_real_bytes_on_ano
     let mut r = request(port, s.clone(), Operation::Connect);
     r.forward = Some(forward.clone());
     let done = execute(&m, &o, "first", r).await;
-    assert_eq!(done.phase, "succeeded", "probe output: {:?}", done.output);
+    assert_eq!(done.phase, "succeeded", "probe steps: {:?}", done.steps);
     assert!(done.workflow_forward_created);
     assert!(done
         .steps
@@ -414,8 +414,8 @@ async fn post_checks_preserve_successful_action_and_do_not_repeat_unapproved_pro
     assert_eq!(
         done.error.as_deref(),
         Some("notReady"),
-        "probe output: {:?}",
-        done.output
+        "probe steps: {:?}",
+        done.steps
     );
     assert_eq!(done.steps[0].phase, "succeeded");
     assert_eq!(done.steps[0].exit_code, Some(0));
