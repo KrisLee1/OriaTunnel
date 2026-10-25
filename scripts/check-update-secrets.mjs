@@ -63,7 +63,13 @@ export function checkSecrets({ config = path.join(root, 'src-tauri/tauri.conf.js
     // Signing keys are passed only through the signer's environment. Suppress
     // its captured diagnostics so malformed secret values can never reach logs.
     signArtifact(probe, version, { ...clean, ...signing });
-    run(verifier, ['--config', config, '--artifact', probe, '--signature', `${probe}.sig`, '--version', version, '--require-filename'], { env: clean });
+    const verified = spawnSync(verifier, ['--config', config, '--artifact', probe, '--signature', `${probe}.sig`, '--version', version, '--require-filename'], { cwd: root, windowsHide: true, env: clean, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    if (verified.error || verified.status !== 0) {
+      const diagnostic = verified.stderr || '';
+      if (diagnostic.includes('Signature does not match')) throw new Error('Updater private key decrypts successfully, but does not match the public key embedded in src-tauri/tauri.conf.json. Supply the original private key or explicitly update the app public key together with the new signing pair.');
+      if (diagnostic.includes('Signed version') || diagnostic.includes('Signed filename')) throw new Error('Updater signature is valid but its version or filename binding differs from the probe. Check the pinned Tauri CLI.');
+      throw new Error('Updater probe verification failed. Check the configured public key and pinned verifier.');
+    }
     console.log('Updater signing secret matches the configured public key; version-bound signature verified.');
     return verifier;
   } finally {
