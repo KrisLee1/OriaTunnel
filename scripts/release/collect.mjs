@@ -6,6 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { platforms, releaseVersion, root } from './config.mjs';
 import { run, buildVerifier, signArtifact, signingEnvironment } from '../check-update-secrets.mjs';
 export const sha256 = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+function verifyLicense(file, stripBom = false) {
+  let content = fs.readFileSync(file);
+  if (stripBom && content.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))) content = content.subarray(3);
+  if (!content.equals(fs.readFileSync(path.join(root, 'LICENSE')))) throw new Error('Packaged license does not match the repository LICENSE.');
+}
 export function collect(platform, output) {
   const spec = platforms[platform];
   if (!spec) throw new Error('Unsupported release platform.');
@@ -24,6 +29,7 @@ export function collect(platform, output) {
   let updater;
   if (spec.os === 'macos') {
     const app = path.join(bundle, 'macos/OriaTunnel.app');
+    verifyLicense(path.join(app, 'Contents/Resources/licenses/OriaTunnel_GPL-3.0.txt'));
     run('codesign', ['--verify', '--deep', '--strict', app], { env: clean });
     run('bash', [path.join(root, 'scripts/release/stapler.sh'), 'validate', app], { env: clean });
     run('spctl', ['--assess', '--type', 'execute', app], { env: clean });
@@ -38,6 +44,7 @@ export function collect(platform, output) {
     try {
       run('tar', ['-xzf', updater, '-C', unpacked], { env: clean });
       const restored = path.join(unpacked, path.basename(app));
+      verifyLicense(path.join(restored, 'Contents/Resources/licenses/OriaTunnel_GPL-3.0.txt'));
       if (fs.readdirSync(unpacked).some(name => name !== path.basename(app))) throw new Error('Updater TAR contains unexpected root entries.');
       run('codesign', ['--verify', '--deep', '--strict', restored], { env: clean });
       run('bash', [path.join(root, 'scripts/release/stapler.sh'), 'validate', restored], { env: clean });
@@ -45,6 +52,13 @@ export function collect(platform, output) {
     copied.push(updater);
   } else {
     updater = copy(path.join(bundle, 'nsis', `OriaTunnel_${version}_${spec.arch}-setup.exe`));
+    const nsis = path.join(path.dirname(bundle), 'nsis', spec.arch);
+    verifyLicense(path.join(nsis, 'license_file'), true);
+    const script = fs.readFileSync(path.join(nsis, 'installer.nsi'), 'utf8');
+    const resource = script.split(/\r?\n/).find(line => line.trimStart().startsWith('File /a ') &&  /"\/oname=licenses[\\/]OriaTunnel_GPL-3\.0\.txt"/.test(line));
+    const source = resource?.match(/ "([^"]+)"\s*$/)?.[1];
+    if (!source) throw new Error('NSIS installer is missing the installed application license resource.');
+    verifyLicense(source);
     // Inspect the app PE, since NSIS bootstraps are x86 even for ARM64 installs.
     const executable = fs.readFileSync(path.join(root, 'src-tauri/target', spec.target, 'release/oria-tunnel.exe'));
     const pe = executable.readUInt32LE(0x3c);
@@ -57,6 +71,7 @@ export function collect(platform, output) {
   copied.push(`${updater}.sig`);
   const receipt = {
     platform, version, target: spec.target, commit: process.env.RELEASE_COMMIT || process.env.GITHUB_SHA,
+    licenseSha256: sha256(path.join(root, 'LICENSE')),
     updater: path.basename(updater), signature: fs.readFileSync(`${updater}.sig`, 'utf8').trim(),
     assets: copied.map(file => ({ name: path.basename(file), size: fs.statSync(file).size, sha256: sha256(file) })),
   };

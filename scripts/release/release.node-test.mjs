@@ -14,7 +14,7 @@ function fixture() {
     const names = [updater, `${updater}.sig`];
     if (spec.os === 'macos') names.push(`OriaTunnel_0.1.0_${spec.arch === 'aarch64' ? 'aarch64' : 'x64'}.dmg`, `OriaTunnel_0.1.0_${spec.arch === 'aarch64' ? 'aarch64' : 'x64'}.zip`);
     for (const name of names) fs.writeFileSync(path.join(directory, name), `public-test-content-${name}`);
-    const receipt = { platform, version: '0.1.0', target: spec.target, commit, updater, signature: fs.readFileSync(path.join(directory, `${updater}.sig`), 'utf8'), assets: names.map(name => ({ name, size: fs.statSync(path.join(directory, name)).size, sha256: sha256(path.join(directory, name)) })) };
+    const receipt = { platform, version: '0.1.0', target: spec.target, commit, licenseSha256: sha256(path.join(root, 'LICENSE')), updater, signature: fs.readFileSync(path.join(directory, `${updater}.sig`), 'utf8'), assets: names.map(name => ({ name, size: fs.statSync(path.join(directory, name)).size, sha256: sha256(path.join(directory, name)) })) };
     fs.writeFileSync(path.join(directory, `receipt-${platform}.json`), JSON.stringify(receipt));
   }
   return directory;
@@ -34,6 +34,7 @@ test('missing architectures, tampering, source mismatches and extra files preven
     directory => fs.unlinkSync(path.join(directory, 'receipt-darwin-aarch64.json')),
     directory => fs.appendFileSync(path.join(directory, 'OriaTunnel_0.1.0_x64-setup.exe'), 'tampered'),
     directory => fs.writeFileSync(path.join(directory, 'unexpected.txt'), 'extra'),
+    directory => { const name = path.join(directory, 'receipt-windows-x86_64-nsis.json'); const receipt = JSON.parse(fs.readFileSync(name)); receipt.licenseSha256 = '0'.repeat(64); fs.writeFileSync(name, JSON.stringify(receipt)); },
     directory => { const name = path.join(directory, 'receipt-windows-x86_64-nsis.json'); const receipt = JSON.parse(fs.readFileSync(name)); receipt.commit = 'b'.repeat(40); fs.writeFileSync(name, JSON.stringify(receipt)); },
     directory => { const name = path.join(directory, 'receipt-windows-x86_64-nsis.json'); const receipt = JSON.parse(fs.readFileSync(name)); receipt.updater = '../outside.exe'; fs.writeFileSync(name, JSON.stringify(receipt)); },
     directory => { const name = path.join(directory, 'receipt-windows-x86_64-nsis.json'); const receipt = JSON.parse(fs.readFileSync(name)); receipt.updater = 'OriaTunnel_0.1.0_arm64-setup.exe'; fs.writeFileSync(name, JSON.stringify(receipt)); },

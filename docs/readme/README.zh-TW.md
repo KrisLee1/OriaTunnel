@@ -126,3 +126,11 @@ L / R / D 均轉送 TCP 流量。D 僅監聽本機迴路位址，支援 SOCKS5 C
 繼續開發請參閱[開發指南（簡體中文）](../DEVELOPMENT.md)。
 
 遇到問題可先查看[疑難排解（簡體中文）](../USAGE.md#查看状态与排查问题)，再透過 [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues)提供重現步驟與去識別化資訊。
+
+## 授權條款
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel 採用 **GNU General Public License v3.0 only（GPL-3.0-only）**，僅適用第 3 版。完整條款請見 [LICENSE](../../LICENSE)。
+
+本軟體不提供任何擔保，詳見授權條款。第三方程式碼、相依套件與資源仍適用各自的授權及聲明；隨附的第三方授權請見 [docs/licenses](../licenses)。

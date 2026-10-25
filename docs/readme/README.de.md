@@ -126,3 +126,11 @@ Dienstvorlagen müssen zu Software, Pfaden und Rechten auf dem Server passen; si
 Hinweise zur Entwicklung finden Sie im [Entwicklerhandbuch (vereinfachtes Chinesisch)](../DEVELOPMENT.md).
 
 Prüfen Sie bei Problemen die [Fehlerhilfe (Chinesisch)](../USAGE.md#查看状态与排查问题) oder melden Sie Schritte und bereinigte Angaben über [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues).
+
+## Lizenz
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel steht unter der **GNU General Public License, ausschließlich Version 3 (GPL-3.0-only)**. Die vollständigen Bedingungen finden Sie in [LICENSE](../../LICENSE).
+
+Die Software wird ohne Gewährleistung gemäß den Lizenzbedingungen bereitgestellt. Für Code, Abhängigkeiten und Ressourcen Dritter gelten weiterhin deren jeweilige Lizenzen und Hinweise. Beigefügte Lizenztexte stehen unter [docs/licenses](../licenses).

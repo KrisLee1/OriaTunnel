@@ -126,3 +126,11 @@ Les modèles doivent correspondre aux logiciels, chemins et permissions du serve
 Pour le développement, consultez le [guide de développement (chinois simplifié)](../DEVELOPMENT.md).
 
 En cas de problème, consultez le [guide de dépannage (chinois)](../USAGE.md#查看状态与排查问题) ou signalez les étapes et informations expurgées dans [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues).
+
+## Licence
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel est distribué sous la **GNU General Public License, version 3 uniquement (GPL-3.0-only)**. Le texte intégral figure dans [LICENSE](../../LICENSE).
+
+Ce logiciel est fourni sans aucune garantie, conformément à la licence. Le code, les dépendances et les ressources de tiers conservent leurs licences et mentions respectives. Les textes de licences tiers inclus sont disponibles dans [docs/licenses](../licenses).

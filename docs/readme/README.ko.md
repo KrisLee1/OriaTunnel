@@ -126,3 +126,11 @@ Windows와 macOS에서는 원할 때 비밀번호를 시스템 자격 증명 저
 개발을 계속하려면 [개발 가이드(중국어 간체)](../DEVELOPMENT.md)를 참고하세요.
 
 문제가 있으면 [문제 해결 가이드(중국어 간체)](../USAGE.md#查看状态与排查问题)를 확인하고 [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues)에 재현 단계와 민감 정보를 제거한 내용을 남겨 주세요.
+
+## 라이선스
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel은 **GNU General Public License 버전 3만 적용하는 GPL-3.0-only**로 제공됩니다. 전체 조건은 [LICENSE](../../LICENSE)를 참고하세요.
+
+이 소프트웨어는 라이선스에 명시된 대로 어떠한 보증도 없이 제공됩니다. 타사 코드, 의존성, 리소스에는 각각의 라이선스와 고지가 적용됩니다. 포함된 타사 라이선스는 [docs/licenses](../licenses)에서 확인할 수 있습니다.

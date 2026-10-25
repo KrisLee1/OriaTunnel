@@ -15,6 +15,7 @@ export function validateAssets(directory, { version, commit, verifier, verify = 
   for (const [platform, spec] of Object.entries(platforms)) {
     const receipt = JSON.parse(fs.readFileSync(path.join(directory, `receipt-${platform}.json`), 'utf8'));
     if (receipt.platform !== platform || receipt.target !== spec.target || receipt.version !== version || receipt.commit !== commit) throw new Error(`Mismatched receipt: ${platform}.`);
+    if (receipt.licenseSha256 !== sha256(path.join(root, 'LICENSE'))) throw new Error(`Mismatched packaged license: ${platform}.`);
     const updaterName = spec.os === 'macos' ? `OriaTunnel_${version}_${spec.arch}.app.tar.gz` : `OriaTunnel_${version}_${spec.arch}-setup.exe`;
     if (receipt.updater !== updaterName) throw new Error('Invalid updater artifact name or architecture.');
     if (!Array.isArray(receipt.assets) || receipt.assets.length !== (spec.os === 'macos' ? 4 : 2)) throw new Error('Missing platform release assets.');

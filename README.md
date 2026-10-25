@@ -124,3 +124,11 @@ Windows / macOS 可选择将密码保存在系统凭据库。导出不会附带�
 继续开发请参阅[开发指南](docs/DEVELOPMENT.md)。
 
 遇到问题可先查看[排错指南](docs/USAGE.md#查看状态与排查问题)，再通过 [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues)反馈复现步骤和脱敏信息。
+
+## 许可证
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel 采用 **GNU General Public License v3.0 only（GPL-3.0-only）**，仅适用第 3 版。完整条款见 [LICENSE](LICENSE)。
+
+本软件不提供任何担保，详见许可证。第三方代码、依赖和资源继续适用各自的许可证与声明；仓库随附的第三方许可见 [docs/licenses](docs/licenses)。

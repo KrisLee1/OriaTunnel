@@ -126,3 +126,11 @@ Service templates must match the software, paths, and permissions on the server;
 For development, see the [development guide (Simplified Chinese)](../DEVELOPMENT.md).
 
 For problems, check the [troubleshooting guide (Chinese)](../USAGE.md#查看状态与排查问题) or report steps and redacted details in [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues).
+
+## License
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel is licensed under the **GNU General Public License, version 3 only (GPL-3.0-only)**. See [LICENSE](../../LICENSE) for the full terms.
+
+This software is provided without any warranty, as detailed in the license. Third-party code, dependencies, and assets retain their respective licenses and notices. Bundled third-party license texts are available in [docs/licenses](../licenses).

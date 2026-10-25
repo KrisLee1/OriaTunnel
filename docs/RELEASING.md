@@ -61,7 +61,9 @@ macOS 沿用 `scripts/package-mac.sh --signed --target ...`：App 签名、公�
 
 Windows 检查应用二进制的 PE 架构和 GUI 子系统；NSIS 自身的引导程序架构不能用来判断包内应用架构。当前流水线提供 Tauri 更新签名，未接入 Windows Authenticode 证书。
 
-每个平台生成包含版本、目标、提交及所有资产 SHA-256 的 receipt。汇总任务逐一验证四套 receipt、文件、哈希及 Minisign 版本/文件名绑定，然后生成唯一 `latest.json`。清单下载 URL 固定到版本标签；`.sig` 正文写入 `signature` 字段。草稿重试不会并发覆盖另一平台的清单。
+许可证按仓库根目录 `LICENSE` 打包到应用的 `licenses/OriaTunnel_GPL-3.0.txt`。macOS 对最终 App 及更新 TAR 解包内容逐字节核对；Windows 核对 NSIS 的许可证页面输入和将原文安装到应用目录的资源指令，缺失或不一致即失败。
+
+每个平台生成包含版本、目标、提交、许可证 SHA-256 及所有资产 SHA-256 的 receipt。汇总任务逐一验证四套 receipt、文件、哈希及 Minisign 版本/文件名绑定，然后生成唯一 `latest.json`。清单下载 URL 固定到版本标签；`.sig` 正文写入 `signature` 字段。草稿重试不会并发覆盖另一平台的清单。
 
 ## 正式发布
 

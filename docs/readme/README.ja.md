@@ -126,3 +126,11 @@ Windows と macOS では、希望する場合にパスワードをシステム�
 開発については、[開発ガイド（中国語・簡体字）](../DEVELOPMENT.md)をご覧ください。
 
 問題がある場合は[トラブルシューティング（簡体字中国語）](../USAGE.md#查看状态与排查问题)を確認し、[GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues)に再現手順と機密情報を除いた内容を報告してください。
+
+## ライセンス
+
+Copyright (C) 2026 KrisLee.
+
+OriaTunnel は **GNU General Public License 第 3 版のみ（GPL-3.0-only）**で提供されます。全文は [LICENSE](../../LICENSE) を参照してください。
+
+本ソフトウェアは無保証で提供されます。詳細はライセンスを参照してください。サードパーティのコード、依存関係、素材にはそれぞれのライセンスと表示が適用されます。同梱する第三者のライセンスは [docs/licenses](../licenses) にあります。
