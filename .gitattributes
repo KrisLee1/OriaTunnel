@@ -1,2 +1,4 @@
 # These bytes are covered by a detached test signature. Never convert newlines.
 src-tauri/tests/fixtures/updater/payload.txt -text
+# Application bundles and release receipts must retain the exact license bytes.
+LICENSE -text

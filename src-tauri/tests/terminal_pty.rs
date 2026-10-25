@@ -235,7 +235,9 @@ async fn dedicated_exec_is_a_real_pty_and_honors_exit_codes_and_timeout() {
     ];
     #[cfg(windows)]
     let cases = [
-        ("exec", "if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) { exit 9 }; Write-Output 'real-pty'; exit 7", "failed", 15),
+        // Hosted ARM64 runners can spend over 15s starting the isolated shell.
+        // This case checks the real PTY and exit code; the 1s timeout case stays strict.
+        ("exec", "if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) { exit 9 }; Write-Output 'real-pty'; exit 7", "failed", 45),
         ("timeout", "Start-Sleep -Seconds 30", "timedOut", 1),
         ("unlimited", "Start-Sleep -Milliseconds 50; Write-Output 'unlimited-pty'; exit 0", "exited", 0),
     ];
