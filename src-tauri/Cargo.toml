@@ -37,7 +37,7 @@ security-framework = "3.7"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_Storage_FileSystem"] }
-windows-sys = { version = "0.61.2", features = ["Win32_System_Power", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging", "Win32_Security_Credentials"] }
+windows-sys = { version = "0.61.2", features = ["Win32_System_Power", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Security_Credentials"] }
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
@@ -47,3 +47,6 @@ futures-util = "0.3"
 
 [target.'cfg(unix)'.dev-dependencies]
 libc = "0.2"
+
+[target.'cfg(windows)'.dev-dependencies]
+portable-pty = "=0.9.0"

@@ -6,7 +6,18 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/installer-icon.ico",
-        "compression": "zlib"
+        "compression": "zlib",
+        "languages": [
+          "English",
+          "SimpChinese",
+          "TradChinese",
+          "Japanese",
+          "Korean",
+          "German",
+          "French",
+          "Russian"
+        ],
+        "displayLanguageSelector": true
       }
     }
   }

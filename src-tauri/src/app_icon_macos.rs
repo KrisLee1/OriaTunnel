@@ -1,6 +1,7 @@
 use objc2::{AllocAnyThread, MainThreadMarker};
-use objc2_app_kit::{NSApplication, NSImage};
-use objc2_foundation::NSData;
+use objc2_app_kit::{NSApplication, NSImage, NSWorkspace, NSWorkspaceIconCreationOptions};
+use objc2_foundation::{NSBundle, NSData, NSString};
+use std::path::Path;
 use tauri::{AppHandle, Runtime};
 
 const DARK_ICON: &[u8] = include_bytes!("../icons/runtime-icon-dark.png");
@@ -49,16 +50,39 @@ pub async fn set<R: Runtime>(app: &AppHandle<R>, icon: ApplicationIcon) -> Resul
 fn set_on_main_thread(icon: ApplicationIcon) -> Result<(), String> {
     let mtm = MainThreadMarker::new().ok_or(crate::native_message::plain("iconMainThread"))?;
     let application = NSApplication::sharedApplication(mtm);
-    let Some(bytes) = icon.replacement_bytes() else {
-        // SAFETY: AppKit documents nil as restoring the original bundled icon.
-        unsafe { application.setApplicationIconImage(None) };
-        return Ok(());
-    };
-    let data = NSData::with_bytes(bytes);
-    let image = NSImage::initWithData(NSImage::alloc(), &data)
-        .ok_or(crate::native_message::plain("iconDecode"))?;
+    let image = icon
+        .replacement_bytes()
+        .map(|bytes| {
+            NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes))
+                .ok_or(crate::native_message::plain("iconDecode"))
+        })
+        .transpose()?;
     // SAFETY: A valid retained NSImage is assigned on AppKit's main thread.
-    unsafe { application.setApplicationIconImage(Some(&image)) };
+    // AppKit documents nil as restoring the original bundled icon.
+    unsafe { application.setApplicationIconImage(image.as_deref()) };
+    let bundle = NSBundle::mainBundle().bundlePath().to_string();
+    persist_bundle_icon(Path::new(&bundle), image.as_deref())
+}
+
+fn persist_bundle_icon(bundle: &Path, image: Option<&NSImage>) -> Result<(), String> {
+    // A bare development executable has no application bundle to customize.
+    if bundle.extension().is_none_or(|ext| ext != "app") || !bundle.join("Contents").is_dir() {
+        return Ok(());
+    }
+    if image.is_none() && !bundle.join("Icon\r").exists() {
+        return Ok(());
+    }
+    // Finder's custom icon is bundle-root metadata (Icon\r / FinderInfo), not
+    // a rewrite of Contents/Info.plist or signed icon resources. Apple's bundle
+    // validator explicitly permits Icon\r at the root of a Contents bundle.
+    let path = NSString::from_str(&bundle.to_string_lossy());
+    if !NSWorkspace::sharedWorkspace().setIcon_forFile_options(
+        image,
+        &path,
+        NSWorkspaceIconCreationOptions::empty(),
+    ) {
+        return Err(crate::native_message::plain("iconPersist"));
+    }
     Ok(())
 }
 
@@ -93,6 +117,42 @@ mod tests {
             assert!(alpha(81, 512) > 0);
             assert_eq!(alpha(512, 944), 0);
             assert!(alpha(512, 512) > 0);
+        }
+    }
+
+    #[test]
+    fn persistent_finder_icons_preserve_a_signed_contents_bundle() {
+        let directory = tempfile::tempdir().unwrap();
+        let bundle = directory.path().join("IconFixture.app");
+        let contents = bundle.join("Contents");
+        std::fs::create_dir_all(contents.join("MacOS")).unwrap();
+        std::fs::copy("/usr/bin/true", contents.join("MacOS/fixture")).unwrap();
+        std::fs::write(contents.join("Info.plist"),
+            r#"<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.oria-tunnel.icon-fixture</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleExecutable</key><string>fixture</string></dict></plist>"#).unwrap();
+        assert!(std::process::Command::new("/usr/bin/codesign")
+            .args(["--force", "--sign", "-"])
+            .arg(&bundle)
+            .status()
+            .unwrap()
+            .success());
+        for icon in [
+            ApplicationIcon::Dark,
+            ApplicationIcon::Mono,
+            ApplicationIcon::Light,
+        ] {
+            let image = icon.replacement_bytes().map(|bytes| {
+                NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes)).unwrap()
+            });
+            persist_bundle_icon(&bundle, image.as_deref()).unwrap();
+            if image.is_some() {
+                assert!(bundle.join("Icon\r").exists());
+            }
+            assert!(std::process::Command::new("/usr/bin/codesign")
+                .args(["--verify", "--deep", "--strict"])
+                .arg(&bundle)
+                .status()
+                .unwrap()
+                .success());
         }
     }
 }

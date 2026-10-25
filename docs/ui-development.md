@@ -4,7 +4,10 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 ## 可复用能力
 
-- 服务检查与组合 UI 在 `src/features/commands/service-controls.tsx`：ControlEditor 以三列概览（窄屏单列）和左右对齐的开关配置状态动作、退出码/严格 JSON、远程健康命令、明确重复授权和等待预算；ServiceState 只显示 Rust 事实/时间/过期，不从成功退出推断服务运行；ServiceOperations 显式选择一个关联转发。CommandResult 复用步骤与输出，保留原动作和后检查结果，提供本次新建转发的停止入口。CredentialRetry 只允许尚未提交任何 exec 的认证失败重试，提交后不重放整个组合。
+- `FirstUsePreferences` 在首个 Rust 快照就绪后显示首次偏好弹窗，组合 `InitialPreferenceSettings`，与设置页共用语言、主题、颜色模式、应用图标及窗口按钮风格/位置控件；不重复实现偏好状态，不包含主题导入或高级窗口材质。选择即时保存/预览；开始使用、关闭或 Escape 都保存 `oria-tunnel.initial-preferences.v1` 完成标记，后续启动不再显示。已有设置原样呈现，不重置偏好；存储不可用时允许关闭并提示下次可能再显示。
+- 应用图标同时更新运行时与持久系统入口：Windows 写入独立 ICO 并同步指向当前 EXE 的开始菜单、已固定任务栏及 Known Folder 桌面快捷方式，保留启动参数，其他程序快捷方式不改；macOS 通过 `NSWorkspace.setIcon` 写入当前 `.app` 的 Finder 自定义图标，Light 清除自定义图标恢复包内默认。程序退出不恢复默认；跟随系统只在应用运行时更新，退出后保留最后图标。不会改写 EXE 资源或 `.app/Contents`，持久写入失败通过已有图标错误 Toast 反馈。
+
+- 服务检查与组合 UI 在 `src/features/commands/service-controls.tsx`：ControlEditor 以三列概览（窄屏单列）和左右对齐的开关配置状态动作、退出码/严格 JSON、远程健康命令、明确重复授权和等待预算；ServiceState 只显示 Rust 事实/时间/过期，不从成功退出推断服务运行；ServiceOperations 显式选择一个关联转发。CommandResult 复用步骤与输出，保留原动作和后检查结果，提供本次新建转发的停止入口。CredentialRetry 只允许尚未提交任何 exec 的认证失败重试，提交后不重放整个组合。本次明确执行的命令遇到该失败时自动打开现有认证弹窗，按运行 ID 消费提示；取消、结果重挂载或重复事件不会再次自动打开。历史结果仍可手动重试，当前服务修订、执行许可及关联转发须继续有效，纯 Agent 路线不提示密码。
 - 服务状态通过 `service://observations` 和只读 IPC 获取，结果弹层打开时每秒刷新 Rust 内存以显示有效期；此定时器不执行网络探针。等待进度沿用低频 polite 状态，步骤次数与输出不额外创建 live region，避免连续打断读屏。八语言扩展现有 commands 命名空间，表单复用既有组件与 Token；不新增顶层页面。
 
 - 原生托盘在 desktop.rs 中按显示窗口、服务/终端、转发启停、退出以分割线分组。「服务命令」先按服务名称展开，再以分割线区分关联转发/主机的动作；未绑定服务禁用。命令 ID 携带当前服务修订和精确转发/动作引用，点击时 Rust 重验最新可用状态，前端 service-target.resolveTrayServiceRequest 从最新保存配置解析，再经现有 execute/确认/认证或前台终端停止。服务生命周期只在忙碌/服务终端引用集合变化时刷新托盘，输出与尺寸变化不重建。SSH 子菜单仅打开面板与已添加主机，不设新建菜单项；隐藏/未添加不列出，诊断阻塞禁用。Provider 的 layout ref 始终读取最新入口，卸载释放事件，打开面板自身不执行/连接。
@@ -13,7 +16,7 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 - 终端内部统一由 --terminal-content-inset: 8px 管理水平内边距，供标题、标签栏、地址行、搜索、xterm 屏幕、命令输出、错误及空状态共用；顶栏顶部与标签栏底部各留 4px，两行交界处不再叠加上下 padding，标签栏最小高度 32px；屏幕右侧为滚动条单独留 4px，手柄宽/高为 8px，地址行仍固定 28px。
 - 工作面板新建使用 SquarePlus，主机/转发入口打开对应主机使用 SquareTerminal；顶栏恢复工作面板保留 Terminal 图标，入口位于设置/关于所在外侧胶囊，随窗口控件位置镜像；固定右侧胶囊只放全部启停。面板收起与标签关闭均使用 X，展开/还原使用 ChevronFirst/Last 并随方向旋转。面板顶栏操作顺序为展开/还原、面板位置、新建终端、收起，DOM 与键盘焦点顺序一致。普通 Shell 固定请求 `noLocalEnvironment=true`，仅检测到 `SendEnv` 时显示忽略说明；专用预设继续使用已保存的服务策略。
 - terminal 启动服务的运行时停止复用 TerminalWorkspaceProvider 的 foregroundSession/stopService 与现有关闭/忘记流程；terminal-model.ts 只按当前 client、服务、转发、启动动作及 Rust 活动状态匹配。服务菜单/命令面板保留可用停止，其余动作沿用互斥；活动前台会话存在时替代原生停止，无会话则恢复原操作。关闭失败保留标签并展开错误，不产生远端已停止的假状态。此入口是运行时控制，不写成命令模板或导出脚本。
-- 明确 hostId 的终端入口直接调用 Rust，以空凭据尝试已有认证配置/已保存密码，不先显示主机选择。仅未提交 Shell 的认证失败且路线含非纯代理主机时弹出锁定主机的补充认证；指纹仍独立核对，网络/配置错误不触发密码提示。重连以 requestId 绑定原结束会话，标签保留 React key 和位置；新 SSH 代次拥有独立 session ID 与新 xterm，旧记录退订/忘记且迟到事件不恢复旧标签。
+- 明确 hostId 的终端入口直接调用 Rust，以空凭据尝试已有认证配置/已保存密码，不先显示主机选择。仅未提交 Shell/服务命令的认证失败且路线含非纯代理主机时弹出锁定主机的补充认证；服务终端仅处理当前 client 的明确请求，并重验请求时的服务修订、执行许可和关联转发。提示按请求与会话去重，取消不重复自动打开；指纹仍独立核对，网络/配置错误不触发密码提示。重连以 requestId 绑定原结束会话，标签保留 React key 和位置；新 SSH 代次拥有独立 session ID 与新 xterm，旧记录退订/忘记且迟到事件不恢复旧标签。
 - 面板使用现有 Motion 与 interactionSpring 对数值化位置/尺寸、沿停靠侧的滑入/滑出和透明度做可中断过渡；不从 auto 尺寸硬切。关闭立即 inert/aria-hidden，动画完成才隐藏，终端保持挂载；拖动时过渡为 0，减少动态效果时位置/尺寸立即切换、仅短淡入淡出。几何由 workspace-layout.ts 统一计算，基于顶栏两侧可见控件组/中部胶囊下缘的最大值，以及顶栏胶囊实际窗口内边距；无可测控件时使用顶栏下缘扣除透明底部内边距。
 - 终端移除常驻四按钮工具栏；复制/粘贴/查找/清屏使用共享 Base UI ContextMenu（复用 Menu Item 样式），清屏使用 BroomSparkles。菜单支持指针/长按、键盘菜单键/Shift+F10、方向键/Enter/Escape、快捷键提示和关闭后的焦点恢复；无选区禁用复制、非 running 禁用粘贴。查找栏仅主动打开时显示。Ctrl+C/D/Z/U/L/K 保留远端语义；本地清屏 Cmd+K/Ctrl+Shift+K，粘贴继续经过现有审核，不解锁 OSC52。
 - 标签栏在确有横向溢出的一侧显示 16px 遮罩渐隐；被动 scroll 监听及 ResizeObserver 检测列表/标签尺寸，新增/关闭标签与展开后重新测量，完整可见/抵达边界时取消对应侧渐隐。使用标准及 -webkit-mask-image，强制颜色模式关闭遮罩；不改变原标签/关闭按钮的指针与键盘交互，卸载时清理监听/观察。
@@ -126,7 +129,7 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 登录启动不可用时仅禁用开关，界面不解释发布/开发构建或本地开发服务器；实际操作错误仍就地显示。
 
-`src/lib/bridge.ts` 为类型化 IPC 入口，`src/types.ts` 为前端传输类型；Rust 权威类型在 `src-tauri/src/model.rs`。先订阅事件再读快照，按 revision 合并。新输入的密码只在提交前短暂存在于表单。`authentication-field.tsx` 统一目标、跳板及批量认证输入，使用 tunnel 翻译命名空间；记住密码使用默认未勾选的原生复选框，不附加说明。输入框右侧按钮切换显示状态，隐藏时用 EyeClosed、显示时用 Eye，切换主机身份后恢复隐藏。单主机认证标题带主机名，目标输入框通过 hideLabel 隐藏重复的可见标签但保留关联 Label；跳板和批量字段仍显示标签。actions 插槽让连接按钮与目标主机的记住密码复选框同行（无钥匙图标），不支持保存密码时仍保留连接按钮；跳板及批量认证各自保留按主机同意。保留已保存状态和清除动作；仅密码/自动认证显示存储控件，前端只读取 supported/saved/error，不获取保存值。Windows 凭据在实际密码认证成功后由 Rust 写入，保存失败独立反馈，不把认证成功改写成连接失败。私钥口令不保存，密码不进入配置、前端持久化、日志或导出。
+`src/lib/bridge.ts` 为类型化 IPC 入口，`src/types.ts` 为前端传输类型；Rust 权威类型在 `src-tauri/src/model.rs`。先订阅事件再读快照，按 revision 合并。新输入的密码只在提交前短暂存在于表单。`authentication-field.tsx` 统一目标、跳板及批量认证输入，使用 tunnel 翻译命名空间；记住密码使用默认未勾选的原生复选框，不附加说明。输入框右侧按钮切换显示状态，隐藏时用 EyeClosed、显示时用 Eye，切换主机身份后恢复隐藏；全局 CSS 隐藏 Edge/WebView2 的 ::-ms-reveal，避免 Windows 同时出现原生和自定义两个显示按钮。单主机认证标题带主机名，目标输入框通过 hideLabel 隐藏重复的可见标签但保留关联 Label；跳板和批量字段仍显示标签。actions 插槽让连接按钮与目标主机的记住密码复选框同行（无钥匙图标），不支持保存密码时仍保留连接按钮；跳板及批量认证各自保留按主机同意。保留已保存状态和清除动作；仅密码/自动认证显示存储控件，前端只读取 supported/saved/error，不获取保存值。Windows 凭据在实际密码认证成功后由 Rust 写入，保存失败独立反馈，不把认证成功改写成连接失败。私钥口令不保存，密码不进入配置、前端持久化、日志或导出。
 
 运行 `pnpm typecheck`、`pnpm build`；原生运行 `pnpm tauri dev`。变更交互需检查键盘焦点、弹层、深浅模式、最小窗口和减少动态效果。SSH 原生测试见项目状态中的实测命令。
 

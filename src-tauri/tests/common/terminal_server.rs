@@ -1,4 +1,4 @@
-//! Real Unix PTY fixture, isolated HOME/cwd, loopback only. Never reads user SSH config or keys.
+//! Real OS PTY fixture, isolated HOME/cwd, loopback only. Never reads user SSH config or keys.
 #![allow(dead_code)]
 use russh::{
     keys::{Algorithm, PrivateKey},
@@ -7,17 +7,26 @@ use russh::{
 };
 use std::{
     collections::BTreeMap,
-    fs::File,
-    io::{Read, Write},
-    os::fd::{AsRawFd, FromRawFd},
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::{
-    io::unix::AsyncFd,
-    net::{TcpListener, TcpStream},
+#[cfg(unix)]
+use std::{
+    fs::File,
+    io::{Read, Write},
+    os::fd::{AsRawFd, FromRawFd},
 };
+#[cfg(unix)]
+use tokio::io::unix::AsyncFd;
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(windows)]
+#[path = "terminal_windows_pty.rs"]
+mod platform;
+#[cfg(windows)]
+use platform::{allocate, spawn_shell, PtyPair};
+#[cfg(unix)]
 use tokio_util::sync::CancellationToken;
+#[cfg(unix)]
 struct PtyPair {
     master: Arc<AsyncFd<File>>,
     slave: Mutex<Option<File>>,
@@ -50,6 +59,7 @@ impl server::Server for Fixture {
         }
     }
 }
+#[cfg(unix)]
 fn allocate(cols: u32, rows: u32) -> std::io::Result<PtyPair> {
     let (mut master, mut slave) = (-1, -1);
     let mut size = libc::winsize {
@@ -83,6 +93,7 @@ fn allocate(cols: u32, rows: u32) -> std::io::Result<PtyPair> {
         cancel: CancellationToken::new(),
     })
 }
+#[cfg(unix)]
 async fn spawn_shell(
     pair: Arc<PtyPair>,
     channel: ChannelId,
@@ -217,19 +228,24 @@ impl server::Handler for Fixture {
     ) -> Result<(), Self::Error> {
         self.sizes.lock().unwrap().push((cols, rows));
         if let Some(pair) = self.pairs.lock().unwrap().get(&ch) {
-            let size = libc::winsize {
-                ws_row: rows as u16,
-                ws_col: cols as u16,
-                ws_xpixel: 0,
-                ws_ypixel: 0,
-            };
-            unsafe {
-                libc::ioctl(
-                    pair.master.get_ref().as_raw_fd(),
-                    libc::TIOCSWINSZ as _,
-                    &size,
-                )
-            };
+            #[cfg(windows)]
+            pair.resize(cols, rows);
+            #[cfg(unix)]
+            {
+                let size = libc::winsize {
+                    ws_row: rows as u16,
+                    ws_col: cols as u16,
+                    ws_xpixel: 0,
+                    ws_ypixel: 0,
+                };
+                unsafe {
+                    libc::ioctl(
+                        pair.master.get_ref().as_raw_fd(),
+                        libc::TIOCSWINSZ as _,
+                        &size,
+                    )
+                };
+            }
         }
         Ok(())
     }
@@ -279,16 +295,21 @@ impl server::Handler for Fixture {
     ) -> Result<(), Self::Error> {
         let pair = self.pairs.lock().unwrap().get(&ch).cloned();
         if let Some(pair) = pair {
-            let mut remaining = data;
-            while !remaining.is_empty() {
-                let mut ready = tokio::select! {_=pair.cancel.cancelled()=>break,r=pair.master.writable()=>match r{Ok(r)=>r,Err(_)=>break}};
-                match ready.try_io(|io| {
-                    let mut file = io.get_ref();
-                    file.write(remaining)
-                }) {
-                    Ok(Ok(0)) | Ok(Err(_)) => break,
-                    Ok(Ok(n)) => remaining = &remaining[n..],
-                    Err(_) => {}
+            #[cfg(windows)]
+            pair.write(data).await;
+            #[cfg(unix)]
+            {
+                let mut remaining = data;
+                while !remaining.is_empty() {
+                    let mut ready = tokio::select! {_=pair.cancel.cancelled()=>break,r=pair.master.writable()=>match r{Ok(r)=>r,Err(_)=>break}};
+                    match ready.try_io(|io| {
+                        let mut file = io.get_ref();
+                        file.write(remaining)
+                    }) {
+                        Ok(Ok(0)) | Ok(Err(_)) => break,
+                        Ok(Ok(n)) => remaining = &remaining[n..],
+                        Err(_) => {}
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync, execFileSync } from "node:child_process";
 import i18n from "@/i18n";
+import { posixShell } from "@/test/posix-shell";
 import {
   renderInvocation,
   normalizeInvocation,
@@ -163,7 +164,7 @@ describe("service configuration", () => {
     ]);
     expect(isStructuredCommand(scripted)).toBe(false);
     expect(actionScript(scripted)).toBe(source);
-    expect(execFileSync("/bin/sh", ["-c", scripted.command]).toString()).toBe(
+    expect(execFileSync(posixShell, ["-c", scripted.command]).toString()).toBe(
       `${literal}\0x`,
     );
     const structured = switchActionFormat(scripted, "command");
@@ -228,7 +229,7 @@ describe("service configuration", () => {
     });
     expect(invocation.environment).toHaveLength(2);
     expect(
-      execFileSync("/bin/sh", ["-c", renderInvocation(invocation)]).toString(),
+      execFileSync(posixShell, ["-c", renderInvocation(invocation)]).toString(),
     ).toBe(`${literal}\0x`);
     const html = renderToStaticMarkup(
       <CommandEnvironmentEditor
@@ -257,8 +258,12 @@ describe("service configuration", () => {
           { name: "LITERAL", value: "$HOME ' 中文" },
         ],
       });
-      const invocation = { ...result.actions[0].invocation!, executable: stub };
-      const args = execFileSync("/bin/sh", ["-c", renderInvocation(invocation)])
+      // This executable is consumed by a POSIX shell, including Git's shell on Windows.
+      const invocation = {
+        ...result.actions[0].invocation!,
+        executable: stub.replaceAll("\\", "/"),
+      };
+      const args = execFileSync(posixShell, ["-c", renderInvocation(invocation)])
         .toString()
         .split("\0")
         .slice(0, -1);
@@ -490,13 +495,14 @@ describe("service configuration", () => {
       ],
     });
     expect(
-      execFileSync("/bin/sh", ["-c", command])
+      execFileSync(posixShell, ["-c", command])
         .toString()
         .split("\0")
         .slice(0, -1),
     ).toEqual([...words, "--flag"]);
   });
   it("keeps direct commands and optional managed templates independent with valid shell syntax", () => {
+    const scripts: string[] = [];
     expect(new Set(builtinServiceTemplates.map((p) => p.id)).size).toBe(
       builtinServiceTemplates.length,
     );
@@ -513,7 +519,9 @@ describe("service configuration", () => {
       );
       expect(JSON.stringify(before)).toBe(json);
       for (const action of result.actions) {
-        execFileSync("/bin/sh", ["-n"], { input: action.command });
+        // Parse each action in its own function body in one syntax-only shell.
+        // Starting hundreds of MSYS processes blocks Vitest's worker on Windows.
+        scripts.push(`oria_template_${scripts.length}() {\n${action.command}\n}`);
         if (action.invocation)
           expect(action.command).toBe(renderInvocation(action.invocation));
       }
@@ -557,6 +565,7 @@ describe("service configuration", () => {
           ?.name,
       ).toBe(`${preset.name} · systemd`);
     }
+    execFileSync(posixShell, ["-n"], { input: scripts.join("\n") });
   });
   it("handles a collected transient unit even when systemctl returns an error with not-found", () => {
     const dir = mkdtempSync(join(tmpdir(), "oria-service-stub-"));
@@ -580,7 +589,7 @@ describe("service configuration", () => {
       );
       const run = (kind: string, load: string, code: string) =>
         spawnSync(
-          "/bin/sh",
+          posixShell,
           ["-c", result.actions.find((a) => a.kind === kind)!.command],
           {
             encoding: "utf8",
@@ -598,7 +607,7 @@ describe("service configuration", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
   it("escapes dollar signs for the service manager without requiring systemd 254", () => {
     const preset = builtinServiceTemplates.find((p) => p.id === "dsh-systemd")!;
     const result = applyLaunchTemplate(base("oria-dsh.service"), preset, {
@@ -653,7 +662,7 @@ describe("service configuration", () => {
       const result = applyLaunchTemplate(base("unused"), preset, invocation);
       const start = result.actions[0];
       expect(start).toMatchObject({ mode: "terminal", timeoutSecs: 0 });
-      const output = execFileSync("/bin/sh", ["-c", start.command], {
+      const output = execFileSync(posixShell, ["-c", start.command], {
         env: { PATH: dir },
       })
         .toString()

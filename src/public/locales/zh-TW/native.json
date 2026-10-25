@@ -200,5 +200,6 @@
   "iconMainWindow": "主視窗無法使用",
   "iconWindowsUpdate": "無法更新 Windows 應用程式圖示：{{error}}",
   "windowAppearanceInvalid": "視窗外觀設定無效",
-  "externalLinkInvalid": "外部連結無效"
+  "externalLinkInvalid": "外部連結無效",
+  "iconPersist": "無法儲存應用程式圖示。請確認應用程式所在位置可寫，然後重試。"
 }

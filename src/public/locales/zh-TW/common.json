@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "應用程式圖示",
-    "description": "跟隨系統外觀，或固定使用淺色、深色、單色圖示。",
+    "description": "同步儲存至 Windows 捷徑或 macOS Finder，結束應用程式後仍會保留。跟隨系統會在應用程式執行時更新。",
     "system": "跟隨系統",
     "light": "淺色",
     "dark": "深色",
@@ -91,5 +91,11 @@
   },
   "settings": {
     "showDescription": "檢視說明"
+  },
+  "initialPreferences": {
+    "title": "歡迎使用 OriaTunnel",
+    "description": "依照你的習慣設定外觀，之後也可以在設定中調整。",
+    "done": "開始使用",
+    "saveFailed": "無法儲存初次設定狀態，下次啟動時會再次顯示。"
   }
 }

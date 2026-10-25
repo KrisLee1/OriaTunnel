@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(any(unix, windows))]
 #[path = "common/terminal_server.rs"]
 mod server;
 use oria_tunnel_lib::{
@@ -86,14 +86,17 @@ async fn wait_session(
     .expect("terminal lifecycle")
 }
 async fn wait_text(bytes: &Arc<Mutex<Vec<u8>>>, start: usize, text: &str) {
-    tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            if String::from_utf8_lossy(&bytes.lock().unwrap()[start..]).contains(text) {
-                return;
+    tokio::time::timeout(
+        Duration::from_secs(if cfg!(windows) { 25 } else { 10 }),
+        async {
+            loop {
+                if String::from_utf8_lossy(&bytes.lock().unwrap()[start..]).contains(text) {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
             }
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-    })
+        },
+    )
     .await
     .unwrap_or_else(|_| {
         panic!(
@@ -135,6 +138,7 @@ fn consume(manager: Arc<Manager>, id: &str) -> (Arc<Mutex<Vec<u8>>>, tokio::task
     });
     (bytes, job)
 }
+#[cfg(unix)]
 #[tokio::test(flavor = "multi_thread")]
 async fn real_pty_supports_utf8_resize_line_editing_interrupt_job_control_and_eof() {
     let fixture = server::Fixture::default();
@@ -213,7 +217,8 @@ async fn real_pty_supports_utf8_resize_line_editing_interrupt_job_control_and_eo
 async fn dedicated_exec_is_a_real_pty_and_honors_exit_codes_and_timeout() {
     let (port, server) = server::start(Default::default()).await;
     let manager = Arc::new(Manager::default());
-    for (id, command, phase, timeout) in [
+    #[cfg(unix)]
+    let cases = [
         (
             "exec",
             "test -t 0 && test -t 1 && printf 'real-pty\\n'; exit 7",
@@ -227,7 +232,14 @@ async fn dedicated_exec_is_a_real_pty_and_honors_exit_codes_and_timeout() {
             "exited",
             0,
         ),
-    ] {
+    ];
+    #[cfg(windows)]
+    let cases = [
+        ("exec", "if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) { exit 9 }; Write-Output 'real-pty'; exit 7", "failed", 15),
+        ("timeout", "Start-Sleep -Seconds 30", "timedOut", 1),
+        ("unlimited", "Start-Sleep -Milliseconds 50; Write-Output 'unlimited-pty'; exit 0", "exited", 0),
+    ];
+    for (id, command, phase, timeout) in cases {
         let (s, c, input) = manager.register(summary(id)).unwrap();
         let (bytes, consumer) = consume(manager.clone(), id);
         let mut req = request(port);
@@ -235,7 +247,12 @@ async fn dedicated_exec_is_a_real_pty_and_honors_exit_codes_and_timeout() {
         req.timeout_secs = Some(timeout);
         terminal::execute(manager.clone(), s.id.clone(), c, input.unwrap(), req).await;
         let result = wait_session(&manager, id, |s| !s.active()).await;
-        assert_eq!(result.phase, phase);
+        assert_eq!(
+            result.phase,
+            phase,
+            "{}",
+            String::from_utf8_lossy(&bytes.lock().unwrap())
+        );
         if id == "exec" {
             assert_eq!(result.exit_code, Some(7));
             wait_text(&bytes, 0, "real-pty").await;
@@ -247,6 +264,87 @@ async fn dedicated_exec_is_a_real_pty_and_honors_exit_codes_and_timeout() {
     }
     server.abort();
 }
+#[cfg(windows)]
+#[tokio::test(flavor = "multi_thread")]
+async fn windows_conpty_supports_utf8_resize_interrupt_and_foreground_service_cleanup() {
+    let fixture = server::Fixture::default();
+    let sizes = fixture.sizes.clone();
+    let (port, server) = server::start(fixture).await;
+    let manager = Arc::new(Manager::default());
+    let mut session = summary("windows-shell");
+    session.service_id = Some("service".into());
+    session.action_id = Some("start".into());
+    session.rule_id = Some("forward".into());
+    let (session, cancel, input) = manager.register(session).unwrap();
+    let (bytes, consumer) = consume(manager.clone(), &session.id);
+    let worker = tokio::spawn(terminal::execute(
+        manager.clone(),
+        session.id.clone(),
+        cancel,
+        input.unwrap(),
+        request(port),
+    ));
+    wait_text(&bytes, 0, "oria-e2> ").await;
+    manager
+        .input(
+            &session.id,
+            "client",
+            1,
+            "Write-Output 'unicode:中文'\r".as_bytes().to_vec(),
+        )
+        .unwrap();
+    wait_text(&bytes, 0, "unicode:中文\r\n").await;
+    manager.resize(&session.id, "client", 101, 37).unwrap();
+    manager
+        .input(
+            &session.id,
+            "client",
+            2,
+            b"Write-Output ('size:' + [Console]::WindowWidth + 'x' + [Console]::WindowHeight)\r"
+                .to_vec(),
+        )
+        .unwrap();
+    wait_text(&bytes, 0, "size:101x37").await;
+    assert!(sizes.lock().unwrap().contains(&(101, 37)));
+    let mark = bytes.lock().unwrap().len();
+    manager
+        .input(
+            &session.id,
+            "client",
+            3,
+            b"Write-Output 'SLEEP-READY'; Start-Sleep -Seconds 30\r".to_vec(),
+        )
+        .unwrap();
+    wait_text(&bytes, mark, "SLEEP-READY\r\n").await;
+    let interrupted_at = bytes.lock().unwrap().len();
+    manager.input(&session.id, "client", 4, vec![3]).unwrap();
+    wait_text(&bytes, interrupted_at, "oria-e2> ").await;
+    manager
+        .input(
+            &session.id,
+            "client",
+            5,
+            b"Write-Output 'interrupted-ok'\r".to_vec(),
+        )
+        .unwrap();
+    wait_text(&bytes, mark, "interrupted-ok\r\n").await;
+    manager.cancel(&session.id, "client").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), worker)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        wait_session(&manager, &session.id, |s| !s.active())
+            .await
+            .phase,
+        "disconnected"
+    );
+    manager.forget(&session.id, "client").unwrap();
+    assert!(manager.list().is_empty());
+    consumer.abort();
+    server.abort();
+}
+#[cfg(unix)]
 #[tokio::test(flavor = "multi_thread")]
 async fn closing_a_foreground_service_terminal_finishes_and_forgets_the_session() {
     let (port, server) = server::start(Default::default()).await;
@@ -366,9 +464,11 @@ async fn multiple_sessions_and_multihop_remain_independent_after_close() {
     }
     manager.cancel("one", "client").unwrap();
     wait_session(&manager, "one", |s| !s.active()).await;
-    manager
-        .input("two", "client", 1, b"printf 'independent\\n'\r".to_vec())
-        .unwrap();
+    #[cfg(unix)]
+    let command = b"printf 'independent\\n'\r".to_vec();
+    #[cfg(windows)]
+    let command = b"Write-Output 'independent'\r".to_vec();
+    manager.input("two", "client", 1, command).unwrap();
     wait_text(&buffers[1], 0, "independent\r\n").await;
     manager.cancel_all();
     for j in jobs {

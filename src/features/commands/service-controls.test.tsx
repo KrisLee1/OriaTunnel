@@ -145,6 +145,10 @@ describe("service control UI", () => {
     expect(html).toContain("Linked forward");
     expect(html).not.toContain("Unrelated forward");
     const run = {
+      id: "run",
+      hostId: "host",
+      workflowRuleId: "linked",
+      finishedAt: 1,
       serviceId: "service",
       serviceRevision: "v1",
       error: "authentication",
@@ -181,6 +185,23 @@ describe("service control UI", () => {
         />,
       ),
     ).toContain("补充凭据后重试");
+    for (const blocked of [
+      { ...run, submitted: false, finishedAt: null },
+      { ...run, submitted: false, workflowRuleId: "unrelated" },
+      { ...run, submitted: false, serviceRevision: "stale" },
+    ]) {
+      expect(
+        renderToStaticMarkup(
+          <CredentialRetry
+            data={data}
+            run={blocked}
+            autoPrompt
+            onRun={() => {}}
+            onError={() => {}}
+          />,
+        ),
+      ).toBe("");
+    }
     expect(
       renderToStaticMarkup(
         <CredentialRetry

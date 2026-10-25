@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "Icône de l’application",
-    "description": "Suivre l’apparence du système ou conserver l’icône claire, sombre ou monochrome.",
+    "description": "L’icône reste dans les raccourcis Windows ou le Finder macOS après la fermeture. Le suivi du système se met à jour pendant l’exécution.",
     "system": "Système",
     "light": "Clair",
     "dark": "Sombre",
@@ -91,5 +91,11 @@
   },
   "settings": {
     "showDescription": "Afficher la description"
+  },
+  "initialPreferences": {
+    "title": "Bienvenue dans OriaTunnel",
+    "description": "Choisissez vos préférences. Vous pourrez les modifier dans les réglages.",
+    "done": "Commencer",
+    "saveFailed": "Impossible d’enregistrer la fin de la configuration. Cette fenêtre réapparaîtra au prochain démarrage."
   }
 }

@@ -263,7 +263,7 @@ describe("terminal input and lifecycle", () => {
     ).toBe(false);
     expect(
       terminalNeedsCredentials({ ...session, serviceId: "preset" }, [host]),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       terminalNeedsCredentials({ ...session, finishedAt: null }, [host]),
     ).toBe(false);
@@ -328,10 +328,12 @@ it("only offers a preset credential retry before exec was submitted", async () =
   const { unsubmittedPreset } = await import("./terminal-model");
   const service = {
     id: "service",
+    ruleIds: ["rule"],
     actions: [{ id: "action", mode: "terminal" }],
   } as unknown as import("@/types").RemoteService;
   const session = {
     serviceId: "service",
+    ruleId: "rule",
     actionId: "action",
     error: "authentication",
     submitted: false,
@@ -342,6 +344,15 @@ it("only offers a preset credential retry before exec was submitted", async () =
   ).toBeUndefined();
   expect(
     unsubmittedPreset({ ...session, error: "remoteUnknown" }, [service]),
+  ).toBeUndefined();
+  expect(
+    unsubmittedPreset(session, [{ ...service, executionEnabled: false }]),
+  ).toBeUndefined();
+  expect(
+    unsubmittedPreset(session, [{ ...service, ruleIds: [] }]),
+  ).toBeUndefined();
+  expect(
+    unsubmittedPreset(session, [{ ...service, actions: [] }]),
   ).toBeUndefined();
 });
 

@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "App icon",
-    "description": "Follow the system appearance or keep the Light, Dark, or Mono icon.",
+    "description": "Persist the icon in Windows shortcuts or macOS Finder after quitting. System appearance updates while the app is running.",
     "system": "System",
     "light": "Light",
     "dark": "Dark",
@@ -91,5 +91,11 @@
   },
   "settings": {
     "showDescription": "View description"
+  },
+  "initialPreferences": {
+    "title": "Welcome to OriaTunnel",
+    "description": "Choose your preferences. You can change them later in Settings.",
+    "done": "Get started",
+    "saveFailed": "Could not save setup completion. This dialog will appear again next time."
   }
 }

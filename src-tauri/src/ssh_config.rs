@@ -120,7 +120,9 @@ fn load(
         }
     };
     stack.push(canonical);
-    for (line_index, line) in text.lines().enumerate() {
+    // Windows editors (including Windows PowerShell's UTF8 encoding) can add
+    // a BOM. OpenSSH accepts it; it must not become part of the first directive.
+    for (line_index, line) in text.trim_start_matches('\u{feff}').lines().enumerate() {
         let normalized = line.trim();
         // '=' is only a separator between directive and value; paths keep their '='.
         let normalized = if let Some(i) = normalized.find('=') {
@@ -651,6 +653,32 @@ pub fn discover_with(additional: &[String]) -> Discovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn utf8_bom_crlf_and_quoted_windows_paths_preserve_host_and_source_lines() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("config");
+        std::fs::write(
+            &root,
+            "\u{feff}Host windows-fixture\r\n HostName 127.0.0.1\r\n User tester\r\n IdentityFile \"C:\\Users\\Test User\\.ssh\\id_ed25519\"\r\n IdentityAgent \\\\.\\pipe\\isolated-agent\r\n",
+        )
+        .unwrap();
+        let found = discover_files(std::slice::from_ref(&root), directory.path());
+        assert!(found.diagnostics.is_empty(), "{:?}", found.diagnostics);
+        assert_eq!(found.hosts.len(), 1);
+        let host = &found.hosts[0];
+        assert!(host.diagnostics.is_empty(), "{:?}", host.diagnostics);
+        assert_eq!(host.address, "127.0.0.1");
+        assert_eq!(host.identity_files, [r"C:\Users\Test User\.ssh\id_ed25519"]);
+        assert_eq!(
+            host.identity_agent.as_deref(),
+            Some(r"\\.\pipe\isolated-agent")
+        );
+        assert_eq!(
+            host.field_sources["hostname"],
+            format!("{}:2", root.display())
+        );
+    }
+
     #[test]
     fn system_crypto_include_respects_host_overrides_and_retains_error_locations() {
         let directory = tempfile::tempdir().unwrap();

@@ -200,5 +200,6 @@
   "iconMainWindow": "La fenêtre principale est indisponible",
   "iconWindowsUpdate": "Impossible de mettre à jour l’icône de l’application Windows : {{error}}",
   "windowAppearanceInvalid": "Les paramètres d’apparence de la fenêtre sont invalides",
-  "externalLinkInvalid": "Le lien externe est invalide"
+  "externalLinkInvalid": "Le lien externe est invalide",
+  "iconPersist": "Impossible d’enregistrer l’icône de l’application. Vérifiez que son emplacement est accessible en écriture, puis réessayez."
 }

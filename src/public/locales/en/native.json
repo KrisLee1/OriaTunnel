@@ -200,5 +200,6 @@
   "iconMainWindow": "The main window is unavailable",
   "iconWindowsUpdate": "Cannot update the Windows application icon: {{error}}",
   "windowAppearanceInvalid": "Invalid window appearance",
-  "externalLinkInvalid": "The external link is invalid"
+  "externalLinkInvalid": "The external link is invalid",
+  "iconPersist": "Could not persist the application icon. Make sure the application location is writable and try again."
 }

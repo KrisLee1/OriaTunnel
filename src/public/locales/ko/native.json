@@ -200,5 +200,6 @@
   "iconMainWindow": "기본 창을 사용할 수 없습니다",
   "iconWindowsUpdate": "Windows 앱 아이콘을 업데이트할 수 없습니다: {{error}}",
   "windowAppearanceInvalid": "창 모양 설정이 잘못되었습니다",
-  "externalLinkInvalid": "외부 링크가 잘못되었습니다"
+  "externalLinkInvalid": "외부 링크가 잘못되었습니다",
+  "iconPersist": "앱 아이콘을 저장하지 못했습니다. 앱 위치에 쓰기 권한이 있는지 확인하고 다시 시도하세요."
 }

@@ -200,5 +200,6 @@
   "iconMainWindow": "主窗口不可用",
   "iconWindowsUpdate": "无法更新 Windows 应用图标：{{error}}",
   "windowAppearanceInvalid": "窗口外观设置无效",
-  "externalLinkInvalid": "外部链接无效"
+  "externalLinkInvalid": "外部链接无效",
+  "iconPersist": "无法保存应用图标。请确认应用所在位置可写，然后重试。"
 }

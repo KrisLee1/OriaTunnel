@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "アプリアイコン",
-    "description": "システムの外観に合わせるか、ライト、ダーク、モノクロのアイコンを固定で使用します。",
+    "description": "Windows のショートカットや macOS Finder に保存し、終了後も維持します。システム連動はアプリの実行中に更新されます。",
     "system": "システムに合わせる",
     "light": "ライト",
     "dark": "ダーク",
@@ -91,5 +91,11 @@
   },
   "settings": {
     "showDescription": "説明を表示"
+  },
+  "initialPreferences": {
+    "title": "OriaTunnel へようこそ",
+    "description": "使いやすい外観を選びましょう。後から設定で変更できます。",
+    "done": "使い始める",
+    "saveFailed": "初期設定の完了状態を保存できません。次回起動時に再表示されます。"
   }
 }

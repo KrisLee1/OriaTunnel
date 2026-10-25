@@ -1,4 +1,5 @@
 import { NativeLanguageSync } from "@/components/language/native-language-sync";
+import { FirstUsePreferences } from "@/components/settings/first-use-preferences";
 import { formatNativeMessage, nativeMessageKey } from "@/lib/native-message";
 import { ConfigExportDialog } from "@/features/tunnels/config-export";
 import {
@@ -606,6 +607,7 @@ export function App() {
   return (
     <TerminalWorkspaceProvider data={data}>
       <NativeLanguageSync />
+      <FirstUsePreferences ready={data.revision >= 0} />
       <PresetCommandProvider
         data={data}
         onSnapshot={accept}

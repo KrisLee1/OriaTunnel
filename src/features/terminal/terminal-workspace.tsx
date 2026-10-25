@@ -249,8 +249,9 @@ export function TerminalWorkspaceProvider({
     dismissed = useRef(new Set<string>());
   const tabKeys = useRef(new Map<string, string>());
   const replacementRequests = useRef(new Map<string, string>());
-  const automaticAuthRequests = useRef(new Set<string>());
+  const automaticAuthRequests = useRef(new Map<string, string | undefined>());
   const promptedSessions = useRef(new Set<string>());
+  const automaticCommandAuth = useRef(new Set<string>());
   const merge = useCallback((next: TerminalSession[]) => {
     const replacements = new Map(replacementRequests.current);
     for (const session of next) {
@@ -304,6 +305,7 @@ export function TerminalWorkspaceProvider({
   }, [merge]);
   const showCommand = useCallback(
     (run: CommandRun) => {
+      automaticCommandAuth.current.add(run.id);
       acceptCommand(run);
       setCommandTabs((ids) => (ids.includes(run.id) ? ids : [...ids, run.id]));
       setSelected(run.id);
@@ -375,8 +377,8 @@ export function TerminalWorkspaceProvider({
       const requestId = requests.current.get(key) || crypto.randomUUID();
       requests.current.set(key, requestId);
       if (previous) replacementRequests.current.set(requestId, previous.id);
-      if (options?.automatic && !profile)
-        automaticAuthRequests.current.add(requestId);
+      if (options?.automatic)
+        automaticAuthRequests.current.set(requestId, profile?.service.revision);
       const session = await bridge.openTerminal({
         hostId,
         noLocalEnvironment: profile ? noEnvironment : true,
@@ -444,6 +446,7 @@ export function TerminalWorkspaceProvider({
       values,
       remembered,
       { service, action, ruleId },
+      { automatic: true },
     );
   };
   const close = async (session: TerminalSession) => {
@@ -486,23 +489,34 @@ export function TerminalWorkspaceProvider({
       (session) =>
         automaticAuthRequests.current.has(session.requestId) &&
         !promptedSessions.current.has(session.id) &&
-        terminalNeedsCredentials(session, data.hosts),
+        session.clientId === clientId &&
+        terminalNeedsCredentials(session, data.hosts) &&
+        (!session.serviceId ||
+          (!!unsubmittedPreset(session, data.services || []) &&
+            unsubmittedPreset(session, data.services || [])?.service
+              .revision ===
+              automaticAuthRequests.current.get(session.requestId) &&
+            data.rules.some(
+              (r) => r.id === session.ruleId && r.hostId === session.hostId,
+            ))),
     );
     if (!failed) return;
     promptedSessions.current.add(failed.id);
     automaticAuthRequests.current.delete(failed.requestId);
     setSelected(failed.id);
+    const profile = unsubmittedPreset(failed, data.services || []);
     setDraft({
       hostId: failed.hostId,
-      noEnvironment: true,
+      noEnvironment: profile ? profile.service.noLocalEnvironment : true,
       fallback: true,
       locked: true,
       replaceId: failed.id,
+      ...(profile ? { profile } : {}),
     });
     setSecrets({});
     setRemember({});
     setError("authentication");
-  }, [sessions, data.hosts, busy, draft, closing, trust, t]);
+  }, [sessions, data, clientId, busy, draft, closing, trust, t]);
   const tabIds = [...sessions.map((s) => s.id), ...commandTabs];
   const tabSignature = tabIds.join("\0");
   useEffect(() => {
@@ -953,7 +967,14 @@ export function TerminalWorkspaceProvider({
               {selectedCommand && commandTabs.includes(selectedCommand.id) && (
                 <div className="terminal-command-panel">
                   <CommandResult
+                    key={selectedCommand.id}
                     data={data}
+                    autoPromptCredentials={automaticCommandAuth.current.has(
+                      selectedCommand.id,
+                    )}
+                    onCredentialsPrompt={() =>
+                      automaticCommandAuth.current.delete(selectedCommand.id)
+                    }
                     onRerun={showCommand}
                     run={selectedCommand}
                     accept={acceptCommand}
@@ -986,7 +1007,7 @@ export function TerminalWorkspaceProvider({
           <Modal
             key="connect"
             title={
-              draft.locked && !draft.profile
+              draft.locked
                 ? t("authForHost", { ns: "tunnel", name: route?.name || "" })
                 : t("open")
             }
@@ -1010,7 +1031,7 @@ export function TerminalWorkspaceProvider({
                   {
                     replaceId: draft.replaceId,
                     automatic:
-                      !draft.profile &&
+                      !!draft.profile ||
                       Object.values(secrets).every((value) => !value),
                   },
                 ).catch(() => {});

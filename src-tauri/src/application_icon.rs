@@ -13,7 +13,7 @@ pub async fn set_application_icon(app: tauri::AppHandle, icon: String) -> Result
     #[cfg(target_os = "macos")]
     return platform::set(&app, icon).await;
     #[cfg(windows)]
-    return platform::set(&app, icon);
+    return platform::set(&app, icon).await;
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = (app, icon);

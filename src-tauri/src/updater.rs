@@ -616,6 +616,54 @@ mod tests {
         let update = state.inner.lock().unwrap().update.clone().unwrap();
         assert!(update.verify(PAYLOAD).is_err());
     }
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_static_manifest_selects_binary_architecture_and_rejects_other_arch_only() {
+        let current = format!("windows-{}", std::env::consts::ARCH);
+        for include_current in [true, false] {
+            let mut platforms = serde_json::Map::new();
+            for target in ["windows-aarch64", "windows-x86_64"] {
+                if !include_current && target == current {
+                    continue;
+                }
+                platforms.insert(
+                    target.into(),
+                    serde_json::json!({
+                        "url": format!("https://example.invalid/{target}-setup.exe"),
+                        "signature": SIGNATURE.trim()
+                    }),
+                );
+            }
+            let body = serde_json::to_vec(&serde_json::json!({
+                "version": "0.2.0", "platforms": platforms
+            }))
+            .unwrap();
+            let (endpoint, server) = serve("200 OK", body).await;
+            let app = test_app(&endpoint);
+            let directory = tempfile::tempdir().unwrap();
+            let state = test_state(app.handle(), directory.path().into());
+            let snapshot = state.check(app.handle(), false).await.unwrap();
+            server.await.unwrap();
+            if include_current {
+                assert_eq!(snapshot.phase, Phase::Available);
+                assert_eq!(
+                    state
+                        .inner
+                        .lock()
+                        .unwrap()
+                        .update
+                        .as_ref()
+                        .unwrap()
+                        .download_url
+                        .path(),
+                    format!("/{current}-setup.exe")
+                );
+            } else {
+                assert_eq!(snapshot.error, Some(Failure::Check));
+                assert!(!snapshot.can_download);
+            }
+        }
+    }
     #[tokio::test]
     async fn failed_installation_releases_both_exit_and_connection_gates() {
         let directory = tempfile::tempdir().unwrap();

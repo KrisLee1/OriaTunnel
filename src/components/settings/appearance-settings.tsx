@@ -53,9 +53,18 @@ function SettingItem({
 }
 
 export function WindowSettings() {
-  const { t } = useTranslation();
   return (
     <ItemGroup className="settings-section-panel themed-surface gap-0 divide-y divide-border-strong/15 overflow-hidden rounded-xl">
+      <WindowControlPreferences />
+      <WindowAppearanceSettings opacityOnly={isWindowsDesktop()} />
+    </ItemGroup>
+  );
+}
+
+function WindowControlPreferences() {
+  const { t } = useTranslation();
+  return (
+    <>
       <SettingItem title={t("windowControls.styleLabel")}>
         <WindowControlStyleSetting />
       </SettingItem>
@@ -65,15 +74,14 @@ export function WindowSettings() {
       >
         <WindowControlPositionSetting />
       </SettingItem>
-      <WindowAppearanceSettings opacityOnly={isWindowsDesktop()} />
-    </ItemGroup>
+    </>
   );
 }
 
-export function AppearanceSettings() {
+function AppearancePreferences() {
   const { t } = useTranslation();
   return (
-    <ItemGroup className="settings-section-panel themed-surface gap-0 divide-y divide-border-strong/15 overflow-hidden rounded-xl">
+    <>
       <SettingItem title={t("language.label")}>
         <LanguageSelect
           variant="outline"
@@ -85,7 +93,10 @@ export function AppearanceSettings() {
       <SettingItem title={t("appAppearance.label")}>
         <ThemeModeToggle />
       </SettingItem>
-      <SettingItem title={t("applicationIcon.label")} description={t("applicationIcon.description")}>
+      <SettingItem
+        title={t("applicationIcon.label")}
+        description={t("applicationIcon.description")}
+      >
         <ApplicationIconSetting />
       </SettingItem>
       <SettingItem title={t("theme.label")}>
@@ -96,6 +107,24 @@ export function AppearanceSettings() {
           align="end"
         />
       </SettingItem>
+    </>
+  );
+}
+
+export function InitialPreferenceSettings() {
+  return (
+    <ItemGroup className="settings-section-panel themed-surface gap-0 divide-y divide-border-strong/15 overflow-hidden rounded-xl">
+      <AppearancePreferences />
+      <WindowControlPreferences />
+    </ItemGroup>
+  );
+}
+
+export function AppearanceSettings() {
+  const { t } = useTranslation();
+  return (
+    <ItemGroup className="settings-section-panel themed-surface gap-0 divide-y divide-border-strong/15 overflow-hidden rounded-xl">
+      <AppearancePreferences />
       <Item className="rounded-none border-0 px-3 py-2.5">
         <ItemContent className="min-w-0">
           <ItemTitle className="flex items-center gap-1.5">

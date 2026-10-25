@@ -9,6 +9,11 @@
 @custom-variant keyboard-focus (&:where([data-keyboard-navigation="true"] *));
 @custom-variant focus-visible (&:where([data-keyboard-navigation="true"] *):focus-visible);
 
+/* AuthenticationField supplies the single reveal control in Edge/WebView2. */
+input[type="password"]::-ms-reveal {
+  display: none;
+}
+
 /* Desktop controls do not create document selections; editors remain selectable. */
 body {
   -webkit-user-select: none;

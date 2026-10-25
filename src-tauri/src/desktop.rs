@@ -677,7 +677,7 @@ mod icon_tests {
         ] {
             let image = tauri::image::Image::from_bytes(bytes).unwrap();
             assert_eq!((image.width(), image.height()), (size, size));
-            let pixels: Vec<_> = image.rgba().chunks_exact(4).collect();
+            let pixels: Vec<_> = image.rgba().as_chunks::<4>().0.iter().collect();
             assert_eq!(pixels[0][3], 0);
             assert!(pixels.iter().any(|pixel| pixel[3] == 255));
             if monochrome {

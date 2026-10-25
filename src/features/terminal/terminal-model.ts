@@ -89,7 +89,6 @@ export function terminalNeedsCredentials(
     session.finishedAt !== null &&
     session.error === "authentication" &&
     !session.submitted &&
-    !session.serviceId &&
     session.routeHostIds.some((id) =>
       hosts.some((host) => host.id === id && host.authMethod !== "agent"),
     )
@@ -152,7 +151,11 @@ export function unsubmittedPreset(
   const action = service?.actions.find(
     (action) => action.id === session.actionId && action.mode === "terminal",
   );
-  return service && action
+  return service &&
+    service.executionEnabled !== false &&
+    action &&
+    !!session.ruleId &&
+    service.ruleIds.includes(session.ruleId)
     ? { service, action, ruleId: session.ruleId ?? undefined }
     : undefined;
 }

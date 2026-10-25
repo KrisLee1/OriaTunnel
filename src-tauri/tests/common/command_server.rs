@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[path = "posix_shell.rs"]
+mod posix_shell;
 use russh::{
     keys::{Algorithm, PrivateKey},
     server::{self, Auth, Server as _, Session},
@@ -120,7 +122,6 @@ impl server::Handler for Fixture {
         let token = CancellationToken::new();
         self.children.lock().unwrap().insert(ch, token.clone());
         let handle = session.handle();
-        #[cfg(unix)]
         let script = match command {
             b"fixture-stream" => {
                 "printf 'first\\n'; sleep 0.3; printf 'second\\n'; printf 'diagnostic\\n' >&2"
@@ -130,26 +131,10 @@ impl server::Handler for Fixture {
             b"fixture-large" => "dd if=/dev/zero bs=65536 count=48 2>/dev/null",
             _ => "printf 'ok\\n'",
         };
-        #[cfg(windows)]
-        let script = match command {
-            b"fixture-stream" => {
-                "echo first & ping -n 2 127.0.0.1 >nul & echo second & echo diagnostic 1>&2"
-            }
-            b"fixture-fail" => "echo failed 1>&2 & exit /b 7",
-            b"fixture-hang" => "ping -n 30 127.0.0.1 >nul",
-            _ => "echo ok",
-        };
         tokio::spawn(async move {
-            #[cfg(unix)]
             let mut process = {
-                let mut p = tokio::process::Command::new("/bin/sh");
+                let mut p = posix_shell::command();
                 p.args(["-c", script]);
-                p
-            };
-            #[cfg(windows)]
-            let mut process = {
-                let mut p = tokio::process::Command::new("cmd");
-                p.args(["/C", script]);
                 p
             };
             let mut child = process

@@ -24,6 +24,10 @@
 - **Windows**：安装 MSVC C++ 构建工具、Windows SDK 和 WebView2 Runtime，使用 MSVC Rust 工具链。运行 Rust 配置语义测试还需要系统 OpenSSH Client；跳过凭据测试也不会跳过该依赖。
 - **macOS**：安装 Xcode Command Line Tools，或已接受许可并完成首次配置的 Xcode。打包配置的最低系统版本为 11.0，不代表已在所有旧系统和 Intel 设备验证。
 
+Windows ARM64 原生构建还需要 PATH 中有 `clang.exe`，用于锁定的 `ring` 依赖。可安装 LLVM 官方 Windows ARM64 工具链；只有 MSVC 的 ARM64 C++ 编译器不能替代此项。先用 `rustc -vV` 和 `clang --version` 核对目标与工具，再构建。x64 与 ARM64 的显式目标分别为 `x86_64-pc-windows-msvc` 和 `aarch64-pc-windows-msvc`，跨架构前用 `rustup target add` 安装对应目标及 MSVC/SDK 组件。
+
+`pnpm-workspace.yaml` 为当前操作系统同时安装 x64/ARM64 原生可选依赖，兼容 Windows ARM64 上 pnpm 与 Node 架构不同的环境。换架构后执行 `pnpm install --frozen-lockfile`，不要重新生成锁文件。
+
 克隆仓库后，后续命令均在仓库根目录执行：
 
 ```sh
@@ -100,6 +104,10 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 SSH 配置语义对照测试还需要系统 OpenSSH 客户端，使用独立配置文件执行 `ssh -G -F`，不登录真实主机。
 
+服务命令的 POSIX 引用、模板语法及回环服务测试在 Windows 使用 Git for Windows 自带的 `sh.exe`，通过 `git --exec-path` 定位；非标准安装可设置 `ORIATUNNEL_TEST_SH` 为完整 Shell 路径。它们验证的是远端 POSIX 命令，不能改用 `cmd.exe` 解释。生产应用不会调用该测试 Shell，也不会在本机执行配置或服务命令。
+
+Windows 的 `build.rs` 统一由链接器嵌入 Common Controls v6 清单，覆盖主程序、库测试、集成测试及示例；Tauri 仍生成图标和版本资源。不要同时恢复 Tauri 资源中的默认清单和链接器清单，否则会产生重复的 MANIFEST 资源。更新验签夹具 `src-tauri/tests/fixtures/updater/payload.txt` 由仓库 `.gitattributes` 禁止换行转换，必须保持原始签名字节。
+
 依赖已缓存时可为 Cargo 命令添加 `--offline`；首次克隆的设备不要假定缓存存在。界面改动还应验证键盘、深浅主题、最小窗口及减少动态效果。前端运行状态必须来自 Rust 快照和事件，不用假数据证明连接成功。
 
 ## 构建与打包
@@ -116,6 +124,19 @@ SSH 配置语义对照测试还需要系统 OpenSSH 客户端，使用独立配�
 | macOS Intel 签名、公证 App / DMG / ZIP | `pnpm package:mac:signed --target x86_64-apple-darwin` | `src-tauri/target/x86_64-apple-darwin/release/bundle/` |
 
 使用 Tauri 构建命令嵌入前端，普通 `cargo build --release` 不能代替独立桌面应用构建。macOS 的 `pnpm tauri build --debug` 可生成支持上述调试数据目录的 app。
+
+Windows 默认按当前 Rust 工具链架构生成 NSIS 包，也可显式选择目标：
+
+```powershell
+pnpm package:win --target x86_64-pc-windows-msvc
+pnpm package:win --target aarch64-pc-windows-msvc
+```
+
+显式目标的输出在 `src-tauri/target/<target>/release/bundle/nsis/`。测试打包可增加 `--debug`；此时输出位于相应 `debug/` 目录，不能作为正式发布验收。
+
+Windows 主入口在 debug/release 均使用图形子系统，避免独立 EXE 或测试安装包启动时附带控制台窗口；开发输出仍从开发工具查看。NSIS 在 `tauri.windows.conf.json` 配置简中、繁中、英、日、韩、德、法、俄，首次安装提供语言选择并保存选择，后续安装/卸载复用已有语言；不支持的系统语言回退英文。安装器语言与应用内语言偏好分别保存。
+
+应用图标选择除运行时窗口/Dock 外，还同步持久系统图标。Windows 只修改目标精确匹配当前程序的用户快捷方式，桌面通过 Known Folder 解析，兼容 OneDrive 重定向；隔离 COM 回归使用临时 `.lnk` 与非可执行占位目标，不修改用户快捷方式。macOS 使用 AppKit `NSWorkspace.setIcon` 写 Finder 自定义图标；裸开发可执行文件不修改外层目录，只读 DMG/无写入权限的应用位置会返回保存失败。Mac 专项 `persistent_finder_icons_preserve_a_signed_contents_bundle` 为临时 `.app` 做 ad-hoc 签名，再切换 Dark/Mono/Light 并运行 `codesign --verify --deep --strict`，不使用发布身份或修改真实应用。该专项须在 Mac 上执行；Windows 上的 AppKit 跨目标类型检查不能替代签名、公证和退出后 Finder/Dock 的原生验证。
 
 `pnpm icons` 从仓库内的应用图标导出图、托盘 SVG 和安装包 SVG 生成各平台图标。打包脚本会调用它，并在 macOS 上设置 DMG 卷图标、Finder 文件图标，生成保留图标元数据的 ZIP。普通打包命令不负责公证；正式签名、公证使用下一节入口。构建成功不等于已公开发布。
 
@@ -187,6 +208,8 @@ pnpm tauri build --bundles app,dmg --config src-tauri/tauri.updater.conf.json
 
 已启用 `requireSignedVersion`，使用支持版本绑定的锁定 Tauri CLI 构建。手动签名更新包时需提供 `--app-version`，使其与清单版本一致；清单只提供更高版本的稳定版。升级与验收计划见 [应用更新方案](APP_UPDATE_PLAN.md)。
 
+Windows 静态清单按已安装二进制架构提供 `windows-x86_64-nsis` / `windows-aarch64-nsis`（插件也支持相应不带 `-nsis` 的回退键）；x64 程序在 ARM64 仿真下仍使用 x64 更新包，缺少本架构时不改取另一架构。下载后验签并绑定版本，安装前再次验签；安装先确认并清理实际活动任务，再交给插件启动 NSIS 被动安装。只有 release NSIS 形态启用 Windows 更新，debug 安装包仍禁用。首次发布前须部署可访问的 `latest.json`、对应安装包及版本绑定签名；本地打包成功不代表更新发布端已就绪。保留隔离 QA 标识的本地修正版用于原安装覆盖，不能替代默认生产标识的公开发布验收。
+
 新增 Rust 测试通过本机回环 HTTP 提供公开签名夹具来验证下载、验签与失败重试；HTTP 放宽仅存在于测试配置中，应用要求 HTTPS。`src-tauri/tests/fixtures/updater/` 仅包含测试载荷、公钥与签名，不含私钥，也不使用正式更新密钥。库测试仍按上文明确跳过系统凭据模块；图形界面与原生验证使用独立标识和隔离数据。
 
 ## 预设远程命令开发
@@ -217,9 +240,9 @@ cargo test --manifest-path src-tauri/Cargo.toml --test terminal_pty
 pnpm test src/features/terminal src/lib/webview-guards.test.ts
 ```
 
-真实 PTY 夹具和测试目前仅在 Unix 编译运行，通过 `openpty` 与系统 Shell 验证 UTF-8、Ctrl+C/D/Z、尺寸变化、PTY + exec、拒绝路径及多跳隔离；不把这些结果作为 Windows 原生证据。库测试按前文跳过系统凭据模块。最终 Windows WebView 输入法、快捷键与原生关闭行为需在 Windows 设备复核。
+真实 PTY 夹具在 Unix 使用 `openpty` 与系统 Shell，在 Windows 使用仅测试依赖 `portable-pty` 的 ConPTY 与无用户 Profile 的系统 PowerShell。两者均仅监听回环地址并隔离 HOME/工作目录；Windows 还隔离 USERPROFILE、APPDATA 和临时目录，子进程有退出保护。测试覆盖真实 PTY + exec、退出码/超时、拒绝路径和多跳隔离；Windows 另验证 UTF-8、缩放、Ctrl+C 与服务终端关闭，Unix 的 Ctrl+D/Z 与作业控制不作为 Windows 验收。库测试可按前文跳过系统凭据模块。WebView 输入法、剪贴板快捷键仍需在原生窗口单独复核，传输测试不替代界面证据。
 
-`cargo run --manifest-path src-tauri/Cargo.toml --example terminal_fixture` 启动手动验证夹具并打印随机回环端口。它会在临时 HOME 中执行任意输入的命令，权限仍为当前开发账号；只在隔离 QA 中输入受控测试命令，结束用 Ctrl+C 关闭。不得配置用户真实主机或读取真实凭据；不把测试密码保存至系统凭据库。
+`cargo run --manifest-path src-tauri/Cargo.toml --example terminal_fixture` 在 Windows / Unix 启动手动验证夹具并打印随机回环端口。它会在临时 HOME 中执行任意输入的命令，权限仍为当前开发账号；只在隔离 QA 中输入受控测试命令，结束用 Ctrl+C 关闭。不得配置用户真实主机或读取真实凭据；不把测试密码保存至系统凭据库。
 
 ## 服务控制开发
 

@@ -999,6 +999,7 @@ mod tests {
             ],
         };
         let script = invocation.render().unwrap();
+        assert!(script.contains("--flag"));
         #[cfg(unix)]
         {
             let output = std::process::Command::new("/bin/sh")

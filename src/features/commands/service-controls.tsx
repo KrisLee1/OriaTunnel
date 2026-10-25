@@ -472,11 +472,15 @@ export function CredentialRetry({
   run,
   onRun,
   onError,
+  autoPrompt = false,
+  onPrompt,
 }: {
   data: Snapshot;
   run: import("@/types").CommandRun;
   onRun: (run: import("@/types").CommandRun) => void;
   onError: (error: string) => void;
+  autoPrompt?: boolean;
+  onPrompt?: () => void;
 }) {
   const { t } = useTranslation("commands");
   const [open, setOpen] = useState(false);
@@ -484,30 +488,10 @@ export function CredentialRetry({
   const [remember, setRemember] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const requestId = useRef(crypto.randomUUID());
+  const prompted = useRef(new Set<string>());
   const service = data.services?.find(
     (s) => s.id === run.serviceId && s.revision === run.serviceRevision,
   );
-  if (
-    !service ||
-    service.executionEnabled === false ||
-    run.submitted ||
-    run.error !== "authentication"
-  )
-    return null;
-  if (
-    run.workflowRuleId &&
-    !data.rules.some(
-      (r) => r.id === run.workflowRuleId && r.hostId === run.hostId,
-    )
-  )
-    return null;
-  const operation = run.actionId.startsWith("$connect:")
-    ? "connect"
-    : run.actionId === "$status"
-      ? "checkStatus"
-      : run.actionId === "$health"
-        ? "checkHealth"
-        : "action";
   const routeIds = [
     run.hostId,
     ...(run.workflowRuleId
@@ -518,12 +502,43 @@ export function CredentialRetry({
     ...new Map(
       routeIds
         .flatMap((id) => {
-          const h = data.hosts.find((h) => h.id === id);
-          return h ? [...jumpHosts(data.hosts, h), h] : [];
+          const host = data.hosts.find((h) => h.id === id);
+          return host ? [...jumpHosts(data.hosts, host), host] : [];
         })
-        .map((h) => [h.id, h]),
+        .map((host) => [host.id, host]),
     ).values(),
   ];
+  const canRetry =
+    !!service &&
+    service.executionEnabled !== false &&
+    run.finishedAt !== null &&
+    !run.submitted &&
+    run.error === "authentication" &&
+    hosts.some((host) => host.authMethod !== "agent") &&
+    (!run.workflowRuleId ||
+      data.rules.some(
+        (r) =>
+          r.id === run.workflowRuleId &&
+          r.hostId === run.hostId &&
+          service.ruleIds.includes(r.id),
+      ));
+  useEffect(() => {
+    if (!autoPrompt || !canRetry || prompted.current.has(run.id)) return;
+    prompted.current.add(run.id);
+    onPrompt?.();
+    requestId.current = crypto.randomUUID();
+    setValues({});
+    setRemember({});
+    setOpen(true);
+  }, [autoPrompt, canRetry, run.id, onPrompt]);
+  if (!canRetry || !service) return null;
+  const operation = run.actionId.startsWith("$connect:")
+    ? "connect"
+    : run.actionId === "$status"
+      ? "checkStatus"
+      : run.actionId === "$health"
+        ? "checkHealth"
+        : "action";
   const close = () => {
     setOpen(false);
     setValues({});

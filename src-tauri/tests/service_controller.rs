@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(any(unix, windows))]
 #[path = "common/service_server.rs"]
 mod server;
 use oria_tunnel_lib::{
@@ -212,7 +212,7 @@ async fn delayed_real_http_readiness_starts_once_then_forwards_real_bytes_on_ano
     let mut r = request(port, s.clone(), Operation::Connect);
     r.forward = Some(forward.clone());
     let done = execute(&m, &o, "first", r).await;
-    assert_eq!(done.phase, "succeeded");
+    assert_eq!(done.phase, "succeeded", "{done:?}");
     assert!(done.workflow_forward_created);
     assert!(done
         .steps

@@ -200,5 +200,6 @@
   "iconMainWindow": "Das Hauptfenster ist nicht verfügbar",
   "iconWindowsUpdate": "Das Windows-Anwendungssymbol kann nicht aktualisiert werden: {{error}}",
   "windowAppearanceInvalid": "Ungültige Fenstereinstellungen",
-  "externalLinkInvalid": "Der externe Link ist ungültig"
+  "externalLinkInvalid": "Der externe Link ist ungültig",
+  "iconPersist": "Das App-Symbol konnte nicht dauerhaft gespeichert werden. Prüfe die Schreibrechte am Speicherort der App und versuche es erneut."
 }

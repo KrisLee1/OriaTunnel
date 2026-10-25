@@ -1,2 +1,12 @@
 allowBuilds:
   esbuild: true
+
+# pnpm's executable and Node can use different architectures on Windows ARM64.
+# Keep both native dependency variants available for the runtime doing the build.
+supportedArchitectures:
+  os:
+    - current
+  cpu:
+    - current
+    - x64
+    - arm64

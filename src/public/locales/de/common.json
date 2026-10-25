@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "App-Symbol",
-    "description": "Systemdarstellung übernehmen oder dauerhaft das helle, dunkle oder einfarbige Symbol verwenden.",
+    "description": "Das Symbol bleibt nach dem Beenden in Windows-Verknüpfungen oder im macOS Finder erhalten. Systemänderungen werden bei laufender App übernommen.",
     "system": "System",
     "light": "Hell",
     "dark": "Dunkel",
@@ -91,5 +91,11 @@
   },
   "settings": {
     "showDescription": "Beschreibung anzeigen"
+  },
+  "initialPreferences": {
+    "title": "Willkommen bei OriaTunnel",
+    "description": "Wähle deine Einstellungen. Du kannst sie später in den Einstellungen ändern.",
+    "done": "Loslegen",
+    "saveFailed": "Der Abschluss konnte nicht gespeichert werden. Dieser Dialog erscheint beim nächsten Start erneut."
   }
 }

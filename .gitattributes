@@ -1,0 +1,2 @@
+# These bytes are covered by a detached test signature. Never convert newlines.
+src-tauri/tests/fixtures/updater/payload.txt -text

@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[path = "posix_shell.rs"]
+mod posix_shell;
 use russh::{
     keys::{Algorithm, PrivateKey},
     server::{self, Auth, Server as _, Session},
@@ -141,6 +143,10 @@ impl server::Handler for Fixture {
             b"fixture-bad-json"=>"printf '{\"state\":\"running\",\"unexpected\":true}'".into(),
             b"fixture-unmapped"=>"exit 9".into(),
             b"fixture-health"=>format!("curl --silent --show-error --fail --max-time 1 http://127.0.0.1:{health_port}/health"),
+            // Windows can spend the entire short probe budget retrying a
+            // refused socket. Keep this known closed-target fixture's mapping
+            // stable without changing production exit-code interpretation.
+            b"fixture-health-closed" if cfg!(windows)=>"curl --silent --show-error --fail --max-time 1 http://127.0.0.1:1/health; code=$?; if test \"$code\" = 28; then exit 7; else exit \"$code\"; fi".into(),
             b"fixture-health-closed"=>"curl --silent --show-error --fail --max-time 1 http://127.0.0.1:1/health".into(),
             b"fixture-fail"=>"printf 'failed\\n' >&2; exit 7".into(),
             b"fixture-hang"=>"sleep 30".into(),
@@ -149,13 +155,19 @@ impl server::Handler for Fixture {
         };
         let home = self.home.clone();
         tokio::spawn(async move {
-            #[cfg(unix)]
             let mut process = {
-                let mut p = tokio::process::Command::new("/bin/sh");
+                let mut p = posix_shell::command();
                 p.args(["-c", &script])
                     .env_clear()
                     .env("HOME", home.path())
-                    .env("PATH", "/usr/bin:/bin")
+                    .env(
+                        "PATH",
+                        if cfg!(windows) {
+                            "/mingw64/bin:/clangarm64/bin:/usr/bin:/bin"
+                        } else {
+                            "/usr/bin:/bin"
+                        },
+                    )
                     .current_dir(home.path());
                 p
             };

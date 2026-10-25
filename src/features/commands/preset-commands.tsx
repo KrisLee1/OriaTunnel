@@ -310,6 +310,7 @@ export function PresetCommandProvider({
   const submitting = useRef(false);
   const submissions = useRef(new Map<string, string>());
   const knownRuns = useRef(new Map<string, CommandRun>());
+  const automaticAuthRuns = useRef(new Set<string>());
   const translate = useRef(t);
   translate.current = t;
   const merge = useCallback((next: CommandRun[]) => {
@@ -479,6 +480,7 @@ export function PresetCommandProvider({
             rememberHostIds: Object.keys(saved).filter((id) => saved[id]),
           });
       submissions.current.delete(key);
+      if (!workspace) automaticAuthRuns.current.add(run.id);
       merge([run]);
       setSelectedRun(run.id);
       if (workspace) {
@@ -1132,7 +1134,12 @@ export function PresetCommandProvider({
           <CommandResult
             key={selected.id}
             data={data}
+            autoPromptCredentials={automaticAuthRuns.current.has(selected.id)}
+            onCredentialsPrompt={() =>
+              automaticAuthRuns.current.delete(selected.id)
+            }
             onRerun={(run) => {
+              automaticAuthRuns.current.add(run.id);
               acceptRun(run);
               setSelectedRun(run.id);
             }}
@@ -1893,6 +1900,8 @@ export function CommandResult({
   accept,
   onCancel,
   onError,
+  autoPromptCredentials = false,
+  onCredentialsPrompt,
 }: {
   data?: Snapshot;
   onRerun?: (run: CommandRun) => void;
@@ -1900,6 +1909,8 @@ export function CommandResult({
   accept: (r: CommandRun) => void;
   onCancel: () => void;
   onError: (s: string) => void;
+  autoPromptCredentials?: boolean;
+  onCredentialsPrompt?: () => void;
 }) {
   const { t, i18n } = useTranslation("commands");
   const observations = useServiceObservations(true);
@@ -1961,7 +1972,10 @@ export function CommandResult({
     if (follow.current && pre.current)
       pre.current.scrollTop = pre.current.scrollHeight;
   }, [run.id, view]);
-  const current = view.run.revision >= run.revision ? view.run : run;
+  const current =
+    view.run.id === run.id && view.run.revision >= run.revision
+      ? view.run
+      : run;
   return (
     <section
       ref={resultElement}
@@ -2007,6 +2021,8 @@ export function CommandResult({
           run={current}
           onRun={onRerun}
           onError={onError}
+          autoPrompt={autoPromptCredentials}
+          onPrompt={onCredentialsPrompt}
         />
       )}
       {current.error && (
