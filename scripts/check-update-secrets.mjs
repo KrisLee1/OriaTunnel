@@ -14,7 +14,31 @@ export function signingEnvironment(environment = process.env) {
     if (environment[name] !== undefined) signing[name] = environment[name];
     delete clean[name];
   }
+  for (const name of ['TAURI_PRIVATE_KEY', 'TAURI_PRIVATE_KEY_PATH', 'TAURI_KEY_PASSWORD']) delete clean[name];
   return { clean, signing };
+}
+export function normalizeSigningKey(value) {
+  const text = value.replace(/^\uFEFF/, '').trim();
+  const encoded = text.startsWith('untrusted comment:') ? Buffer.from(text + '\n').toString('base64') : text.replace(/\s/g, '');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || !Buffer.from(encoded, 'base64').toString('utf8').split('\n')[0].includes('secret key')) {
+    throw new Error('Invalid TAURI_SIGNING_PRIVATE_KEY format. Paste the complete private .key file contents, not its path or the .pub file.');
+  }
+  return encoded;
+}
+export function signingFailure(result) {
+  // Only emit fixed messages: raw CLI diagnostics can include secret input.
+  const diagnostic = `${result.stderr || ''}\n${result.stdout || ''}`.toLowerCase();
+  if (diagnostic.includes('password') || diagnostic.includes('decrypt')) return 'Updater private key could not be decrypted. Add or correct TAURI_SIGNING_PRIVATE_KEY_PASSWORD; use an empty value only for a key created without a password.';
+  if (diagnostic.includes('base64') || diagnostic.includes('private key') || diagnostic.includes('secret key')) return 'Updater private key could not be decoded. Check the complete contents of TAURI_SIGNING_PRIVATE_KEY.';
+  if (diagnostic.includes('app-version') && diagnostic.includes('unexpected')) return 'The installed Tauri CLI does not support version-bound signatures. Install the frozen lockfile dependencies.';
+  return 'Updater signer failed. Check the signing key format and password; raw diagnostics were withheld.';
+}
+export function signArtifact(artifact, version, environment = process.env) {
+  const { clean, signing } = signingEnvironment(environment);
+  if (signing.TAURI_SIGNING_PRIVATE_KEY?.trim()) signing.TAURI_SIGNING_PRIVATE_KEY = normalizeSigningKey(signing.TAURI_SIGNING_PRIVATE_KEY);
+  const result = spawnSync(process.execPath, [path.join(root, 'node_modules/@tauri-apps/cli/tauri.js'), 'signer', 'sign', '--app-version', version, artifact],
+    { cwd: root, windowsHide: true, env: { ...clean, ...signing, CI: 'true' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  if (result.error || result.status !== 0) throw new Error(signingFailure(result));
 }
 export function run(program, args, options = {}) {
   const result = spawnSync(program, args, { cwd: root, windowsHide: true, stdio: 'inherit', ...options });
@@ -38,9 +62,7 @@ export function checkSecrets({ config = path.join(root, 'src-tauri/tauri.conf.js
     fs.writeFileSync(probe, `OriaTunnel signing preflight ${randomBytes(32).toString('hex')}\n`);
     // Signing keys are passed only through the signer's environment. Suppress
     // its captured diagnostics so malformed secret values can never reach logs.
-    const result = spawnSync(process.execPath, [path.join(root, 'node_modules/@tauri-apps/cli/tauri.js'), 'signer', 'sign', '--app-version', version, probe],
-      { cwd: root, windowsHide: true, env: { ...clean, ...signing, CI: 'true' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    if (result.error || result.status !== 0) throw new Error('Updater signing failed. Check the private key and its password.');
+    signArtifact(probe, version, { ...clean, ...signing });
     run(verifier, ['--config', config, '--artifact', probe, '--signature', `${probe}.sig`, '--version', version, '--require-filename'], { env: clean });
     console.log('Updater signing secret matches the configured public key; version-bound signature verified.');
     return verifier;
