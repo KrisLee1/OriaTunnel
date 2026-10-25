@@ -11,8 +11,8 @@
   "autoCheck": "Check on startup",
   "releases": "Open releases",
   "confirmTitle": "Install update",
-  "confirmHint": "Install version {{version}} and restart? This stops all forwards and host tests.",
-  "activeForwards": "Active forwards: {{count}}",
+  "confirmHint": "Install version {{version}} and restart? This stops all forwards, SSH terminals, service commands, and host tests.",
+  "activeForwards": "Active sessions and commands: {{count}}",
   "activeTests": "Active host tests: {{count}}",
   "later": "Later",
   "confirmInstall": "Stop sessions and install",
@@ -58,8 +58,8 @@
     "feedback": "Report an issue"
   },
   "goUpdate": "Update",
-  "activeForwards_one": "Active forward: {{count}}",
-  "activeForwards_other": "Active forwards: {{count}}",
+  "activeForwards_one": "Active sessions and commands: {{count}}",
+  "activeForwards_other": "Active sessions and commands: {{count}}",
   "activeTests_one": "Active host test: {{count}}",
   "activeTests_other": "Active host tests: {{count}}"
 }

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { releaseVersion, platforms, matrix, root } from './config.mjs';
-import { validateAssets } from './publish.mjs';
+import { assertDraftSource, validateAssets } from './publish.mjs';
 import { sha256 } from './collect.mjs';
 const commit = 'a'.repeat(40);
 function fixture() {
@@ -48,4 +48,27 @@ test('release metadata rejects an unrelated tag and includes all four target tri
   assert.equal(releaseVersion(`v${current}`), current);
   assert.throws(() => releaseVersion(`v${current}-rc.1`), /Tag must/);
   assert.equal(matrix().length, 4);
+});
+test('draft replacement requires the exact old source and a forward-only descendant', async () => {
+  const previous = 'b'.repeat(40);
+  const release = { draft: true, prerelease: false, target_commitish: previous, body: `<!-- oria-release-commit:${previous} -->` };
+  let comparisons = 0;
+  const github = { rest: { repos: { compareCommitsWithBasehead: async ({ basehead }) => {
+    comparisons++;
+    assert.equal(basehead, `${previous}...${commit}`);
+    return { data: { status: 'ahead', merge_base_commit: { sha: previous } } };
+  } } } };
+  await assert.rejects(assertDraftSource(github, release, commit));
+  await assert.rejects(assertDraftSource(github, release, commit, 'c'.repeat(40)));
+  await assert.rejects(assertDraftSource(github, { ...release, draft: false }, commit, previous));
+  await assert.rejects(assertDraftSource(github, { ...release, prerelease: true }, commit, previous));
+  await assert.rejects(assertDraftSource(github, { ...release, body: '' }, commit, previous));
+  assert.equal(comparisons, 0);
+  await assertDraftSource(github, release, previous);
+  await assertDraftSource(github, release, commit, previous);
+  assert.equal(comparisons, 1);
+  for (const data of [{ status: 'behind', merge_base_commit: { sha: commit } }, { status: 'diverged', merge_base_commit: { sha: 'c'.repeat(40) } }, { status: 'ahead', merge_base_commit: { sha: 'c'.repeat(40) } }]) {
+    const differentHistory = { rest: { repos: { compareCommitsWithBasehead: async () => ({ data }) } } };
+    await assert.rejects(assertDraftSource(differentHistory, release, commit, previous));
+  }
 });

@@ -13,10 +13,14 @@ on:
         description: Optional stable tag; must match all source version files (vX.Y.Z)
         type: string
         default: ''
+      replaceDraftCommit:
+        description: Optional exact previous draft SHA to rebuild after a fix; published releases and existing version tags stay immutable
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.event_name == 'push' && github.ref_name || inputs.tag || github.sha }}
+  group: oria-stable-release
   cancel-in-progress: false
 env:
   RUSTUP_TOOLCHAIN: '1.98.0'
@@ -127,6 +131,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
           RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+          REPLACE_DRAFT_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.replaceDraftCommit || '' }}
         with:
           script: |
             const { createDraft } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/release/publish.mjs`);

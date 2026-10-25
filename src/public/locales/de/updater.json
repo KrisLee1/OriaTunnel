@@ -11,8 +11,8 @@
   "autoCheck": "Beim Start nach Updates suchen",
   "releases": "Veröffentlichungen öffnen",
   "confirmTitle": "Update installieren",
-  "confirmHint": "Version {{version}} installieren und neu starten? Alle Weiterleitungen und Hosttests werden beendet.",
-  "activeForwards": "Aktive Weiterleitungen: {{count}}",
+  "confirmHint": "Version {{version}} installieren und neu starten? Alle Weiterleitungen, SSH-Terminals, Dienstbefehle und Hosttests werden beendet.",
+  "activeForwards": "Aktive Sitzungen und Befehle: {{count}}",
   "activeTests": "Aktive Hosttests: {{count}}",
   "later": "Später",
   "confirmInstall": "Sitzungen beenden und installieren",
@@ -58,8 +58,8 @@
     "feedback": "Problem melden"
   },
   "goUpdate": "Zum Update",
-  "activeForwards_one": "Aktive Weiterleitung: {{count}}",
-  "activeForwards_other": "Aktive Weiterleitungen: {{count}}",
+  "activeForwards_one": "Aktive Sitzungen und Befehle: {{count}}",
+  "activeForwards_other": "Aktive Sitzungen und Befehle: {{count}}",
   "activeTests_one": "Aktiver Hosttest: {{count}}",
   "activeTests_other": "Aktive Hosttests: {{count}}"
 }

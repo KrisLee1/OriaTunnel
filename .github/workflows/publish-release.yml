@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: publish-stable-release
+  group: oria-stable-release
   cancel-in-progress: false
 env:
   RUSTUP_TOOLCHAIN: '1.98.0'

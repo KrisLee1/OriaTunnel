@@ -60,6 +60,15 @@ async function assertTagSource(github, tag, commit) {
     if (object.type !== 'commit' || object.sha !== commit) throw new Error('The version tag points to a different source commit.');
   } catch (error) { if (error.status !== 404) throw error; }
 }
+export async function assertDraftSource(github, release, commit, previousCommit = '') {
+  if (!release) return;
+  if (!release.draft || release.prerelease) throw new Error('Only an unpublished stable draft can be rebuilt.');
+  if (release.target_commitish === commit) return;
+  const recorded = release.body?.match(/<!-- oria-release-commit:([0-9a-f]{40}) -->/)?.[1];
+  if (!/^[0-9a-f]{40}$/.test(previousCommit) || recorded !== previousCommit || release.target_commitish !== previousCommit) throw new Error('Rebuilding a different source requires the exact previous draft commit.');
+  const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({ owner, repo, basehead: `${previousCommit}...${commit}` });
+  if (comparison.status !== 'ahead' || comparison.merge_base_commit?.sha !== previousCommit) throw new Error('A draft can only advance to a descendant of its previous source.');
+}
 export async function createDraft({ github, context, core }) {
   if (context.repo.owner !== owner || context.repo.repo !== repo) throw new Error('Unexpected release repository.');
   const version = releaseVersion(process.env.RELEASE_TAG);
@@ -70,12 +79,12 @@ export async function createDraft({ github, context, core }) {
   await ensureNewer(github, version);
   await assertTagSource(github, `v${version}`, commit);
   let release = await releaseForTag(github, `v${version}`);
-  if (release && (!release.draft || release.target_commitish !== commit)) throw new Error('Only a draft for this exact commit can be updated.');
+  await assertDraftSource(github, release, commit, process.env.REPLACE_DRAFT_COMMIT);
   const notes = await github.rest.repos.generateReleaseNotes({ owner, repo, tag_name: `v${version}`, target_commitish: commit });
   manifest.notes = notes.data.body;
   const body = `${notes.data.body}\n\n<!-- oria-release-commit:${commit} -->\n\nWindows: download the matching NSIS installer. macOS: download the matching DMG or DMG ZIP.\nThe app downloads its architecture-specific signed updater automatically.\n`;
   if (!release) release = (await github.rest.repos.createRelease({ owner, repo, tag_name: `v${version}`, target_commitish: commit, name: `OriaTunnel ${version}`, body, draft: true, prerelease: false, make_latest: 'false' })).data;
-  else release = (await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body })).data;
+  else release = (await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body, target_commitish: commit })).data;
   const oldAssets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });
   // Draft-only retries replace their assets; published releases never reach here.
   for (const asset of oldAssets) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id });

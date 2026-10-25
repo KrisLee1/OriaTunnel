@@ -11,8 +11,8 @@
   "autoCheck": "Rechercher au démarrage",
   "releases": "Ouvrir les versions",
   "confirmTitle": "Installer la mise à jour",
-  "confirmHint": "Installer la version {{version}} et redémarrer ? Toutes les redirections et tous les tests d’hôte seront arrêtés.",
-  "activeForwards": "Redirections actives : {{count}}",
+  "confirmHint": "Installer la version {{version}} et redémarrer ? Toutes les redirections, tous les terminaux SSH, toutes les commandes de service et tous les tests d’hôte seront arrêtés.",
+  "activeForwards": "Sessions et commandes actives : {{count}}",
   "activeTests": "Tests d’hôte actifs : {{count}}",
   "later": "Plus tard",
   "confirmInstall": "Arrêter les sessions et installer",
@@ -58,8 +58,8 @@
     "feedback": "Signaler un problème"
   },
   "goUpdate": "Mettre à jour",
-  "activeForwards_one": "Redirection active : {{count}}",
-  "activeForwards_other": "Redirections actives : {{count}}",
+  "activeForwards_one": "Sessions et commandes actives : {{count}}",
+  "activeForwards_other": "Sessions et commandes actives : {{count}}",
   "activeTests_one": "Test d’hôte actif : {{count}}",
   "activeTests_other": "Tests d’hôte actifs : {{count}}"
 }
