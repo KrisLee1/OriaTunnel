@@ -69,22 +69,48 @@ pub async fn spawn_shell(
 ) {
     let directory = tempfile::tempdir().unwrap();
     // Absolute system path and no profile: never execute user PowerShell setup.
-    let shell = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
-        .join("System32/WindowsPowerShell/v1.0/powershell.exe");
-    let mut process = CommandBuilder::new(shell);
+    let system = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap());
+    let powershell = system.join("System32/WindowsPowerShell/v1.0");
+    let mut process = CommandBuilder::new(powershell.join("powershell.exe"));
     process.env_clear();
-    for name in ["SystemRoot", "WINDIR"] {
+    // Preserve only OS metadata needed by the Windows/.NET module loader, never
+    // the runner's user PATH, profile, PowerShell modules, or authentication.
+    for name in [
+        "SystemRoot",
+        "WINDIR",
+        "SystemDrive",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "CommonProgramFiles",
+        "CommonProgramFiles(x86)",
+        "PROCESSOR_ARCHITECTURE",
+    ] {
         if let Some(value) = std::env::var_os(name) {
             process.env(name, value);
         }
     }
+    process.env(
+        "PATH",
+        std::env::join_paths([system.join("System32"), powershell.clone()]).unwrap(),
+    );
+    process.env("PSModulePath", powershell.join("Modules"));
+    process.env(
+        "PSModuleAnalysisCachePath",
+        directory.path().join("module-cache"),
+    );
     process.args(["-NoLogo", "-NoProfile"]);
     if command.is_none() {
         process.arg("-NoExit");
+    } else {
+        process.arg("-NonInteractive");
     }
     process.arg("-Command");
-    process.arg(command.unwrap_or_else(||
-        "function global:PSConsoleHostReadLine { [Console]::ReadLine() }; function global:prompt { 'oria-e2> ' }".into()));
+    let command = command.unwrap_or_else(||
+        "function global:PSConsoleHostReadLine { [Console]::ReadLine() }; function global:prompt { 'oria-e2> ' }".into());
+    let utility =
+        powershell.join("Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1");
+    let utility = utility.to_string_lossy().replace('\'', "''");
+    process.arg(format!("[Console]::WriteLine('fixture-shell-ready'); Import-Module '{utility}' -ErrorAction Stop; [Console]::WriteLine('fixture-modules-ready'); {command}"));
     process.cwd(directory.path());
     process.env("HOME", directory.path());
     process.env("USERPROFILE", directory.path());

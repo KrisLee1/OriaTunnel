@@ -67,9 +67,9 @@ jobs:
       - name: Native icon, signature and updater release gates
         run: 'cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip credentials::tests::'
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
-      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Isolated loopback integration release gates
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --test local_forward --test commands_exec --test terminal_pty --test supervision --test service_controller
+      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Prepare disposable macOS signing keychain and notarization profile
         if: runner.os == 'macOS'
         shell: bash

@@ -44,8 +44,8 @@ jobs:
           rustc -vV
           if [[ "$RUNNER_OS" == Windows && "$RUNNER_ARCH" == ARM64 ]]; then clang --version; fi
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
-      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Native icon, updater and configuration regressions
         run: 'cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip credentials::tests::'
       - name: Isolated loopback SSH integration tests
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --test local_forward --test commands_exec --test terminal_pty --test supervision --test service_controller
+      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
