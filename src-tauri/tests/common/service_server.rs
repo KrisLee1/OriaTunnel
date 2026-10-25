@@ -19,6 +19,30 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 use tokio_util::sync::CancellationToken;
+
+// Git for Windows on hosted runners need not bundle curl. Resolve the native
+// system tool before clearing the fixture environment; never inherit a user's
+// PATH, curl configuration or proxy settings.
+fn curl_command(port: u16) -> String {
+    #[cfg(windows)]
+    let program = {
+        let path = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/curl.exe");
+        assert!(
+            path.is_file(),
+            "Windows HTTP fixtures require system curl.exe"
+        );
+        format!(
+            "'{}'",
+            path.to_string_lossy()
+                .replace('\\', "/")
+                .replace('\'', "'\\''")
+        )
+    };
+    #[cfg(unix)]
+    let program = "/usr/bin/curl";
+    format!("{program} --disable --noproxy '*' --silent --show-error --fail --max-time 1 http://127.0.0.1:{port}/health")
+}
 #[derive(Clone)]
 pub struct Fixture {
     pub calls: Arc<AtomicUsize>,
@@ -136,22 +160,28 @@ impl server::Handler for Fixture {
         let handle = session.handle();
         let health_port = self.health_port;
         let script = match command {
-            b"fixture-start"=>"touch started; printf 'started\\n'".into(),
-            b"fixture-stop"=>"rm -f started; printf 'stopped\\n'".into(),
-            b"fixture-status"=>"if test -f started; then printf 'running\\n'; else printf 'stopped\\n'; exit 3; fi".into(),
-            b"fixture-json"=>"printf '{\"state\":\"running\",\"ready\":false}'".into(),
-            b"fixture-bad-json"=>"printf '{\"state\":\"running\",\"unexpected\":true}'".into(),
-            b"fixture-unmapped"=>"exit 9".into(),
-            b"fixture-health"=>format!("curl --silent --show-error --fail --max-time 1 http://127.0.0.1:{health_port}/health"),
+            b"fixture-start" => "touch started; printf 'started\\n'".into(),
+            b"fixture-stop" => "rm -f started; printf 'stopped\\n'".into(),
+            b"fixture-status" => {
+                "if test -f started; then printf 'running\\n'; else printf 'stopped\\n'; exit 3; fi"
+                    .into()
+            }
+            b"fixture-json" => "printf '{\"state\":\"running\",\"ready\":false}'".into(),
+            b"fixture-bad-json" => "printf '{\"state\":\"running\",\"unexpected\":true}'".into(),
+            b"fixture-unmapped" => "exit 9".into(),
+            b"fixture-health" => curl_command(health_port),
             // Windows can spend the entire short probe budget retrying a
             // refused socket. Keep this known closed-target fixture's mapping
             // stable without changing production exit-code interpretation.
-            b"fixture-health-closed" if cfg!(windows)=>"curl --silent --show-error --fail --max-time 1 http://127.0.0.1:1/health; code=$?; if test \"$code\" = 28; then exit 7; else exit \"$code\"; fi".into(),
-            b"fixture-health-closed"=>"curl --silent --show-error --fail --max-time 1 http://127.0.0.1:1/health".into(),
-            b"fixture-fail"=>"printf 'failed\\n' >&2; exit 7".into(),
-            b"fixture-hang"=>"sleep 30".into(),
-            b"fixture-large"=>"dd if=/dev/zero bs=65536 count=48 2>/dev/null".into(),
-            _=>"printf 'ok\\n'".into(),
+            b"fixture-health-closed" if cfg!(windows) => format!(
+                "{}; code=$?; if test \"$code\" = 28; then exit 7; else exit \"$code\"; fi",
+                curl_command(1)
+            ),
+            b"fixture-health-closed" => curl_command(1),
+            b"fixture-fail" => "printf 'failed\\n' >&2; exit 7".into(),
+            b"fixture-hang" => "sleep 30".into(),
+            b"fixture-large" => "dd if=/dev/zero bs=65536 count=48 2>/dev/null".into(),
+            _ => "printf 'ok\\n'".into(),
         };
         let home = self.home.clone();
         tokio::spawn(async move {
@@ -169,6 +199,12 @@ impl server::Handler for Fixture {
                         },
                     )
                     .current_dir(home.path());
+                #[cfg(windows)]
+                for name in ["SystemRoot", "WINDIR"] {
+                    if let Some(value) = std::env::var_os(name) {
+                        p.env(name, value);
+                    }
+                }
                 p
             };
             let mut child = process
