@@ -1,21 +1,29 @@
 # OriaTunnel 项目状态
 
-当前状态：A/B/C/D 已完成 Windows 当前范围的实现与验收。2026-10-23。
+当前状态：A/B/C/D 已完成 Windows 当前范围的实现与验收；v0.1.0 已于 2026-10-25 正式发布为 Latest。
+
+## v0.1.0 正式发布（2026-10-25）
+
+- [v0.1.0](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.0) 已公开并设为 Latest，应用源码与标签均为 `058e6374ddf13c849e66b22754a330d01cc3caa7`。包含 17 个上传资源：四架构安装/更新包、签名、收据与完整 `latest.json`；八语 README 的下载、更新说明、截图顺序及许可证已推送。
+- [Build release draft #10](https://github.com/KrisLee1/OriaTunnel/actions/runs/40204563064) 四架构原生检查、构建、签名及汇总全部成功；同源 [Quality gates](https://github.com/KrisLee1/OriaTunnel/actions/runs/40204438243) 成功。[Publish verified release #2](https://github.com/KrisLee1/OriaTunnel/actions/runs/40206633666) 重新下载并验证草稿后公开。发布控制器 `2a8a00c` 支持严格匹配源提交的 GitHub 占位草稿标签，8 项发布/预检测试及 actionlint 通过；不改变已构建应用源码。
+- 公开后的稳定更新入口、四个安装包地址均返回成功；实际下载四架构更新包逐一核对源提交、大小、SHA-256、许可证及版本/文件名绑定签名。两个 macOS 更新包解包后的严格 codesign、装订票据和 Gatekeeper 验证通过。
+- 独立标识的原生 `0.0.9` 客户端从正式 GitHub 入口检测到 `0.1.0`，真实下载并验签后显示可安装；未将生产标识的正式载荷安装到用户应用。完整替换/重启、会话清理和偏好保留已通过下述隔离 QA 到 QA 演练。Windows 与 Intel 的实体设备完整升级未在本轮实测。
+- 首次正式版本是 `0.1.0`，同版本客户端不会提示升级；不含 Updater 或使用旧公钥的构建需手动安装兼容版本一次。公开下载验证及截图保存在忽略目录 `outputs/update-rehearsal-20261025/`。
 
 ## 发布许可证（2026-10-25）
 
-- 用户新增 GPL-3.0-only 的 `LICENSE`、八语 README 声明、Node/Cargo 许可元数据与 Tauri `licenseFile`/资源映射，保持原文。正式构建将其作为应用资源打包，发布收据记录许可证 SHA-256，并复验 macOS App/TAR 原文及 Windows NSIS 编译输入/安装资源。
-- 不发布缺少许可证的旧候选；新候选需重新通过四架构构建、签名和完整草稿汇总。LICENSE 通过 Git 属性固定原始字节，模拟 `core.autocrlf=true` 核对跨平台 SHA-256 一致。
+- 用户新增 GPL-3.0-only 的 `LICENSE`、八语 README 声明、Node/Cargo 许可元数据与 Tauri `licenseFile`/资源映射，保持原文。正式构建已将其作为应用资源打包，发布收据记录许可证 SHA-256，并复验 macOS App/TAR 原文及 Windows NSIS 编译输入/安装资源。
+- 含许可证的正式候选已通过四架构构建、签名和草稿汇总；LICENSE 通过 Git 属性固定原始字节，模拟 `core.autocrlf=true` 核对跨平台 SHA-256 一致。原文 SHA-256 为 `fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0`，四份公开收据均匹配；两个公开 macOS 更新包的应用资源逐字节一致，Windows 的许可证页及安装资源输入在 CI 校验通过。
 
 ## 更新演练（2026-10-25）
 
 - 独立应用标识、独立偏好与配置的 macOS release 演练完成 `0.0.9 → 0.1.0`：HTTPS 检查、真实下载进度、版本绑定验签、稍后安装、安装替换和自动重启通过；深色、Mono、Windows 控件/右侧及欢迎完成标记保留，同版显示已是最新版本。
 - 篡改包被拒绝，旧版可执行文件 SHA-256 不变，重试原包成功。安装时清理一个真实的 `127.0.0.1` SSH 终端，重启后未重连或重放输入；安装后可执行文件与目标包一致，严格 codesign 验证通过。
-- 演练发现确认界面把终端/命令统称转发；已同步八语改为活动会话与命令，并明确列出停止范围。将重新构建并验签正式草稿后发布；未将修正前草稿直接公开。
+- 演练发现确认界面把终端/命令统称转发；已同步八语改为活动会话与命令，并明确列出停止范围。修正后已重新构建并验签正式草稿，再公开发布；未将修正前草稿直接公开。
 - 修正后候选 `3192f1f` 的 [Build release draft #8](https://github.com/KrisLee1/OriaTunnel/actions/runs/40200583592) 中，Apple Silicon 与两个 Windows 架构成功；Intel 原生门禁、签名和公证接受通过，但 Apple 票据下载连续断线（stapler 68），汇总跳过；Intel 重跑已启动，随后因用户新增许可证要求而取消，改为构建包含许可证的新候选。未公开旧草稿。
 - 演练仅在忽略目录 `outputs/update-rehearsal-20261025/` 使用临时内存签名密钥与专用 TLS 证书，不读取正式私钥，不修改系统证书信任或关闭 TLS 验证。该演练证明本机 Apple Silicon 更新流程，不代替 Windows 或 Intel 实体设备安装验收；正式产物仍通过四架构 Actions 验证。
 
-- 含许可证候选的独立 Quality gates 全部成功；发布矩阵的 Windows ARM64 正常退出夹具在 Shell 就绪前耗尽 15 秒，现只把该正常退出检查的启动预算设为 45 秒，1 秒超时用例与生产超时不变。重新构建，避免将偶发夹具启动耗时记为产品退出码失败。
+- 含许可证候选的独立 Quality gates 全部成功；发布矩阵的 Windows ARM64 正常退出夹具在 Shell 就绪前耗尽 15 秒，现只把该正常退出检查的启动预算设为 45 秒，1 秒超时用例与生产超时不变。最终候选四架构重新构建全部通过，避免将偶发夹具启动耗时记为产品退出码失败。
 
 ## 顶栏交互、终端避让与阴影（2026-10-25）
 
@@ -28,15 +36,15 @@
 - xterm 初始化时启用透明背景，屏幕、结束占位和面板内命令输出共用既有浮层材质，跟随窗口透明度和模糊；文字、ANSI 与光标保持不透明。覆盖 xterm 默认黑色 viewport，中文 IME 组合层使用 ORIA 前景/背景 Token。
 - 46 项终端/窗口材质专项与类型/生产构建通过；在独立 QA 标识与回环主机的实时预览中确认黑色滚动层已消失，证据位于 `outputs/release-qa-20261025/terminal-transparency-fixed.png`。未连接真实主机或保存认证口令。
 
-## 发布流水线与首次偏好验收（2026-10-25）
+## 发布流水线与首次偏好验收历史（2026-10-25，最终结果见顶部）
 
-- 用户更新 GitHub 更新私钥后，本机 `oria-tunnel-update.key.pub` 与原应用公钥不同；已同步新公钥并重新验证。带旧公钥的已有手动构建需重新安装兼容版本一次；`v0.1.0` 草稿已生成，尚未公开发布。
+- 用户更新 GitHub 更新私钥后，本机 `oria-tunnel-update.key.pub` 与原应用公钥不同；已同步新公钥并重新验证。带旧公钥的已有手动构建需重新安装兼容版本一次；`v0.1.0` 随后已完成正式发布，最终证据见顶部。
 
 - 已拉取 `c4a60bb`；`docs/APP_UPDATE_PLAN.md` 已由 `406b009` 纳入仓库。新增固定工具版本及 Actions SHA 的 Quality gates、Build release draft、Publish verified release：四个原生目标分别验证、构建，单任务复验 receipt/哈希/公钥签名并生成完整静态清单；正式发布重新下载草稿再验签，不覆盖已公开版本。操作入口和 Secrets 统一见 [发布指南](RELEASING.md)。[Build release draft #7](https://github.com/KrisLee1/OriaTunnel/actions/runs/40197756544) 全部成功，产物源提交为 `3449d161c3af97c5e6544fa8a103f89192bda6a6`。
 - GitHub 更新签名预检使用不泄密的格式检查/固定错误分类。早期 `40182857601` 的解密问题已由用户更新 Secrets；`40184291098` 四个平台预检均通过，已确认新私钥与同步后的应用公钥匹配，版本绑定验签成功。八项发布 Secrets 已配置，macOS 临时证书导入及公证配置通过；未读取用户私钥正文、口令或导出本机证书。
 - 真实 Mac 专项发现 NSWorkspace 写入 Finder 图标元数据会使签名 App 的严格 codesign 验证失败；现对含 `_CodeSignature` 的 App 保留原 Finder 图标，仅切换 Dock 运行图标并保存偏好。对应 3 项 Mac 专项和独立签名 QA App 连续 Light/Dark/Mono/System 切换后的严格签名检查通过，八语说明已修正。
 - 独立标识、空 SSH 来源及隔离数据的 Mac QA App 实测首次欢迎六项即时生效：中文切英语、深色、Mono、Manuscript、Windows 按钮/右侧；开始使用后退出并重启不再显示欢迎，六项偏好均保留。补验新 QA 标识直接关闭欢迎后重启：不再弹出欢迎，深色与 Dark 图标偏好保留；两个测试实例均已退出。证据位于忽略目录 `outputs/release-qa-20261025/`；未连接真实 SSH 或替换已安装应用。
-- 本地验证：207 项前端全量、117 项 Mac Rust 库测试（跳过 3 项系统凭据测试）、1 项独立验签器测试、6 项 Node 发布脚本检查、前端生产构建、严格全目标 Clippy、Rust 格式、actionlint 和文档校验通过。云端四架构的原生门禁、更新签名、构建与产物汇总全部通过，确认更新 Secrets、Apple 证书与公证凭据可用；[v0.1.0 草稿](https://github.com/KrisLee1/OriaTunnel/releases/tag/untagged-d2e4021fb24f66bc2dbb) 包含 17 个资源（安装包、更新包、签名、四份收据与完整 latest.json）。汇总已复验版本、源提交、SHA-256 和版本绑定签名；正式跨版本安装及公开发布仍待验收/授权。
+- 本地验证：207 项前端全量、117 项 Mac Rust 库测试（跳过 3 项系统凭据测试）、1 项独立验签器测试、6 项 Node 发布脚本检查、前端生产构建、严格全目标 Clippy、Rust 格式、actionlint 和文档校验通过。云端四架构的原生门禁、更新签名、构建与产物汇总全部通过，确认更新 Secrets、Apple 证书与公证凭据可用；v0.1.0 草稿（现已正式发布） 包含 17 个资源（安装包、更新包、签名、四份收据与完整 latest.json）。汇总已复验版本、源提交、SHA-256 和版本绑定签名；后续隔离安装演练与正式发布已完成，最终证据见顶部。
 
 - 首轮 `40184291098` 暴露云端 Git for Windows 不保证附带 curl 的测试差异，改为隔离调用系统绝对路径 curl，并禁用个人 curl 配置/代理；本机五项回环服务测试及专项 Clippy 通过。Apple Silicon App 与 DMG 已获公证接受，但 DMG 票据复验遇到 Apple CloudKit 网络中断；仅对 stapler 网络退出码 68 有限重试三次，签名/票据拒绝仍立即失败。`40185600230` 的 macOS Apple Silicon/Intel 全部通过并上传带公证票据与独立更新签名的产物；Windows 服务门禁通过，后续 ConPTY 终端初始化暴露无界面端缺少设备属性应答；现已补齐测试端应答及分片回归，并由最终成功运行覆盖验证。
 - ConPTY 分片应答回归已通过。`40195202492` 已通过实际专用命令、多会话与多跳终端测试；中文输出受系统默认编码影响，已在隔离夹具中显式设置 UTF-8；最终 `40197756544` 的 Windows x64/ARM64 终端专项和四平台汇总均通过。
