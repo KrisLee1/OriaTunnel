@@ -49,9 +49,22 @@ async function ensureNewer(github, version) {
     if (!release.draft && !release.prerelease && /^v\d+\.\d+\.\d+$/.test(release.tag_name) && compareVersion(version, release.tag_name.slice(1)) <= 0) throw new Error('A stable release with this or a newer version already exists. Published assets are immutable.');
   }
 }
+export function selectRelease(releases, tag) {
+  const exact = releases.filter(release => release.tag_name === tag);
+  if (exact.length > 1) throw new Error('Multiple releases use the requested tag.');
+  if (exact.length) return exact[0];
+  // GitHub can retain a placeholder tag while an unpublished release is edited.
+  // Only our uniquely named, source-bound draft is eligible for final tagging.
+  const pending = releases.filter(release => release.draft && !release.prerelease
+    && /^untagged-[a-z0-9]+$/.test(release.tag_name || '')
+    && release.name === `OriaTunnel ${tag.slice(1)}`
+    && /<!-- oria-release-commit:[0-9a-f]{40} -->/.test(release.body || ''));
+  if (pending.length > 1) throw new Error('Multiple source-bound drafts match the requested version.');
+  return pending[0];
+}
 async function releaseForTag(github, tag) {
   const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
-  return releases.find(release => release.tag_name === tag);
+  return selectRelease(releases, tag);
 }
 async function assertTagSource(github, tag, commit) {
   try {
@@ -121,7 +134,7 @@ export async function publishDraft({ github, context, core }) {
     const verifier = buildVerifier(signingEnvironment().clean);
     const { manifest: expected } = validateAssets(directory, { version, commit, verifier });
     if (actual.version !== expected.version || JSON.stringify(actual.platforms) !== JSON.stringify(expected.platforms) || !Number.isFinite(Date.parse(actual.pub_date))) throw new Error('Draft latest.json does not match its verified assets.');
-    const published = (await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, draft: false, prerelease: false, make_latest: 'true' })).data;
+    const published = (await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, tag_name: tag, target_commitish: commit, draft: false, prerelease: false, make_latest: 'true' })).data;
     core.setOutput('release_url', published.html_url);
     await core.summary.addHeading(`Published ${tag}`).addLink('Release', published.html_url).addLink('Updater endpoint', `https://github.com/${owner}/${repo}/releases/latest/download/latest.json`).write();
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }

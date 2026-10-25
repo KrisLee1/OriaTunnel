@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { releaseVersion, platforms, matrix, root } from './config.mjs';
-import { assertDraftSource, validateAssets } from './publish.mjs';
+import { assertDraftSource, selectRelease, validateAssets } from './publish.mjs';
 import { sha256 } from './collect.mjs';
 const commit = 'a'.repeat(40);
 function fixture() {
@@ -72,4 +72,14 @@ test('draft replacement requires the exact old source and a forward-only descend
     const differentHistory = { rest: { repos: { compareCommitsWithBasehead: async () => ({ data }) } } };
     await assert.rejects(assertDraftSource(differentHistory, release, commit, previous));
   }
+});
+test('placeholder drafts require a unique version name and source marker before final tagging', () => {
+  const draft = { id: 1, tag_name: 'untagged-d2e4021fb24f66bc2dbb', name: 'OriaTunnel 0.1.0', draft: true, prerelease: false, body: `<!-- oria-release-commit:${commit} -->` };
+  assert.equal(selectRelease([draft], 'v0.1.0'), draft);
+  assert.equal(selectRelease([draft], 'v0.2.0'), undefined);
+  for (const patch of [{ draft: false }, { prerelease: true }, { body: '' }, { tag_name: 'v0.2.0' }]) assert.equal(selectRelease([{ ...draft, ...patch }], 'v0.1.0'), undefined);
+  assert.throws(() => selectRelease([draft, { ...draft, id: 2 }], 'v0.1.0'));
+  const tagged = { ...draft, id: 3, tag_name: 'v0.1.0' };
+  assert.equal(selectRelease([draft, tagged], 'v0.1.0'), tagged);
+  assert.throws(() => selectRelease([tagged, { ...tagged, id: 4 }], 'v0.1.0'));
 });
