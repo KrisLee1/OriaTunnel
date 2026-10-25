@@ -5,7 +5,7 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 ## 可复用能力
 
 - `FirstUsePreferences` 在首个 Rust 快照就绪后显示首次偏好弹窗，组合 `InitialPreferenceSettings`，与设置页共用语言、主题、颜色模式、应用图标及窗口按钮风格/位置控件；不重复实现偏好状态，不包含主题导入或高级窗口材质。选择即时保存/预览；开始使用、关闭或 Escape 都保存 `oria-tunnel.initial-preferences.v1` 完成标记，后续启动不再显示。已有设置原样呈现，不重置偏好；存储不可用时允许关闭并提示下次可能再显示。
-- 应用图标同时更新运行时与持久系统入口：Windows 写入独立 ICO 并同步指向当前 EXE 的开始菜单、已固定任务栏及 Known Folder 桌面快捷方式，保留启动参数，其他程序快捷方式不改；macOS 通过 `NSWorkspace.setIcon` 写入当前 `.app` 的 Finder 自定义图标，Light 清除自定义图标恢复包内默认。程序退出不恢复默认；跟随系统只在应用运行时更新，退出后保留最后图标。不会改写 EXE 资源或 `.app/Contents`，持久写入失败通过已有图标错误 Toast 反馈。
+- 应用图标偏好持久保存并在启动时恢复；Windows 同步运行中大小图标及精确指向当前 EXE 的开始菜单/固定任务栏/Known Folder 桌面快捷方式，保留启动参数。macOS 签名 App 仅更新运行中 Dock 图标，Finder 保留原图标，避免 FinderInfo/ResourceFork 破坏严格签名验证；只有未签名开发包可写 Finder 自定义图标。切换失败复用图标错误 Toast。
 
 - 服务检查与组合 UI 在 `src/features/commands/service-controls.tsx`：ControlEditor 以三列概览（窄屏单列）和左右对齐的开关配置状态动作、退出码/严格 JSON、远程健康命令、明确重复授权和等待预算；ServiceState 只显示 Rust 事实/时间/过期，不从成功退出推断服务运行；ServiceOperations 显式选择一个关联转发。CommandResult 复用步骤与输出，保留原动作和后检查结果，提供本次新建转发的停止入口。CredentialRetry 只允许尚未提交任何 exec 的认证失败重试，提交后不重放整个组合。本次明确执行的命令遇到该失败时自动打开现有认证弹窗，按运行 ID 消费提示；取消、结果重挂载或重复事件不会再次自动打开。历史结果仍可手动重试，当前服务修订、执行许可及关联转发须继续有效，纯 Agent 路线不提示密码。
 - 服务状态通过 `service://observations` 和只读 IPC 获取，结果弹层打开时每秒刷新 Rust 内存以显示有效期；此定时器不执行网络探针。等待进度沿用低频 polite 状态，步骤次数与输出不额外创建 live region，避免连续打断读屏。八语言扩展现有 commands 命名空间，表单复用既有组件与 Token；不新增顶层页面。

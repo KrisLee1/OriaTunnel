@@ -1,0 +1,129 @@
+name: Build release draft
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validate builds only, or collect a release draft after all checks pass
+        type: choice
+        options: [validate, draft]
+        default: validate
+      tag:
+        description: Optional stable tag; must match all source version files (vX.Y.Z)
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref_name || inputs.tag || github.sha }}
+  cancel-in-progress: false
+env:
+  RUSTUP_TOOLCHAIN: '1.98.0'
+jobs:
+  prepare:
+    if: github.repository == 'KrisLee1/OriaTunnel' && (github.event_name == 'push' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      commit: ${{ steps.metadata.outputs.commit }}
+      matrix: ${{ steps.metadata.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-release
+      - id: metadata
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: node scripts/release/config.mjs
+      - name: Welcome and icon preference release gate
+        run: pnpm test
+      - run: pnpm build
+      - run: node --test scripts/check-update-secrets.node-test.mjs scripts/release/release.node-test.mjs
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      RELEASE_PLATFORM: ${{ matrix.platform }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-release
+      - run: rustup target add ${{ matrix.target }} --toolchain 1.98.0
+      - name: Verify the updater signing secret against the embedded public key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: node scripts/check-update-secrets.mjs
+      - name: Native icon, signature and updater release gates
+        run: 'cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip credentials::tests::'
+      - name: Prepare disposable macOS signing keychain and notarization profile
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bash scripts/release/prepare-macos-signing.sh
+      - name: Build native installers with the locked Tauri CLI
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+        with:
+          tauriScript: node scripts/release/tauri-ci.mjs
+          args: --target ${{ matrix.target }} --bundles ${{ runner.os == 'macOS' && 'app,dmg' || 'nsis' }} --ci
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: false
+      - name: Collect final artifacts, sign and independently verify updater packages
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: node scripts/release/collect.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: outputs/release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove temporary macOS signing material
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: bash scripts/release/cleanup-macos-signing.sh
+  draft:
+    needs: [prepare, build]
+    if: github.event_name == 'push' || inputs.mode == 'draft'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: outputs/release-download
+      - name: Verify every platform and assemble one complete release draft
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        with:
+          script: |
+            const { createDraft } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/release/publish.mjs`);
+            await createDraft({ github, context, core });

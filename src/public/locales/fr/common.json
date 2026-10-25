@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "Icône de l’application",
-    "description": "L’icône reste dans les raccourcis Windows ou le Finder macOS après la fermeture. Le suivi du système se met à jour pendant l’exécution.",
+    "description": "Le choix de l’icône est enregistré. Windows met aussi à jour les raccourcis ; macOS modifie l’icône du Dock pendant l’exécution et conserve l’icône d’origine dans le Finder.",
     "system": "Système",
     "light": "Clair",
     "dark": "Sombre",

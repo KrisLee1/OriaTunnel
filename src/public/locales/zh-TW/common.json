@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "應用程式圖示",
-    "description": "同步儲存至 Windows 捷徑或 macOS Finder，結束應用程式後仍會保留。跟隨系統會在應用程式執行時更新。",
+    "description": "圖示偏好會儲存。Windows 同步至捷徑；macOS 在執行時更新 Dock 圖示，Finder 保留應用程式原圖示。",
     "system": "跟隨系統",
     "light": "淺色",
     "dark": "深色",

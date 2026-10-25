@@ -1,0 +1,14 @@
+name: Pinned release tools
+description: Install the locked Node, pnpm and Rust toolchain used by CI and releases.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '24.19.0'
+    - shell: bash
+      run: |
+        npm install --global pnpm@11.24.0
+        rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+    - shell: bash
+      run: pnpm install --frozen-lockfile

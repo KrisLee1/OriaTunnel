@@ -2,6 +2,14 @@
 
 当前状态：A/B/C/D 已完成 Windows 当前范围的实现与验收。2026-10-23。
 
+## 发布流水线与首次偏好验收（2026-10-25）
+
+- 已拉取 `c4a60bb`；`docs/APP_UPDATE_PLAN.md` 已由 `406b009` 纳入仓库。新增固定工具版本及 Actions SHA 的 Quality gates、Build release draft、Publish verified release：四个原生目标分别验证、构建，单任务复验 receipt/哈希/公钥签名并生成完整静态清单；正式发布重新下载草稿再验签，不覆盖已公开版本。操作入口和 Secrets 统一见 [发布指南](RELEASING.md)。云端工作流是否成功及公开发布状态仍以运行记录为准。
+- GitHub 更新签名预检改为不泄密的格式检查/固定错误分类。`40182857601` 确认现有私钥无法以当前口令解密，尚未确认其可用；用户正在准备原口令/核对密钥以及 Apple 发布凭据。未读取用户私钥正文、口令或导出本机证书，未修改生产公钥。
+- 真实 Mac 专项发现 NSWorkspace 写入 Finder 图标元数据会使签名 App 的严格 codesign 验证失败；现对含 `_CodeSignature` 的 App 保留原 Finder 图标，仅切换 Dock 运行图标并保存偏好。对应 3 项 Mac 专项和独立签名 QA App 连续 Light/Dark/Mono/System 切换后的严格签名检查通过，八语说明已修正。
+- 独立标识、空 SSH 来源及隔离数据的 Mac QA App 实测首次欢迎六项即时生效：中文切英语、深色、Mono、Manuscript、Windows 按钮/右侧；开始使用后退出并重启不再显示欢迎，六项偏好均保留。测试实例已退出，证据位于忽略目录 `outputs/release-qa-20261025/`；未连接真实 SSH 或替换已安装应用。
+- 本地验证：207 项前端全量、117 项 Mac Rust 库测试（跳过 3 项系统凭据测试）、1 项独立验签器测试、6 项 Node 发布脚本检查、前端生产构建、严格全目标 Clippy、Rust 格式、actionlint 和文档校验通过。尚未将云端多平台构建、Secrets 可用、正式跨版本升级或公开发布记为完成。
+
 ## 任务栏大图标与更新签名验证（2026-10-25）
 
 - 确认锁定 Tauri 的 SetIcon 仅更新 Windows ICON_SMALL；改为在主线程同时更新 ICON_BIG，按图标和 DPI 保留原生句柄，等待实际设置完成后返回，移除隐藏/恢复任务栏按钮的刷新方式。开始菜单快捷方式名称跟随产品名称，仍严格匹配当前 EXE。7 项图标专项通过，含 36 次连续切换、句柄保留和隐藏窗口状态不被改变。

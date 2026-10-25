@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "应用图标",
-    "description": "同步保存到 Windows 快捷方式或 macOS Finder，退出应用后仍保留。跟随系统会在应用运行时更新。",
+    "description": "图标偏好会保存。Windows 同步到快捷方式；macOS 在运行时更新 Dock 图标，Finder 保留应用原图标。",
     "system": "跟随系统",
     "light": "Light",
     "dark": "Dark",

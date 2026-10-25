@@ -69,12 +69,17 @@ fn persist_bundle_icon(bundle: &Path, image: Option<&NSImage>) -> Result<(), Str
     if bundle.extension().is_none_or(|ext| ext != "app") || !bundle.join("Contents").is_dir() {
         return Ok(());
     }
+    // Finder custom icons add ResourceFork/FinderInfo metadata that strict
+    // codesign verification rejects, even at a Contents bundle's root. Signed
+    // apps keep their original Finder icon; the selected Dock icon still takes
+    // effect above and its preference is restored on the next launch.
+    if bundle.join("Contents/_CodeSignature").exists() {
+        return Ok(());
+    }
     if image.is_none() && !bundle.join("Icon\r").exists() {
         return Ok(());
     }
-    // Finder's custom icon is bundle-root metadata (Icon\r / FinderInfo), not
-    // a rewrite of Contents/Info.plist or signed icon resources. Apple's bundle
-    // validator explicitly permits Icon\r at the root of a Contents bundle.
+    // Only unsigned development bundles may receive a persistent Finder icon.
     let path = NSString::from_str(&bundle.to_string_lossy());
     if !NSWorkspace::sharedWorkspace().setIcon_forFile_options(
         image,
@@ -121,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn persistent_finder_icons_preserve_a_signed_contents_bundle() {
+    fn signed_bundles_keep_original_finder_icon_and_valid_signature() {
         let directory = tempfile::tempdir().unwrap();
         let bundle = directory.path().join("IconFixture.app");
         let contents = bundle.join("Contents");
@@ -144,9 +149,7 @@ mod tests {
                 NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes)).unwrap()
             });
             persist_bundle_icon(&bundle, image.as_deref()).unwrap();
-            if image.is_some() {
-                assert!(bundle.join("Icon\r").exists());
-            }
+            assert!(!bundle.join("Icon\r").exists());
             assert!(std::process::Command::new("/usr/bin/codesign")
                 .args(["--verify", "--deep", "--strict"])
                 .arg(&bundle)

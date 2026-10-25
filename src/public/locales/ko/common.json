@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "앱 아이콘",
-    "description": "Windows 바로 가기 또는 macOS Finder에 저장하여 앱 종료 후에도 유지합니다. 시스템 모드는 앱 실행 중에 업데이트됩니다.",
+    "description": "아이콘 설정이 저장됩니다. Windows에서는 바로 가기도 업데이트합니다. macOS에서는 실행 중 Dock 아이콘을 변경하고 Finder의 원래 아이콘은 유지합니다.",
     "system": "시스템 설정 따르기",
     "light": "라이트",
     "dark": "다크",

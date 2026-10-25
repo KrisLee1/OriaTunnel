@@ -136,7 +136,7 @@ pnpm package:win --target aarch64-pc-windows-msvc
 
 Windows 主入口在 debug/release 均使用图形子系统，避免独立 EXE 或测试安装包启动时附带控制台窗口；开发输出仍从开发工具查看。NSIS 在 `tauri.windows.conf.json` 配置简中、繁中、英、日、韩、德、法、俄，首次安装提供语言选择并保存选择，后续安装/卸载复用已有语言；不支持的系统语言回退英文。安装器语言与应用内语言偏好分别保存。
 
-应用图标选择除运行时窗口/Dock 外，还同步持久系统图标。Windows 只修改目标精确匹配当前程序的用户快捷方式，桌面通过 Known Folder 解析，兼容 OneDrive 重定向；隔离 COM 回归使用临时 `.lnk` 与非可执行占位目标，不修改用户快捷方式。macOS 使用 AppKit `NSWorkspace.setIcon` 写 Finder 自定义图标；裸开发可执行文件不修改外层目录，只读 DMG/无写入权限的应用位置会返回保存失败。Mac 专项 `persistent_finder_icons_preserve_a_signed_contents_bundle` 为临时 `.app` 做 ad-hoc 签名，再切换 Dark/Mono/Light 并运行 `codesign --verify --deep --strict`，不使用发布身份或修改真实应用。该专项须在 Mac 上执行；Windows 上的 AppKit 跨目标类型检查不能替代签名、公证和退出后 Finder/Dock 的原生验证。
+应用图标偏好会保存，启动时恢复。Windows 同步指向当前 EXE 的开始菜单、固定任务栏与 Known Folder 桌面快捷方式，保留启动参数且不修改其他程序；隔离 COM 回归只使用临时 `.lnk`。macOS 签名 `.app` 只更新运行中 Dock 图标，Finder 保留包内原图标：写入 FinderInfo/ResourceFork 会使严格签名验证失败。裸开发可执行文件不修改外层目录；仅未签名开发包允许 Finder 自定义图标。Mac 专项 `signed_bundles_keep_original_finder_icon_and_valid_signature` 对临时签名 App 逐次验签；原生界面另验证切换与重启保留。
 
 `pnpm icons` 从仓库内的应用图标导出图、托盘 SVG 和安装包 SVG 生成各平台图标。打包脚本会调用它，并在 macOS 上设置 DMG 卷图标、Finder 文件图标，生成保留图标元数据的 ZIP。普通打包命令不负责公证；正式签名、公证使用下一节入口。构建成功不等于已公开发布。
 
@@ -184,7 +184,7 @@ xcrun notarytool wait SUBMISSION_ID --keychain-profile "OriaTunnel-notary" --tim
 
 换另一台 Mac 构建时，源码和锁文件正常同步，并按本指南准备开发工具。签名身份可从原 Mac 的 Xcode 证书管理器导出为带密码的 `.p12`（包含证书及对应私钥），在新 Mac 导入登录钥匙串；单独复制 `.cer` 不包含签名所需的私钥。也可在新 Mac 为同一团队创建新的 Developer ID Application 证书。公证凭据在新 Mac 重新执行上面的 `store-credentials` 保存即可，无须复制整个钥匙串。
 
-`.p12`、导出密码及应用专用密码通过安全渠道另行保管，不进入仓库或聊天。若需构建自动更新包，还要单独迁移既有 Tauri 更新私钥；Apple 证书不能替代更新签名。Windows / Linux 电脑可继续开发对应平台，正式 macOS 构建签名应在本地或 CI 的 macOS 环境进行；本项目当前尚未配置 GitHub Actions 发布流水线。
+`.p12`、导出密码及应用专用密码通过安全渠道另行保管，不进入仓库或聊天。若需构建自动更新包，还要单独迁移既有 Tauri 更新私钥；Apple 证书不能替代更新签名。Windows / Linux 电脑可继续开发对应平台，正式 macOS 构建签名应在本地或 CI 的 macOS 环境进行；GitHub Actions 的密钥配置、四架构构建、草稿验签及发布步骤见 [发布指南](RELEASING.md)。
 
 参考：[Apple 签名身份导出](https://developer.apple.com/documentation/xcode/sharing-your-teams-signing-certificates)、[公证凭据保存](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool)。
 
@@ -204,7 +204,7 @@ pnpm tauri build --bundles nsis --config src-tauri/tauri.updater.conf.json
 pnpm tauri build --bundles app,dmg --config src-tauri/tauri.updater.conf.json
 ```
 
-以上为发布构建入口说明，不代表已配置发布环境。不要把私钥或口令写入命令行、仓库、日志或测试产物；macOS 发布还需保留现有 `scripts/package-mac.sh` 的图标处理及 ZIP 包装流程。更新压缩包为 `.app.tar.gz`，不是现有的 DMG ZIP。
+上述为手动发布构建入口；云端自动构建和发布使用 [发布指南](RELEASING.md) 的工作流。不要把私钥或口令写入命令行、仓库、日志或测试产物；macOS 发布还需保留现有 `scripts/package-mac.sh` 的图标处理及 ZIP 包装流程。更新压缩包为 `.app.tar.gz`，不是现有的 DMG ZIP。
 
 已启用 `requireSignedVersion`，使用支持版本绑定的锁定 Tauri CLI 构建。手动签名更新包时需提供 `--app-version`，使其与清单版本一致；清单只提供更高版本的稳定版。升级与验收计划见 [应用更新方案](APP_UPDATE_PLAN.md)。
 

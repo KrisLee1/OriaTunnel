@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "App icon",
-    "description": "Persist the icon in Windows shortcuts or macOS Finder after quitting. System appearance updates while the app is running.",
+    "description": "Your icon preference is saved. Windows also updates shortcuts; macOS updates the Dock icon while running and keeps the original Finder icon.",
     "system": "System",
     "light": "Light",
     "dark": "Dark",

@@ -1,0 +1,35 @@
+name: Publish verified release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing verified draft to publish as the stable latest release (vX.Y.Z)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: publish-stable-release
+  cancel-in-progress: false
+env:
+  RUSTUP_TOOLCHAIN: '1.98.0'
+jobs:
+  publish:
+    if: github.repository == 'KrisLee1/OriaTunnel' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-release
+      - name: Re-download and re-verify the draft before making it latest
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        with:
+          script: |
+            const { publishDraft } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/release/publish.mjs`);
+            await publishDraft({ github, context, core });

@@ -1,0 +1,51 @@
+name: Quality gates
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  RUSTUP_TOOLCHAIN: '1.98.0'
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-release
+      - run: pnpm test
+      - run: pnpm build
+      - run: node --test scripts/check-update-secrets.node-test.mjs scripts/release/release.node-test.mjs
+      - run: cargo test --locked --manifest-path tools/update-verifier/Cargo.toml
+      - run: node scripts/release/config.mjs
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel, windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-release
+      - name: Verify native build prerequisites
+        shell: bash
+        run: |
+          rustc -vV
+          if [[ "$RUNNER_OS" == Windows && "$RUNNER_ARCH" == ARM64 ]]; then clang --version; fi
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
+      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: Native icon, updater and configuration regressions
+        run: 'cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip credentials::tests::'
+      - name: Isolated loopback SSH integration tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --test local_forward --test commands_exec --test terminal_pty --test supervision --test service_controller

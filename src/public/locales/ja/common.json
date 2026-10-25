@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "アプリアイコン",
-    "description": "Windows のショートカットや macOS Finder に保存し、終了後も維持します。システム連動はアプリの実行中に更新されます。",
+    "description": "アイコンの設定は保存されます。Windows ではショートカットも更新します。macOS では実行中の Dock アイコンを変更し、Finder の元のアイコンを保持します。",
     "system": "システムに合わせる",
     "light": "ライト",
     "dark": "ダーク",

@@ -39,7 +39,7 @@
   },
   "applicationIcon": {
     "label": "App-Symbol",
-    "description": "Das Symbol bleibt nach dem Beenden in Windows-Verknüpfungen oder im macOS Finder erhalten. Systemänderungen werden bei laufender App übernommen.",
+    "description": "Die Symbolauswahl wird gespeichert. Windows aktualisiert auch Verknüpfungen; macOS ändert das Dock-Symbol während der Ausführung und behält das ursprüngliche Finder-Symbol.",
     "system": "System",
     "light": "Hell",
     "dark": "Dunkel",
