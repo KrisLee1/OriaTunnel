@@ -107,5 +107,6 @@
   },
   "resizeWidth": "Panelbreite anpassen (Pfeiltasten Links/Rechts)",
   "closeSearch": "Suche schließen",
-  "remoteUnknownShort": "Remote-Status unbekannt"
+  "remoteUnknownShort": "Remote-Status unbekannt",
+  "screenReaderOutputLimit": "Zu viel Terminalausgabe zum Vorlesen. Navigieren Sie zur Ausgabe, um weiterzulesen."
 }

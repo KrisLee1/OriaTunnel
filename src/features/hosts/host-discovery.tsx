@@ -1,10 +1,7 @@
+import { formatNativeMessage } from "@/lib/native-message";
 import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import {
-  LoaderCircleIcon,
-  RefreshCwIcon,
-  ServerIcon,
-} from "lucide-react";
+import { LoaderCircleIcon, RefreshCwIcon, ServerIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/tunnel-form";
 import { Button } from "@/components/ui/button";
@@ -51,8 +48,12 @@ export function HostDiscovery({
   const [refreshTurns, setRefreshTurns] = useState(0);
   const reducedMotion = useReducedMotion();
   const list = discoveredHosts(hosts, query);
-  const choices = discoveredHosts(hosts, "").filter((host) => selected.includes(host.id));
-  const visibleSelected = list.filter((host) => selected.includes(host.id)).length;
+  const choices = discoveredHosts(hosts, "").filter((host) =>
+    selected.includes(host.id),
+  );
+  const visibleSelected = list.filter((host) =>
+    selected.includes(host.id),
+  ).length;
   return (
     <Modal
       title={t("newHost")}
@@ -71,16 +72,32 @@ export function HostDiscovery({
       {!!list.length && (
         <div className="rule-batch-controls">
           <label className="rule-select-all">
-            <input type="checkbox" checked={visibleSelected === list.length}
-              ref={(node) => { if (node) node.indeterminate = visibleSelected > 0 && visibleSelected < list.length; }}
+            <input
+              type="checkbox"
+              checked={visibleSelected === list.length}
+              ref={(node) => {
+                if (node)
+                  node.indeterminate =
+                    visibleSelected > 0 && visibleSelected < list.length;
+              }}
               disabled={busy || !available}
-              onChange={(event) => setSelected((current) => event.target.checked
-                ? [...new Set([...current, ...list.map((host) => host.id)])]
-                : current.filter((id) => !list.some((host) => host.id === id)))} />
+              onChange={(event) =>
+                setSelected((current) =>
+                  event.target.checked
+                    ? [...new Set([...current, ...list.map((host) => host.id)])]
+                    : current.filter(
+                        (id) => !list.some((host) => host.id === id),
+                      ),
+                )
+              }
+            />
             <span>{t("selectAll")}</span>
           </label>
           <span className="rule-selection-count" aria-live="polite">
-            {t("selectionSummary", { selected: choices.length, count: discoveredHosts(hosts, "").length })}
+            {t("selectionSummary", {
+              selected: choices.length,
+              count: discoveredHosts(hosts, "").length,
+            })}
           </span>
         </div>
       )}
@@ -99,13 +116,22 @@ export function HostDiscovery({
                   data-selected={selected.includes(host.id)}
                   data-disabled={busy || !available}
                 >
-                  <input type="checkbox" name="discoveredHosts" value={host.id}
+                  <input
+                    type="checkbox"
+                    name="discoveredHosts"
+                    value={host.id}
                     className="size-4 shrink-0 accent-primary"
                     aria-label={host.name}
                     disabled={busy || !available}
                     checked={selected.includes(host.id)}
-                    onChange={(event) => setSelected((current) => event.target.checked
-                      ? [...current, host.id] : current.filter((id) => id !== host.id))} />
+                    onChange={(event) =>
+                      setSelected((current) =>
+                        event.target.checked
+                          ? [...current, host.id]
+                          : current.filter((id) => id !== host.id),
+                      )
+                    }
+                  />
                   <ServerIcon aria-hidden="true" />
                   <span>
                     <strong>{host.name}</strong>
@@ -115,9 +141,11 @@ export function HostDiscovery({
                     {!!host.diagnostics.length && (
                       <small
                         className="inline-error"
-                        title={host.diagnostics.join("\n")}
+                        title={host.diagnostics
+                          .map((message) => formatNativeMessage(message))
+                          .join("\n")}
                       >
-                        {host.diagnostics[0]}
+                        {formatNativeMessage(host.diagnostics[0])}
                       </small>
                     )}
                   </span>
@@ -148,7 +176,9 @@ export function HostDiscovery({
       </div>
       {diagnostics.map((message, index) => (
         <p key={index} className="inline-error">
-          {t(message)}
+          {formatNativeMessage(
+            message === "browserPreview" ? t(message) : message,
+          )}
         </p>
       ))}
       {!available && <p className="muted">{t("browserPreview")}</p>}
@@ -169,7 +199,10 @@ export function HostDiscovery({
             aria-hidden="true"
             initial={false}
             animate={{ rotate: refreshTurns * 360 }}
-            transition={{ duration: reducedMotion ? 0 : 0.45, ease: "easeInOut" }}
+            transition={{
+              duration: reducedMotion ? 0 : 0.45,
+              ease: "easeInOut",
+            }}
           />
         </Button>
         <Button

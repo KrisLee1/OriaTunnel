@@ -67,11 +67,11 @@ export function ThemeImportSetting() {
     setImportedFile(null)
 
     if (!file.name.toLowerCase().endsWith(".json")) {
-      setError(t("theme.import.errors.fileType"))
+      setError("theme.import.errors.fileType")
       return
     }
     if (file.size > MAX_THEME_FILE_BYTES) {
-      setError(t("theme.import.errors.fileSize"))
+      setError("theme.import.errors.fileSize")
       return
     }
 
@@ -80,11 +80,11 @@ export function ThemeImportSetting() {
       const result = parseImportedTheme(json)
       if (!result.ok) {
         const code = result.issues[0]?.code
-        setError(t(code === "UNSUPPORTED_SCHEMA_VERSION" || code === "UNSUPPORTED_CONTRACT"
+        setError(code === "UNSUPPORTED_SCHEMA_VERSION" || code === "UNSUPPORTED_CONTRACT"
           ? "theme.import.errors.unsupported"
           : code === "INVALID_JSON"
             ? "theme.import.errors.invalidJson"
-            : "theme.import.errors.invalidTheme"))
+            : "theme.import.errors.invalidTheme")
         return
       }
       setImportedFile({ fileName: file.name, theme: result.theme })
@@ -119,19 +119,19 @@ export function ThemeImportSetting() {
     const submitter = (event.nativeEvent as SubmitEvent).submitter
     const normalizedName = name.trim()
     if (!importedFile) {
-      setError(t("theme.import.errors.fileRequired"))
+      setError("theme.import.errors.fileRequired")
       return
     }
     if (!normalizedName) {
-      setError(t("theme.import.errors.nameRequired"))
+      setError("theme.import.errors.nameRequired")
       return
     }
     if (normalizedName.length > 120) {
-      setError(t("theme.import.errors.nameTooLong"))
+      setError("theme.import.errors.nameTooLong")
       return
     }
     if (snapshot.customThemes.length >= MAX_CUSTOM_THEME_COUNT) {
-      setError(t("theme.import.errors.limit", { count: MAX_CUSTOM_THEME_COUNT }))
+      setError("theme.import.errors.limit")
       return
     }
 
@@ -240,7 +240,7 @@ export function ThemeImportSetting() {
               />
             </div>
 
-            {error && <FieldError>{error}</FieldError>}
+            {error && <FieldError>{t(error, { count: MAX_CUSTOM_THEME_COUNT })}</FieldError>}
           </ResponsiveModalBody>
           <ResponsiveModalFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

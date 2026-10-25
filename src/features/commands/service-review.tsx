@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import { useTranslation } from "react-i18next";
 import { Modal, ModalActions } from "@/components/tunnel-form";
 import { Button } from "@/components/ui/button";
@@ -189,7 +190,7 @@ export function ServiceEnableDialog({
       <ServiceReview service={service} endpoint={endpoint} />
       {error && (
         <p className="inline-error" role="alert">
-          {error}
+          {formatUiError(error, t)}
         </p>
       )}
       <ModalActions>

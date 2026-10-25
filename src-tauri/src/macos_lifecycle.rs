@@ -57,9 +57,11 @@ struct LoginAgent {
 }
 impl LoginAgent {
     fn new(executable: &Path) -> Result<Self, String> {
-        let path = executable.to_str().ok_or("应用路径无法用于登录启动")?;
+        let path = executable
+            .to_str()
+            .ok_or(crate::native_message::plain("autostartApplicationPath"))?;
         if !executable.is_absolute() || path.chars().any(char::is_control) {
-            return Err("应用路径无法用于登录启动".into());
+            return Err(crate::native_message::plain("autostartApplicationPath"));
         }
         Ok(Self {
             label: LABEL.into(),
@@ -71,7 +73,7 @@ impl LoginAgent {
 }
 fn path() -> Result<std::path::PathBuf, String> {
     Ok(dirs::home_dir()
-        .ok_or("无法定位当前用户的登录启动目录")?
+        .ok_or(crate::native_message::plain("autostartDirectoryLocate"))?
         .join("Library/LaunchAgents")
         .join(format!("{LABEL}.plist")))
 }
@@ -79,11 +81,11 @@ fn load(path: &Path) -> Result<Option<LoginAgent>, String> {
     let file = match std::fs::File::open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(_) => return Err("无法读取当前用户的登录启动设置".into()),
+        Err(_) => return Err(crate::native_message::plain("autostartRead")),
     };
     plist::from_reader(file)
         .map(Some)
-        .map_err(|_| "登录启动文件格式不可用，请检查 LaunchAgents 设置".into())
+        .map_err(|_| crate::native_message::plain("autostartFormat"))
 }
 fn read_at(path: &Path, executable: &Path) -> Result<bool, String> {
     Ok(load(path)?
@@ -92,17 +94,20 @@ fn read_at(path: &Path, executable: &Path) -> Result<bool, String> {
 fn set_at(path: &Path, executable: &Path, enabled: bool) -> Result<(), String> {
     let agent = LoginAgent::new(executable)?;
     if load(path)?.is_some_and(|old| old.label != LABEL) {
-        return Err("登录启动路径已被其他任务使用".into());
+        return Err(crate::native_message::plain("autostartPathUsed"));
     }
     if !enabled {
         return match std::fs::remove_file(path) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-            Err(_) => Err("无法移除当前用户的登录启动设置".into()),
+            Err(_) => Err(crate::native_message::plain("autostartRemove")),
         };
     }
-    let directory = path.parent().ok_or("登录启动目录不可用")?;
-    std::fs::create_dir_all(directory).map_err(|_| "无法创建当前用户的登录启动目录")?;
+    let directory = path
+        .parent()
+        .ok_or(crate::native_message::plain("autostartDirectory"))?;
+    std::fs::create_dir_all(directory)
+        .map_err(|_| crate::native_message::plain("autostartDirectoryCreate"))?;
     let temporary = directory.join(format!(".oria-startup-{}.tmp", uuid::Uuid::new_v4()));
     let result = (|| {
         let mut file = OpenOptions::new()
@@ -110,10 +115,13 @@ fn set_at(path: &Path, executable: &Path, enabled: bool) -> Result<(), String> {
             .create_new(true)
             .mode(0o600)
             .open(&temporary)
-            .map_err(|_| "无法写入登录启动设置")?;
-        plist::to_writer_xml(&mut file, &agent).map_err(|_| "无法写入登录启动设置")?;
-        file.sync_all().map_err(|_| "无法保存登录启动设置")?;
-        std::fs::rename(&temporary, path).map_err(|_| "无法替换登录启动设置")?;
+            .map_err(|_| crate::native_message::plain("autostartWrite"))?;
+        plist::to_writer_xml(&mut file, &agent)
+            .map_err(|_| crate::native_message::plain("autostartWrite"))?;
+        file.sync_all()
+            .map_err(|_| crate::native_message::plain("autostartSave"))?;
+        std::fs::rename(&temporary, path)
+            .map_err(|_| crate::native_message::plain("autostartReplace"))?;
         Ok(())
     })();
     let _ = std::fs::remove_file(temporary);
@@ -122,14 +130,14 @@ fn set_at(path: &Path, executable: &Path, enabled: bool) -> Result<(), String> {
 pub fn read() -> Result<bool, String> {
     read_at(
         &path()?,
-        &std::env::current_exe().map_err(|_| "无法读取应用路径")?,
+        &std::env::current_exe().map_err(|_| crate::native_message::plain("applicationPath"))?,
     )
 }
 pub fn set(enabled: bool) -> Result<(), String> {
     // Only install/remove the next-login job. Never bootstrap it or start a second app now.
     set_at(
         &path()?,
-        &std::env::current_exe().map_err(|_| "无法读取应用路径")?,
+        &std::env::current_exe().map_err(|_| crate::native_message::plain("applicationPath"))?,
         enabled,
     )
 }

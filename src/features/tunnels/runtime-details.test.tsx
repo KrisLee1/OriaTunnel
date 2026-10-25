@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import { RuntimeDetails } from "./runtime-details";
 import { bytes, duration, rate } from "./runtime-format";
 import { emptyRule } from "./rule-model";

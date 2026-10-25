@@ -17,11 +17,12 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 端口转发桌面工具。通过
 
 ## 界面预览
 
-以下截图使用独立演示配置：3 台示例主机、6 条 L / R / D 转发，全部保持停止，不包含真实服务器或凭据。
+以下为当前开发版的原生界面截图，随系统浅色／深色模式切换。独立演示配置包含 3 台 example.com 示例主机、6 条保持停止的 L / R / D 转发和 5 项分类示例服务，不包含真实服务器或凭据；日志与右侧 SSH 终端均为隔离示例内容，未发起真实连接。
 
-| ![连接图](docs/assets/screenshots/connection-map.png) | ![转发列表](docs/assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/connection-map-dark.png"><img src="docs/assets/screenshots/connection-map-light.png" alt="连接图"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/forwards-dark.png"><img src="docs/assets/screenshots/forwards-light.png" alt="转发列表"></picture> |
 | :---: | :---: |
-| ![SSH 主机](docs/assets/screenshots/hosts.png) | ![日志](docs/assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/services-dark.png"><img src="docs/assets/screenshots/services-light.png" alt="服务列表"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/hosts-dark.png"><img src="docs/assets/screenshots/hosts-light.png" alt="SSH 主机"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/logs-dark.png"><img src="docs/assets/screenshots/logs-light.png" alt="日志"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/terminal-dark.png"><img src="docs/assets/screenshots/terminal-light.png" alt="SSH 终端"></picture> |
 
 ## 能做什么
 

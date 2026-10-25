@@ -1,3 +1,4 @@
+import { formatNativeMessage } from "@/lib/native-message";
 import { useTranslation } from "react-i18next";
 import type { Rule, Runtime } from "@/types";
 import { rulePath } from "./rule-model";
@@ -12,7 +13,7 @@ export function RuntimeDetails({
   runtime?: Runtime;
   hostName: string;
 }) {
-  const { t } = useTranslation("tunnel");
+  const { t, i18n } = useTranslation("tunnel");
   const history = runtime?.history || [];
   const hasTraffic = history.some(
     (sample) => sample.sentPerSecond > 0 || sample.receivedPerSecond > 0,
@@ -78,7 +79,9 @@ export function RuntimeDetails({
           <dt>{t("nextRetry")}</dt>
           <dd>
             {runtime?.retryAt
-              ? new Date(runtime.retryAt).toLocaleTimeString()
+              ? new Date(runtime.retryAt).toLocaleTimeString(
+                  i18n.resolvedLanguage,
+                )
               : "—"}
           </dd>
         </div>
@@ -90,7 +93,7 @@ export function RuntimeDetails({
           <dt>{t("evidence")}</dt>
           <dd>
             {health?.checkedAt
-              ? `${t(health.side === "local" ? "local" : "remoteSide")} · TCP · ${new Date(health.checkedAt).toLocaleTimeString()}`
+              ? `${t(health.side === "local" ? "local" : "remoteSide")} · TCP · ${new Date(health.checkedAt).toLocaleTimeString(i18n.resolvedLanguage)}`
               : "—"}
           </dd>
         </div>
@@ -122,9 +125,11 @@ export function RuntimeDetails({
       {runtime?.errorKind && (
         <p className="inline-error">{t(`failure-${runtime.errorKind}`)}</p>
       )}
-      {runtime?.message && <p className="muted">{runtime.message}</p>}
+      {runtime?.message && (
+        <p className="muted">{formatNativeMessage(runtime.message)}</p>
+      )}
       {runtime?.configurationChanged && (
-        <p className="inline-error">{t("configChanged")}</p>
+        <p className="inline-error">{t("serviceReconnect")}</p>
       )}
       <section className="runtime-traffic">
         <h3>{t("trafficWindow")}</h3>

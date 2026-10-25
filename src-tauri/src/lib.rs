@@ -12,6 +12,7 @@ mod long_running;
 #[cfg(target_os = "macos")]
 mod macos_material;
 pub mod model;
+mod native_message;
 mod service;
 pub mod service_control;
 pub mod service_templates;
@@ -41,15 +42,19 @@ pub fn run() {
             let directory = std::env::var_os("ORIATUNNEL_TEST_DATA_DIR")
                 .map(std::path::PathBuf::from)
                 .unwrap_or(directory);
+            app.manage(native_message::NativeLanguageState::load(&directory));
             let path = directory.join("connections.json");
             // The per-user lock is held for the entire process, including shutdown cleanup.
             let Some(instance) = desktop::acquire(&directory, app.handle().clone())? else {
                 std::process::exit(0);
             };
             app.manage(instance);
-            app.manage(Arc::new(
-                app::AppState::load(path).map_err(std::io::Error::other)?,
-            ));
+            app.manage(Arc::new(app::AppState::load(path).map_err(|error| {
+                std::io::Error::other(native_message::render_in_language(
+                    &error,
+                    native_message::language(),
+                ))
+            })?));
             let updates = Arc::new(updater::UpdateState::load(app.handle(), directory));
             app.manage(updates.clone());
             let update_app = app.handle().clone();
@@ -167,6 +172,7 @@ pub fn run() {
             app::set_close_to_tray,
             app::quit_app,
             app::export_config,
+            native_message::set_native_language,
             app::pick_identity_file,
             app::pick_ssh_config_file,
             app::preview_import_file,

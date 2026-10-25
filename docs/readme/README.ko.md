@@ -17,11 +17,11 @@ OriaTunnel은 Windows와 macOS용 SSH 포트 포워딩 데스크톱 앱입니다
 
 ## 화면 미리 보기
 
-격리된 데모 설정: 예제 호스트 3개와 L / R / D 포워딩 6개가 모두 중지 상태입니다. 실제 서버나 자격 증명은 포함하지 않습니다.
+현재 개발 버전의 네이티브 스크린샷이며 시스템의 라이트／다크 모드에 따라 전환됩니다. 격리된 데모 설정: 예제 호스트 3개와 L / R / D 포워딩 6개가 모두 중지 상태입니다. 실제 서버나 자격 증명은 포함하지 않습니다.
 
-| ![연결 지도](../assets/screenshots/connection-map.png) | ![포워딩 목록](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="연결 지도"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="포워딩 목록"></picture> |
 | :---: | :---: |
-| ![SSH 호스트](../assets/screenshots/hosts.png) | ![로그](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH 호스트"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="로그"></picture> |
 
 ## 주요 기능
 

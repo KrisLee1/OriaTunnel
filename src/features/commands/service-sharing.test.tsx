@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import { ServiceEditor } from "./preset-commands";
 import { ServiceReview, ServiceEnableDialog } from "./service-review";
 import { reviewScript, OutputDecoder } from "./command-model";

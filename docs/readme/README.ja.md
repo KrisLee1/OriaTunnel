@@ -17,11 +17,11 @@ OriaTunnel は、Windows と macOS 向けの SSH ポート転送デスクトッ�
 
 ## スクリーンショット
 
-独立したデモ設定：ホスト3台、L / R / D 転送6件。すべて停止中で、実際のサーバーや認証情報は含みません。
+現在の開発版のネイティブスクリーンショットで、システムのライト／ダークモードに合わせて切り替わります。独立したデモ設定：ホスト3台、L / R / D 転送6件。すべて停止中で、実際のサーバーや認証情報は含みません。
 
-| ![接続マップ](../assets/screenshots/connection-map.png) | ![転送一覧](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="接続マップ"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="転送一覧"></picture> |
 | :---: | :---: |
-| ![SSH ホスト](../assets/screenshots/hosts.png) | ![ログ](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH ホスト"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="ログ"></picture> |
 
 ## できること
 

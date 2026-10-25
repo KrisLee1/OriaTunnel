@@ -1,3 +1,4 @@
+import { formatNativeMessage } from "@/lib/native-message";
 import { useTranslation } from "react-i18next";
 import { useId, useState } from "react";
 import { ServerPlusIcon } from "lucide-react";
@@ -184,7 +185,7 @@ export function RuleEditor({
       {!hosts.length && <p className="muted">{t("noHostsBody")}</p>}
       {selected?.diagnostics.map((d, i) => (
         <p key={i} className="inline-error">
-          {d}
+          {formatNativeMessage(d)}
         </p>
       ))}
       <ServicePicker

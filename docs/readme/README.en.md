@@ -17,11 +17,12 @@ OriaTunnel is an SSH port forwarding desktop app for Windows and macOS. See your
 
 ## Screenshots
 
-Isolated demo configuration: 3 example hosts and 6 L / R / D forwards, all stopped. No real servers or credentials.
+Native screenshots from the current development build follow the system's light or dark color scheme. The isolated demo configuration contains 3 example.com hosts, 6 stopped L / R / D forwards, and 5 sample services grouped by category, with no real servers or credentials. Logs and the docked SSH terminal show isolated sample content and do not initiate real connections.
 
-| ![Connection map](../assets/screenshots/connection-map.png) | ![Forward list](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Connection map"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Forward list"></picture> |
 | :---: | :---: |
-| ![SSH hosts](../assets/screenshots/hosts.png) | ![Logs](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/services-dark.png"><img src="../assets/screenshots/services-light.png" alt="Services"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH hosts"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Logs"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/terminal-dark.png"><img src="../assets/screenshots/terminal-light.png" alt="SSH terminal"></picture> |
 
 ## What you can do
 

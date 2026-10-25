@@ -25,7 +25,10 @@ fn resolve<T: Clone + PartialEq + AsRef<str>>(
                     || (mode == b'-' && b"*?".contains(&c))
             })
     }) {
-        return Err(format!("{directive}: 算法列表无效"));
+        return Err(crate::native_message::message(
+            "algorithmInvalid",
+            serde_json::json!({"directive": (directive).to_string()}),
+        ));
     }
     let mut selected = Vec::new();
     if mode == b'-' {
@@ -59,8 +62,9 @@ fn resolve<T: Clone + PartialEq + AsRef<str>>(
         }
     }
     if selected.is_empty() {
-        return Err(format!(
-            "{directive}: 配置中没有当前 SSH 引擎可用的算法，已阻止连接"
+        return Err(crate::native_message::message(
+            "algorithmUnavailable",
+            serde_json::json!({"directive": (directive).to_string()}),
         ));
     }
     Ok(selected)

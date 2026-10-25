@@ -57,5 +57,13 @@
     "moreApps": "Другие приложения",
     "feedback": "Сообщить о проблеме"
   },
-  "goUpdate": "Обновить"
+  "goUpdate": "Обновить",
+  "activeForwards_one": "Активно {{count}} перенаправление",
+  "activeForwards_few": "Активны {{count}} перенаправления",
+  "activeForwards_many": "Активны {{count}} перенаправлений",
+  "activeForwards_other": "Активны {{count}} перенаправления",
+  "activeTests_one": "Активна {{count}} проверка хоста",
+  "activeTests_few": "Активны {{count}} проверки хостов",
+  "activeTests_many": "Активны {{count}} проверок хостов",
+  "activeTests_other": "Активны {{count}} проверки хостов"
 }

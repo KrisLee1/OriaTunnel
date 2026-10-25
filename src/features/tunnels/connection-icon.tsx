@@ -170,6 +170,13 @@ const icons = {
 };
 export { catalog as connectionIconCatalog };
 
+export function connectionIconLabelKey(item: { id?: string; value?: string }) {
+  return (
+    item.id ??
+    `emoji-${[...item.value!].map((character) => character.codePointAt(0)!.toString(16)).join("-")}`
+  );
+}
+
 // A single visible grapheme also supports flags, skin tones and ZWJ emoji.
 export function validCustomIcon(value: string) {
   return (
@@ -247,7 +254,7 @@ export function ConnectionIconPicker({
   fieldLabel?: string;
   initialCategory?: "builtin" | "service";
 }) {
-  const { t, i18n } = useTranslation("tunnel");
+  const { t } = useTranslation("tunnel");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const reducedMotion = useReducedMotion();
@@ -255,16 +262,15 @@ export function ConnectionIconPicker({
     value?.kind === "emoji" ? value.value : "",
   );
   const id = useId();
-  const chinese = i18n.resolvedLanguage?.startsWith("zh");
-  const label = (item: { zh: string; en: string }) =>
-    chinese ? item.zh : item.en;
+  const label = (item: { id?: string; value?: string }) =>
+    t(connectionIconLabelKey(item), { ns: "icons" });
   const matches = (item: {
     zh: string;
     en: string;
     id?: string;
     value?: string;
   }) =>
-    `${item.zh} ${item.en} ${item.id || item.value}`
+    `${label(item)} ${item.zh} ${item.en} ${item.id || item.value}`
       .toLocaleLowerCase()
       .includes(query.trim().toLocaleLowerCase());
   const selected =
@@ -373,7 +379,9 @@ export function ConnectionIconPicker({
                         <TabsTrigger value="service">
                           {t("serviceIcons", { ns: "commands" })}
                         </TabsTrigger>
-                        <TabsTrigger value="emoji">Emoji</TabsTrigger>
+                        <TabsTrigger value="emoji">
+                          {t("emojiCategory")}
+                        </TabsTrigger>
                       </TabsList>
                       <Button
                         type="button"

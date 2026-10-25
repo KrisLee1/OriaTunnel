@@ -99,8 +99,8 @@ describe("application updates", () => {
     expect(unknown).toContain('data-slot="progress"');
     expect(unknown).toContain('role="progressbar"');
     expect(unknown).toContain('aria-label="更新下载进度"');
-    expect(unknown).toContain('data-indeterminate');
-    expect(unknown).not.toContain('aria-valuenow');
+    expect(unknown).toContain("data-indeterminate");
+    expect(unknown).not.toContain("aria-valuenow");
     expect(unknown).not.toContain('data-slot="progress-value"');
     const known = render({
       phase: "downloading",
@@ -165,11 +165,23 @@ describe("application updates", () => {
       "ru",
     ]) {
       const messages = flatten(i18n.getResourceBundle(language, "updater"));
-      expect(Object.keys(messages).sort()).toEqual(Object.keys(english).sort());
+      const baseKeys = (keys: string[]) =>
+        [
+          ...new Set(
+            keys.map((key) =>
+              key.replace(/_(zero|one|two|few|many|other)$/, ""),
+            ),
+          ),
+        ].sort();
+      expect(baseKeys(Object.keys(messages))).toEqual(
+        baseKeys(Object.keys(english)),
+      );
       for (const [key, value] of Object.entries(messages)) {
         expect(value.trim()).not.toBe("");
         expect(value.match(/{{\w+}}/g) || []).toEqual(
-          english[key].match(/{{\w+}}/g) || [],
+          english[key.replace(/_(zero|one|two|few|many|other)$/, "")].match(
+            /{{\w+}}/g,
+          ) || [],
         );
       }
       await i18n.changeLanguage(language);

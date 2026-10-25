@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, ModalActions } from "@/components/tunnel-form";
@@ -87,7 +88,7 @@ export function ConfigExportDialog({
       )}
       {error && (
         <p role="alert" className="inline-error">
-          {error}
+          {formatUiError(error, t)}
         </p>
       )}
       <ModalActions>
@@ -114,11 +115,7 @@ export function ConfigExportDialog({
                   close();
                 }
               })
-              .catch((error) =>
-                setError(
-                  t(`error.${String(error)}`, { defaultValue: String(error) }),
-                ),
-              )
+              .catch((error) => setError(formatUiError(String(error), t)))
               .finally(() => setBusy(false));
           }}
         >

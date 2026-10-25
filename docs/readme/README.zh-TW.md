@@ -17,11 +17,11 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 連接埠轉送桌面工具。
 
 ## 介面預覽
 
-獨立示範設定：3 台範例主機、6 條 L / R / D 轉送，全部停止，沒有真實伺服器或憑證。
+以下為目前開發版的原生介面截圖，隨系統淺色／深色模式切換。獨立示範設定：3 台範例主機、6 條 L / R / D 轉送，全部停止，沒有真實伺服器或憑證。
 
-| ![連線圖](../assets/screenshots/connection-map.png) | ![轉送清單](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="連線圖"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="轉送清單"></picture> |
 | :---: | :---: |
-| ![SSH 主機](../assets/screenshots/hosts.png) | ![日誌](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH 主機"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="日誌"></picture> |
 
 ## 功能特色
 

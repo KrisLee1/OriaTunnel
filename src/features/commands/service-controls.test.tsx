@@ -91,7 +91,15 @@ describe("service control UI", () => {
           ? flatten(v as Record<string, unknown>, `${prefix}${key}.`)
           : [`${prefix}${key}`],
       );
-    const expected = flatten(i18n.getResourceBundle("en", "commands"));
+    const baseKeys = (keys: string[]) =>
+      [
+        ...new Set(
+          keys.map((key) => key.replace(/_(zero|one|two|few|many|other)$/, "")),
+        ),
+      ].sort();
+    const expected = baseKeys(
+      flatten(i18n.getResourceBundle("en", "commands")),
+    );
     for (const lang of ["zh-CN", "zh-TW", "en", "ja", "ko", "de", "fr", "ru"]) {
       await i18n.changeLanguage(lang);
       const html = renderToStaticMarkup(
@@ -102,9 +110,9 @@ describe("service control UI", () => {
       expect(html).toContain('max="600"');
       expect(html).toContain('role="switch"');
       expect(html).not.toMatch(/>service\.[a-zA-Z]/);
-      expect(flatten(i18n.getResourceBundle(lang, "commands"))).toEqual(
-        expected,
-      );
+      expect(
+        baseKeys(flatten(i18n.getResourceBundle(lang, "commands"))),
+      ).toEqual(expected);
     }
     await i18n.changeLanguage("zh-CN");
   });

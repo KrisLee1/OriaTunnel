@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import "@/i18n";
-import "@/tunnel-i18n";
 import { emptyHost } from "@/features/tunnels/rule-model";
 import type { Snapshot } from "@/types";
 import * as bridge from "@/lib/bridge";

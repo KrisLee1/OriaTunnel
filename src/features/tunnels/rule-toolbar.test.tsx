@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import { RuleToolbar } from "./rule-toolbar";
 
 function render(selected: number, busy = false, available = true) {

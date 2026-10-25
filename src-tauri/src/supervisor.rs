@@ -186,7 +186,7 @@ pub async fn run_with_password_observer(
         }
         if resumed {
             r.error_kind = Some(FailureKind::Network);
-            r.message = "系统恢复后重新建立 SSH 会话".into();
+            r.message = crate::native_message::plain("runtimeWake");
         }
         if test_only || (!resumed && r.status == "tested") {
             r.desired_running = false;
@@ -201,7 +201,7 @@ pub async fn run_with_password_observer(
             r.desired_running = false;
             r.retry_at = None;
             r.error_kind = Some(FailureKind::RemoteCommand);
-            r.message = "未允许重连时重复执行远程命令，请手动启动".into();
+            r.message = crate::native_message::plain("runtimeCommandReconnect");
             notify(r);
             break;
         }
@@ -256,7 +256,7 @@ pub async fn run_with_password_observer(
             r.desired_running = false;
             r.retry_at = None;
             r.error_kind = Some(FailureKind::Configuration);
-            r.message = "主机来源或连接配置已变化，请检查后手动启动".into();
+            r.message = crate::native_message::plain("runtimeConfigChanged");
             notify(r);
             break;
         }

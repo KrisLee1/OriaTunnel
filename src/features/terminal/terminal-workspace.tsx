@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import {
   createContext,
   lazy,
@@ -408,9 +409,9 @@ export function TerminalWorkspaceProvider({
       setSecrets({});
       setRemember({});
     } catch (e) {
-      const message = t(`error.${String(e)}`, { defaultValue: String(e) });
+      const message = String(e);
       setError(message);
-      throw new Error(message);
+      throw e;
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -461,7 +462,7 @@ export function TerminalWorkspaceProvider({
           sessions.find((s) => s.id !== session.id)?.id || commandTabs[0] || "",
         );
     } catch (e) {
-      setError(t(`error.${String(e)}`, { defaultValue: String(e) }));
+      setError(String(e));
       setSelected(session.id);
       setExpanded(true);
     } finally {
@@ -500,7 +501,7 @@ export function TerminalWorkspaceProvider({
     });
     setSecrets({});
     setRemember({});
-    setError(t("error.authentication"));
+    setError("authentication");
   }, [sessions, data.hosts, busy, draft, closing, trust, t]);
   const tabIds = [...sessions.map((s) => s.id), ...commandTabs];
   const tabSignature = tabIds.join("\0");
@@ -759,7 +760,7 @@ export function TerminalWorkspaceProvider({
         </header>
         {error && (
           <p className="terminal-error" role="alert">
-            {error}
+            {formatUiError(error, t)}
             <Button
               type="button"
               variant="ghost"
@@ -1052,7 +1053,7 @@ export function TerminalWorkspaceProvider({
                 )}
               {error && (
                 <p role="alert" className="inline-error">
-                  {error}
+                  {formatUiError(error, t)}
                 </p>
               )}
               {routeHosts
@@ -1100,7 +1101,7 @@ export function TerminalWorkspaceProvider({
             <code>{closing.endpoint}</code>
             {error && (
               <p role="alert" className="inline-error">
-                {error}
+                {formatUiError(error, t)}
               </p>
             )}
             <ModalActions>

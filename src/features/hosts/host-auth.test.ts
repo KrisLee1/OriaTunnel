@@ -3,7 +3,6 @@ import { emptyHost } from "@/features/tunnels/rule-model";
 import { automaticAuthOutcome, hostAuthMethod, needsInitialSecret } from "./host-auth";
 import type { Runtime } from "@/types";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 
 describe("authentication flow", () => {
   const host = { ...emptyHost(), identityFiles: ["/fixture/key"] };

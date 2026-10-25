@@ -17,11 +17,11 @@ OriaTunnel ist eine Desktop-App zur SSH-Portweiterleitung für Windows und macOS
 
 ## Bildschirmansichten
 
-Isolierte Demokonfiguration: 3 Beispielhosts und 6 L-/R-/D-Weiterleitungen, alle gestoppt. Keine echten Server oder Zugangsdaten.
+Native Screenshots aus dem aktuellen Entwicklungsstand, die dem hellen oder dunklen Farbschema des Systems folgen. Isolierte Demokonfiguration: 3 Beispielhosts und 6 L-/R-/D-Weiterleitungen, alle gestoppt. Keine echten Server oder Zugangsdaten.
 
-| ![Verbindungsübersicht](../assets/screenshots/connection-map.png) | ![Weiterleitungsliste](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Verbindungsübersicht"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Weiterleitungsliste"></picture> |
 | :---: | :---: |
-| ![SSH-Hosts](../assets/screenshots/hosts.png) | ![Protokolle](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH-Hosts"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Protokolle"></picture> |
 
 ## Funktionen
 

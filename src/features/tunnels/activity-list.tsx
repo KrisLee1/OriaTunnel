@@ -19,7 +19,7 @@ export function ActivityList({
   grouping: ActivityGrouping;
   viewport: HTMLDivElement | null;
 }) {
-  const { t } = useTranslation("tunnel");
+  const { t, i18n } = useTranslation("tunnel");
   const listRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
@@ -147,7 +147,9 @@ export function ActivityList({
                   <time
                     dateTime={new Date(item.row.record.timestamp).toISOString()}
                   >
-                    {new Date(item.row.record.timestamp).toLocaleString()}
+                    {new Date(item.row.record.timestamp).toLocaleString(
+                      i18n.resolvedLanguage,
+                    )}
                   </time>
                 </div>
                 <div className="activity-entry-meta">

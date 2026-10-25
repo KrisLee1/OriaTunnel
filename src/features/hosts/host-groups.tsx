@@ -1,3 +1,4 @@
+import { formatNativeMessage } from "@/lib/native-message";
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { ServerIcon } from "lucide-react";
@@ -26,7 +27,12 @@ export function groupHosts(
             ) || "",
           ]
         : grouping === "auth"
-          ? [hostAuthMethod(host, runtimes.find((r) => r.ruleId === `host-test:${host.id}`))]
+          ? [
+              hostAuthMethod(
+                host,
+                runtimes.find((r) => r.ruleId === `host-test:${host.id}`),
+              ),
+            ]
           : grouping === "tags"
             ? [...new Set(host.tags.map((t) => t.trim()).filter(Boolean))]
             : [""];
@@ -69,7 +75,13 @@ export function HostGroups({
               <strong title={h.name}>{h.name}</strong>
               <span
                 className={`status tone-${status?.tone || (h.diagnostics.length ? "danger" : "neutral")}`}
-                title={runtime?.message || h.diagnostics.join("\n")}
+                title={
+                  runtime?.message
+                    ? formatNativeMessage(runtime.message)
+                    : h.diagnostics
+                        .map((message) => formatNativeMessage(message))
+                        .join("\n")
+                }
               >
                 <i />
                 {t(

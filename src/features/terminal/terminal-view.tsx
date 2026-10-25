@@ -99,12 +99,12 @@ export default function TerminalView({
     try {
       await navigator.clipboard.writeText(selected);
     } catch {
-      onError(t("clipboardFallback"));
+      onError("clipboardFallback");
     }
   };
   const reviewPaste = (text: string) => {
     if (new TextEncoder().encode(text).length > 256 * 1024) {
-      onError(t("error.inputLimit"));
+      onError("error.inputLimit");
       return;
     }
     if (needsPasteReview(text)) setPaste(text);
@@ -114,7 +114,7 @@ export default function TerminalView({
     try {
       reviewPaste(await navigator.clipboard.readText());
     } catch {
-      onError(t("clipboardFallback"));
+      onError("clipboardFallback");
     }
   };
   const callbacks = useRef({
@@ -148,6 +148,8 @@ export default function TerminalView({
         resizing = 0;
       let queue = Promise.resolve();
       const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+      Terminal.strings.promptLabel = current.current.t("input");
+      Terminal.strings.tooMuchOutput = current.current.t("screenReaderOutputLimit");
       const term = new Terminal({
         cols: session.cols,
         rows: session.rows,
@@ -162,11 +164,7 @@ export default function TerminalView({
             if (/^https?:\/\//i.test(url))
               void bridge
                 .openExternalUrl(url)
-                .catch(() =>
-                  current.current.onError(
-                    current.current.t("error.linkFailed"),
-                  ),
-                );
+                .catch(() => current.current.onError("error.linkFailed"));
           },
         },
       });
@@ -191,7 +189,7 @@ export default function TerminalView({
         )
           return;
         if (pendingBytes + bytes.length > 256 * 1024) {
-          current.current.onError(current.current.t("error.inputLimit"));
+          current.current.onError("error.inputLimit");
           return;
         }
         pendingBytes += bytes.length;
@@ -211,7 +209,7 @@ export default function TerminalView({
                 inputSequence = sequence;
               } catch {
                 failedInput = true;
-                current.current.onError(current.current.t("error.inputFailed"));
+                current.current.onError("error.inputFailed");
                 void bridge.closeTerminal(session.id, clientId).catch(() => {});
               }
             })
@@ -358,7 +356,7 @@ export default function TerminalView({
         if (disposed || frame.id !== session.id || frame.sequence <= lastFrame)
           return;
         if (frame.sequence !== lastFrame + 1) {
-          current.current.onError(current.current.t("error.outputGap"));
+          current.current.onError("error.outputGap");
           void bridge.closeTerminal(session.id, clientId).catch(() => {});
           return;
         }
@@ -367,20 +365,13 @@ export default function TerminalView({
           if (!disposed)
             void bridge
               .ackTerminal(session.id, clientId, frame.sequence)
-              .catch(() =>
-                current.current.onError(current.current.t("error.outputGap")),
-              );
+              .catch(() => current.current.onError("error.outputGap"));
         });
       };
       void bridge
         .attachTerminal(session.id, clientId, channel)
         .catch((error) => {
-          if (!disposed)
-            current.current.onError(
-              current.current.t(`error.${String(error)}`, {
-                defaultValue: String(error),
-              }),
-            );
+          if (!disposed) current.current.onError(String(error));
         });
       cleanup = () => {
         cancelAnimationFrame(resizing);
@@ -402,6 +393,14 @@ export default function TerminalView({
       cleanup?.();
     };
   }, [session.id, clientId]);
+  useEffect(() => {
+    Terminal.strings.promptLabel = t("input");
+    Terminal.strings.tooMuchOutput = t("screenReaderOutputLimit");
+    terminal.current?.textarea?.setAttribute(
+      "aria-label",
+      `${t("input")} ${session.endpoint}`,
+    );
+  }, [t, ready, session.endpoint]);
   useEffect(() => {
     if (!visible || !ready || session.phase !== "running") return;
     // A different feature's modal may still be finishing its close animation.

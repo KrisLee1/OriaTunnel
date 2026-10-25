@@ -163,7 +163,9 @@
       "health": "Vérifier la santé",
       "forward": "Redirection cible"
     },
-    "checks": "État et contrôles de disponibilité"
+    "checks": "État et contrôles de disponibilité",
+    "attempts_one": "{{count}} vérification",
+    "attempts_other": "{{count}} vérifications"
   },
   "sharing": {
     "environmentDefault": "Utiliser la politique d’environnement de l’hôte",
@@ -189,7 +191,9 @@
     "enable": "Activer l’exécution",
     "outputStats": "Conservé {{retained}} MiB · supprimé {{discarded}} MiB",
     "importStopped": "L’import ne connecte pas SSH et n’exécute rien. Les transferts restent arrêtés, sans connexion automatique.",
-    "previewHint": "Vérifiez les hôtes, transferts et scripts. Les éléments sélectionnés sont copiés sans remplacer les entrées existantes."
+    "previewHint": "Vérifiez les hôtes, transferts et scripts. Les éléments sélectionnés sont copiés sans remplacer les entrées existantes.",
+    "exportRules_one": "Transfert sélectionné : {{count}}",
+    "exportRules_other": "Transferts sélectionnés : {{count}}"
   },
   "templates": {
     "title": "Modèles de service",
@@ -263,7 +267,11 @@
     "deleteSelected": "Supprimer la sélection",
     "exportSelected": "Exporter la sélection",
     "exportAll": "Tout exporter",
-    "deleteTitle": "Supprimer {{count}} services"
+    "deleteTitle": "Supprimer {{count}} services",
+    "deleteTitle_one": "Supprimer {{count}} service",
+    "deleteTitle_other": "Supprimer {{count}} services",
+    "selected_one": "{{count}} sélectionné",
+    "selected_other": "{{count}} sélectionnés"
   },
   "searchServices": "Rechercher un service…",
   "review": {
@@ -278,5 +286,9 @@
     "unlimited": "Illimité"
   },
   "copyService": "Créer un service à partir de celui-ci",
-  "terminalTimeout": "Délai (secondes, 0 = illimité)"
+  "terminalTimeout": "Délai (secondes, 0 = illimité)",
+  "serviceCount_one": "{{count}} service",
+  "serviceCount_other": "{{count}} services",
+  "commandCount_one": "{{count}} commande",
+  "commandCount_other": "{{count}} commandes"
 }

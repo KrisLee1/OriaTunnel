@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import { useRef, useState, type DragEvent } from "react";
 import { UploadIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -46,8 +47,8 @@ export function ImportConfig({
     const message = String(cause);
     setError(
       message.includes("preview_import_file")
-        ? t("importBackendUpdateRequired")
-        : t(`error.${message}`, { ns: "commands", defaultValue: message }),
+        ? "importBackendUpdateRequired"
+        : message,
     );
   };
   async function load(source: () => Promise<ImportSource>) {
@@ -67,11 +68,11 @@ export function ImportConfig({
   }
   function loadFile(file: File) {
     if (!file.name.toLowerCase().endsWith(".json")) {
-      setError(t("importFileType"));
+      setError("importFileType");
       return;
     }
     if (file.size > MAX_IMPORT_BYTES) {
-      setError(t("importFileSize"));
+      setError("importFileSize");
       return;
     }
     void load(async () => ({
@@ -82,11 +83,11 @@ export function ImportConfig({
   }
   function loadPaths(paths: string[]) {
     if (paths.length !== 1) {
-      setError(t("importSingleFile"));
+      setError("importSingleFile");
       return;
     }
     if (!paths[0].toLowerCase().endsWith(".json")) {
-      setError(t("importFileType"));
+      setError("importFileType");
       return;
     }
     void load(async () => ({ kind: "path", path: paths[0] }));
@@ -98,7 +99,7 @@ export function ImportConfig({
     setDragging(false);
     if (disabled) return;
     if (event.dataTransfer.files.length !== 1) {
-      setError(t("importSingleFile"));
+      setError("importSingleFile");
       return;
     }
     loadFile(event.dataTransfer.files[0]);
@@ -130,7 +131,11 @@ export function ImportConfig({
         if (!disabled) close();
       }}
     >
-      {error && <FieldError role="alert">{error}</FieldError>}
+      {error && (
+        <FieldError role="alert">
+          {formatUiError(error, t, "commands")}
+        </FieldError>
+      )}
       {preview ? (
         <>
           <div className="import-file-heading">

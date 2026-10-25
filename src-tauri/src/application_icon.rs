@@ -17,6 +17,6 @@ pub async fn set_application_icon(app: tauri::AppHandle, icon: String) -> Result
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = (app, icon);
-        Err("Application icon selection is supported on macOS and Windows".into())
+        Err(crate::native_message::plain("iconUnsupported"))
     }
 }

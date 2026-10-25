@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import {
   serviceRules,
   serviceTarget,
@@ -422,9 +423,9 @@ export function PresetCommandProvider({
       await fn();
     } catch (e) {
       const key = String(e);
-      const message = t(`error.${key}`, { defaultValue: key });
-      setError(message);
-      if (!filter && !page) toast.add({ title: message, type: "error" });
+      setError(key);
+      if (!filter && !page)
+        toast.add({ title: formatUiError(key, t), type: "error" });
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -496,7 +497,7 @@ export function PresetCommandProvider({
   ) => {
     const ruleId = targetFor(service, override)?.id;
     if (!ruleId) {
-      setError(t("serviceTargetRequired"));
+      setError("serviceTargetRequired");
       return;
     }
     setError("");
@@ -519,7 +520,7 @@ export function PresetCommandProvider({
     setRemember({});
     ruleId = targetFor(service, ruleId)?.id;
     if (!ruleId) {
-      setError(t("serviceTargetRequired"));
+      setError("serviceTargetRequired");
       return;
     }
     const action = operationAction(service, operation);
@@ -902,7 +903,7 @@ export function PresetCommandProvider({
     <>
       {error && (
         <p role="alert" className="inline-error">
-          {error}
+          {formatUiError(error, t)}
         </p>
       )}
       <>
@@ -1252,7 +1253,7 @@ export function PresetCommandProvider({
                 .join(" · ") || t("serviceUnbound")
             }
             busy={busy}
-            error={error}
+            error={formatUiError(error, t)}
             close={() => setReviewing(null)}
             enable={() =>
               void perform(async () => {
@@ -1286,7 +1287,7 @@ export function PresetCommandProvider({
               <>
                 {error && (
                   <p role="alert" className="inline-error">
-                    {error}
+                    {formatUiError(error, t)}
                   </p>
                 )}
                 <ServiceEditor
@@ -1329,7 +1330,7 @@ export function PresetCommandProvider({
             </code>
             {error && (
               <p role="alert" className="inline-error">
-                {error}
+                {formatUiError(error, t)}
               </p>
             )}
             <pre className="preset-script" data-selectable="true">
@@ -1404,7 +1405,7 @@ export function PresetCommandProvider({
             </ul>
             {error && (
               <p className="inline-error" role="alert">
-                {error}
+                {formatUiError(error, t)}
               </p>
             )}
             <ModalActions>
@@ -2055,11 +2056,7 @@ export function CommandResult({
               onClick={() =>
                 void bridge
                   .stopServiceForward(current.id)
-                  .catch((e) =>
-                    onError(
-                      t(`error.${String(e)}`, { defaultValue: String(e) }),
-                    ),
-                  )
+                  .catch((e) => onError(formatUiError(String(e), t)))
               }
             >
               {t("service.stopForward")}

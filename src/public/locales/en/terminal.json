@@ -107,5 +107,6 @@
   },
   "resizeWidth": "Resize panel width (Left/Right arrow keys)",
   "closeSearch": "Close search",
-  "remoteUnknownShort": "Remote state unknown"
+  "remoteUnknownShort": "Remote state unknown",
+  "screenReaderOutputLimit": "Too much terminal output to announce. Navigate to the output to continue reading."
 }

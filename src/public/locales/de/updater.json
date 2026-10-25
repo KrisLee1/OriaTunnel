@@ -57,5 +57,9 @@
     "moreApps": "Weitere Apps",
     "feedback": "Problem melden"
   },
-  "goUpdate": "Zum Update"
+  "goUpdate": "Zum Update",
+  "activeForwards_one": "Aktive Weiterleitung: {{count}}",
+  "activeForwards_other": "Aktive Weiterleitungen: {{count}}",
+  "activeTests_one": "Aktiver Hosttest: {{count}}",
+  "activeTests_other": "Aktive Hosttests: {{count}}"
 }

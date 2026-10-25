@@ -2,6 +2,7 @@
 // https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/bases/base/ui/toast.tsx
 import { Toast as ToastPrimitive } from "@base-ui/react/toast";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -84,10 +85,11 @@ function ToastClose({
   render = <Button variant="ghost" size="icon-sm" />,
   ...props
 }: ToastPrimitive.Close.Props) {
+  const { t } = useTranslation();
   return (
     <ToastPrimitive.Close
       data-slot="toast-close"
-      aria-label="Close toast"
+      aria-label={t("modal.close")}
       render={render}
       {...props}
     >
@@ -136,15 +138,16 @@ function ToastList({ closeLabel }: { closeLabel: string }) {
 function Toaster({
   children,
   toastManager = toast,
-  closeLabel = "Close toast",
+  closeLabel,
   ...props
 }: ToastPrimitive.Provider.Props & { closeLabel?: string }) {
+  const { t } = useTranslation();
   return (
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
       <ToastPortal>
         <ToastViewport>
-          <ToastList closeLabel={closeLabel} />
+          <ToastList closeLabel={closeLabel ?? t("modal.close")} />
         </ToastViewport>
       </ToastPortal>
     </ToastProvider>

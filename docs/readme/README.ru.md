@@ -17,11 +17,11 @@ OriaTunnel — настольное приложение для перенапр
 
 ## Снимки экрана
 
-Изолированная демонстрационная конфигурация: 3 примера хостов и 6 перенаправлений L / R / D, все остановлены. Реальных серверов и учётных данных нет.
+Нативные снимки текущей версии разработки переключаются в соответствии со светлой или тёмной темой системы. Изолированная демонстрационная конфигурация: 3 примера хостов и 6 перенаправлений L / R / D, все остановлены. Реальных серверов и учётных данных нет.
 
-| ![Карта соединений](../assets/screenshots/connection-map.png) | ![Список перенаправлений](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Карта соединений"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Список перенаправлений"></picture> |
 | :---: | :---: |
-| ![SSH-хосты](../assets/screenshots/hosts.png) | ![Журнал](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH-хосты"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Журнал"></picture> |
 
 ## Возможности
 

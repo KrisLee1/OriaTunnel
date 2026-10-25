@@ -18,7 +18,7 @@ impl ApplicationIcon {
             "light" => Ok(Self::Light),
             "dark" => Ok(Self::Dark),
             "mono" => Ok(Self::Mono),
-            _ => Err("Application icon must be light, dark, or mono".into()),
+            _ => Err(crate::native_message::plain("iconChoice")),
         }
     }
     fn replacement_bytes(self) -> Option<&'static [u8]> {
@@ -35,14 +35,19 @@ pub async fn set<R: Runtime>(app: &AppHandle<R>, icon: ApplicationIcon) -> Resul
     app.run_on_main_thread(move || {
         let _ = sender.send(set_on_main_thread(icon));
     })
-    .map_err(|error| format!("Cannot schedule the application icon update: {error}"))?;
+    .map_err(|error| {
+        crate::native_message::message(
+            "iconSchedule",
+            serde_json::json!({"error":error.to_string()}),
+        )
+    })?;
     receiver
         .await
-        .map_err(|_| "Application icon update canceled".to_string())?
+        .map_err(|_| crate::native_message::plain("iconCancelled"))?
 }
 
 fn set_on_main_thread(icon: ApplicationIcon) -> Result<(), String> {
-    let mtm = MainThreadMarker::new().ok_or("AppKit main thread is unavailable")?;
+    let mtm = MainThreadMarker::new().ok_or(crate::native_message::plain("iconMainThread"))?;
     let application = NSApplication::sharedApplication(mtm);
     let Some(bytes) = icon.replacement_bytes() else {
         // SAFETY: AppKit documents nil as restoring the original bundled icon.
@@ -51,7 +56,7 @@ fn set_on_main_thread(icon: ApplicationIcon) -> Result<(), String> {
     };
     let data = NSData::with_bytes(bytes);
     let image = NSImage::initWithData(NSImage::alloc(), &data)
-        .ok_or("Cannot decode the application icon")?;
+        .ok_or(crate::native_message::plain("iconDecode"))?;
     // SAFETY: A valid retained NSImage is assigned on AppKit's main thread.
     unsafe { application.setApplicationIconImage(Some(&image)) };
     Ok(())

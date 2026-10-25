@@ -7,7 +7,7 @@ pub fn package(
     include_key_paths: bool,
 ) -> Result<Value, String> {
     if ids.is_empty() {
-        return Err("请选择要导出的规则".into());
+        return Err(crate::native_message::plain("selectExportRules"));
     }
     let rules: Vec<_> = ids
         .iter()
@@ -16,7 +16,7 @@ pub fn package(
                 .rules
                 .iter()
                 .find(|r| &r.id == id)
-                .ok_or("部分规则已不存在")
+                .ok_or(crate::native_message::plain("exportRulesMissing"))
         })
         .collect::<Result<_, _>>()?;
     let hosts: Vec<_> = snapshot
@@ -114,7 +114,7 @@ pub fn write(path: &std::path::Path, value: &Value) -> Result<(), String> {
         drop(f);
         std::fs::rename(&temp, path)
     })()
-    .map_err(|_: std::io::Error| "配置导出未完成，原文件保持不变".to_string());
+    .map_err(|_: std::io::Error| crate::native_message::plain("exportFailed"));
     if result.is_err() {
         let _ = std::fs::remove_file(temp);
     }

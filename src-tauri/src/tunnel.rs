@@ -203,7 +203,7 @@ fn network_error(error: std::io::Error) -> Failure {
     } else {
         FailureKind::Network
     };
-    Failure::new(kind, "SSH 网络连接失败，请检查地址、DNS 和网络")
+    Failure::new(kind, crate::native_message::plain("networkFailed"))
 }
 async fn authenticate(
     ssh: &mut client::Handle<Client>,
@@ -262,7 +262,7 @@ async fn authenticate(
             Ok(Ok(true)) => authenticated = Some(AuthMethod::Agent),
             Ok(Ok(false)) => {}
             _ if host.auth_method == AuthMethod::Agent => {
-                return Err("系统代理认证失败：请检查服务、IdentityAgent 和可用密钥".into())
+                return Err(crate::native_message::plain("agentAuthFailed"))
             }
             _ => {}
         }
@@ -273,12 +273,17 @@ async fn authenticate(
         && ssh
             .authenticate_password(&host.user, &**secret)
             .await
-            .map_err(|e| format!("认证失败: {e}"))?
+            .map_err(|e| {
+                crate::native_message::message(
+                    "authDetails",
+                    serde_json::json!({"e": (e).to_string()}),
+                )
+            })?
             .success()
     {
         authenticated = Some(AuthMethod::Password);
     }
-    authenticated.ok_or_else(|| "认证失败：请检查认证方式、私钥或本次密码/私钥口令".into())
+    authenticated.ok_or_else(|| crate::native_message::plain("authFailed"))
 }
 async fn authenticate_agent(ssh: &mut client::Handle<Client>, host: &Host) -> Result<bool, String> {
     use russh::keys::agent::{client::AgentClient, AgentIdentity};
@@ -386,9 +391,9 @@ async fn handshake(
         let started = tokio::time::Instant::now();
         tokio::select! {biased;
             _=cancel.cancelled()=>return Ok(None),
-            result=&mut connect=>return result.map(Some).map_err(|_| if key_rejected.load(std::sync::atomic::Ordering::Relaxed) { Failure::new(FailureKind::HostKey, "主机指纹未获信任或已变化") } else { Failure::new(FailureKind::Network, "SSH 握手失败或连接中断") }),
+            result=&mut connect=>return result.map(Some).map_err(|_| if key_rejected.load(std::sync::atomic::Ordering::Relaxed) { Failure::new(FailureKind::HostKey, crate::native_message::plain("hostKeyUntrusted")) } else { Failure::new(FailureKind::Network, crate::native_message::plain("handshakeFailed")) }),
             _=trust_wait.changed()=>{if !paused {remaining=remaining.saturating_sub(started.elapsed());}paused = *trust_wait.borrow();},
-            _=tokio::time::sleep(remaining),if !paused=>return Err(Failure::new(FailureKind::Timeout, "SSH 握手超时")),
+            _=tokio::time::sleep(remaining),if !paused=>return Err(Failure::new(FailureKind::Timeout, crate::native_message::plain("handshakeTimeout"))),
         }
     }
 }
@@ -414,9 +419,9 @@ async fn forward(
     if !test_only && !rule.no_remote_command && !host.unsupported_session_options.is_empty() {
         return Err(Failure::new(
             FailureKind::Configuration,
-            format!(
-                "远程命令暂不支持来源会话选项 {}；请使用仅转发模式",
-                host.unsupported_session_options.join("、")
+            crate::native_message::message(
+                "commandSessionOptions",
+                serde_json::json!({"arg0": (host.unsupported_session_options.join("、")).to_string()}),
             ),
         ));
     }
@@ -497,7 +502,10 @@ pub(crate) async fn connect(
 ) -> Result<Option<Connection>, Failure> {
     let hop_count = hops.len();
     if hop_count == 0 {
-        return Err(Failure::new(FailureKind::Configuration, "Missing SSH host"));
+        return Err(Failure::new(
+            FailureKind::Configuration,
+            crate::native_message::plain("hostMissing"),
+        ));
     }
     let (tx, rx) = mpsc::channel(128);
     let mut connection = Connection {
@@ -515,10 +523,10 @@ pub(crate) async fn connect(
         let timeout = Duration::from_secs(host.connection.connect_timeout_secs);
         let started = tokio::time::Instant::now();
         let socket: Box<dyn SshStream> = if let Some(previous) = connection.sessions.last() {
-            let channel = tokio::select! {biased; _=cancel.cancelled()=>return Ok(None),result=tokio::time::timeout(timeout,previous.channel_open_direct_tcpip(&host.address,host.port as u32,"127.0.0.1",0))=>result.map_err(|_|Failure::new(FailureKind::Timeout,"跳板目标连接超时"))?.map_err(|_|Failure::new(FailureKind::ForwardDenied,"跳板无法连接下一跳或被策略拒绝"))?};
+            let channel = tokio::select! {biased; _=cancel.cancelled()=>return Ok(None),result=tokio::time::timeout(timeout,previous.channel_open_direct_tcpip(&host.address,host.port as u32,"127.0.0.1",0))=>result.map_err(|_|Failure::new(FailureKind::Timeout,crate::native_message::plain("jumpTimeout")))?.map_err(|_|Failure::new(FailureKind::ForwardDenied,crate::native_message::plain("jumpRefused")))?};
             Box::new(channel.into_stream())
         } else {
-            let tcp = tokio::select! {biased; _=cancel.cancelled()=>return Ok(None),result=tokio::time::timeout(timeout,TcpStream::connect((host.address.as_str(),host.port)))=>result.map_err(|_|Failure::new(FailureKind::Timeout,"SSH 连接超时"))?.map_err(network_error)?};
+            let tcp = tokio::select! {biased; _=cancel.cancelled()=>return Ok(None),result=tokio::time::timeout(timeout,TcpStream::connect((host.address.as_str(),host.port)))=>result.map_err(|_|Failure::new(FailureKind::Timeout,crate::native_message::plain("connectionTimeout")))?.map_err(network_error)?};
             Box::new(tcp)
         };
         let final_hop = index + 1 == hop_count;
@@ -582,7 +590,7 @@ pub(crate) async fn connect(
             Err(_) => {
                 return Err(Failure::new(
                     FailureKind::Authentication,
-                    "认证失败：请检查认证方式、私钥或本次密码/私钥口令",
+                    crate::native_message::plain("authFailed"),
                 ))
             }
         }
@@ -601,30 +609,38 @@ async fn serve(
     // Drop aborts all streams on every failure path.
     let mut connections = JoinSet::new();
     if !rule.no_remote_command {
-        let mut command = tokio::select! {biased; _=cancel.cancelled()=>return Ok(()), r=ssh.channel_open_session()=>r.map_err(|_|Failure::new(FailureKind::RemoteCommand,"远程会话失败"))?};
+        let mut command = tokio::select! {biased; _=cancel.cancelled()=>return Ok(()), r=ssh.channel_open_session()=>r.map_err(|_|Failure::new(FailureKind::RemoteCommand,crate::native_message::plain("remoteSessionFailed")))?};
         command
             .exec(true, rule.remote_command.as_bytes().to_vec())
             .await
-            .map_err(|_| Failure::new(FailureKind::RemoteCommand, "远程命令请求失败"))?;
+            .map_err(|_| {
+                Failure::new(
+                    FailureKind::RemoteCommand,
+                    crate::native_message::plain("remoteCommandFailed"),
+                )
+            })?;
         let accepted = tokio::select! {biased; _=cancel.cancelled()=>return Ok(()), r=tokio::time::timeout(Duration::from_secs(15), async {loop {match command.wait().await {Some(ChannelMsg::Success)=>return true, Some(ChannelMsg::Failure)|None=>return false, _=>{}}}})=>r.unwrap_or(false)};
         if !accepted {
             return Err(Failure::new(
                 FailureKind::RemoteCommand,
-                "服务端拒绝远程命令或响应超时",
+                crate::native_message::plain("remoteCommandRefused"),
             ));
         }
         connections.spawn(async move { while command.wait().await.is_some() {} });
     }
     update(runtime, notify, "binding", String::new());
     let listener = if rule.kind == ForwardKind::R {
-        tokio::select! {biased; _=cancel.cancelled()=>return Ok(()), result=ssh.tcpip_forward(&rule.bind_address, rule.bind_port as u32)=>result.map_err(|_|Failure::new(FailureKind::ForwardDenied,"远程监听被拒绝或端口占用"))?};
+        tokio::select! {biased; _=cancel.cancelled()=>return Ok(()), result=ssh.tcpip_forward(&rule.bind_address, rule.bind_port as u32)=>result.map_err(|_|Failure::new(FailureKind::ForwardDenied,crate::native_message::plain("remoteListenerFailed")))?};
         None
     } else {
         Some(
             TcpListener::bind((rule.bind_address.as_str(), rule.bind_port))
                 .await
                 .map_err(|_| {
-                    Failure::new(FailureKind::Bind, "本机监听失败，请检查端口占用和地址")
+                    Failure::new(
+                        FailureKind::Bind,
+                        crate::native_message::plain("localListenerFailed"),
+                    )
                 })?,
         )
     };
@@ -633,7 +649,7 @@ async fn serve(
     loop {
         tokio::select! {biased;
             _=cancel.cancelled()=>break,
-            _=timer.tick()=>{if ssh.is_closed() {return Err(Failure::new(FailureKind::Network,"SSH 连接已断开"));} notify(runtime.lock().unwrap().clone());},
+            _=timer.tick()=>{if ssh.is_closed() {return Err(Failure::new(FailureKind::Network,crate::native_message::plain("connectionClosed")));} notify(runtime.lock().unwrap().clone());},
             channel=incoming.recv(), if rule.kind == ForwardKind::R=>{
                 if let Some(channel)=channel { let target=(rule.target_host.clone(), rule.target_port); let r=runtime.clone();let n=notify.clone();let c=cancel.clone(); connections.spawn(async move {
                     tokio::select! {biased; _=c.cancelled()=>{}, result=tokio::time::timeout(Duration::from_secs(15), TcpStream::connect((target.0.as_str(),target.1)))=>match result {
@@ -643,7 +659,7 @@ async fn serve(
                 }); }
             },
             accepted=async {listener.as_ref().unwrap().accept().await}, if listener.is_some()=>{
-                let (mut tcp, origin)=accepted.map_err(|_|Failure::new(FailureKind::Bind,"监听接收连接失败"))?;
+                let (mut tcp, origin)=accepted.map_err(|_|Failure::new(FailureKind::Bind,crate::native_message::plain("listenerAcceptFailed")))?;
                 let r=runtime.clone(); let n=notify.clone(); let c=cancel.clone();let ssh=ssh.clone();let rule=rule.clone();
                 connections.spawn(async move {
                     tokio::select! {biased; _=c.cancelled()=>{}, _=async {
@@ -698,7 +714,7 @@ fn target_health(runtime: &Arc<Mutex<Runtime>>, notify: &Notify, reachable: bool
     r.message = if reachable {
         String::new()
     } else {
-        "目标 TCP 连接失败；监听继续等待请求".into()
+        crate::native_message::plain("targetTcpFailed")
     };
     notify(r.clone());
 }

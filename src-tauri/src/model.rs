@@ -37,7 +37,7 @@ impl RuleIcon {
         if valid {
             Ok(())
         } else {
-            Err("请选择内置图标，或输入单个 emoji / 符号（最多 16 个 Unicode 字符）".into())
+            Err(crate::native_message::plain("iconInvalid"))
         }
     }
 }
@@ -124,7 +124,7 @@ impl ConnectionOptions {
             || self.keepalive_interval_secs > 3600
             || !(1..=100).contains(&self.keepalive_max)
         {
-            return Err("连接超时应为 1–600 秒，保活间隔为 0–3600 秒，未响应次数为 1–100".into());
+            return Err(crate::native_message::plain("connectionOptions"));
         }
         Ok(())
     }
@@ -220,7 +220,7 @@ impl Rule {
                 || !color.starts_with('#')
                 || !color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
             {
-                return Err("连接颜色应为 #RRGGBB 格式".into());
+                return Err(crate::native_message::plain("colorInvalid"));
             }
         }
         if self.bind_port == 0
@@ -229,17 +229,17 @@ impl Rule {
             || (self.kind != ForwardKind::D
                 && (self.target_port == 0 || self.target_host.trim().is_empty()))
         {
-            return Err("名称、目标与端口不能为空，端口范围为 1–65535".into());
+            return Err(crate::native_message::plain("ruleFields"));
         }
         if self.bind_address.trim().is_empty() || self.bind_address.contains(['\0', '\n', '\r']) {
-            return Err("请填写有效监听地址".into());
+            return Err(crate::native_message::plain("listenerInvalid"));
         }
         if self.kind == ForwardKind::D && !matches!(self.bind_address.as_str(), "127.0.0.1" | "::1")
         {
-            return Err("SOCKS5 仅允许回环地址监听".into());
+            return Err(crate::native_message::plain("socksLoopback"));
         }
         if !self.no_remote_command && self.remote_command.trim().is_empty() {
-            return Err("启用远程命令后必须填写命令".into());
+            return Err(crate::native_message::plain("commandRequired"));
         }
         if let Some(connection) = &self.connection {
             connection.validate()?;
@@ -308,7 +308,7 @@ impl ReconnectPolicy {
             || self.max_delay_secs < self.initial_delay_secs
             || self.max_delay_secs > 3600
         {
-            return Err("重连次数应为 0–100，退避时间应为 1–3600 秒且上限不小于初始值".into());
+            return Err(crate::native_message::plain("reconnectOptions"));
         }
         Ok(())
     }
@@ -374,24 +374,25 @@ pub fn resolve_jumps(hosts: &[Host], target: &Host) -> Result<Vec<Host>, String>
         };
         for (index, id) in expression.split(',').enumerate() {
             if seen.len() >= 9 {
-                return Err("ProxyJump 路线超过 8 跳".into());
+                return Err(crate::native_message::plain("jumpTooLong"));
             }
             let id = id.trim();
             if id.is_empty() {
-                return Err("ProxyJump 路线包含空跳板".into());
+                return Err(crate::native_message::plain("jumpEmpty"));
             }
             if !seen.insert(id.to_string()) {
-                return Err("ProxyJump 路线存在循环或重复跳板".into());
+                return Err(crate::native_message::plain("jumpCycle"));
             }
-            let host = hosts
-                .iter()
-                .find(|h| h.id == id)
-                .ok_or_else(|| format!("跳板来源失效: {id}"))?;
+            let host = hosts.iter().find(|h| h.id == id).ok_or_else(|| {
+                crate::native_message::message(
+                    "jumpSourceMissing",
+                    serde_json::json!({"id": (id).to_string()}),
+                )
+            })?;
             if !host.diagnostics.is_empty() {
-                return Err(format!(
-                    "跳板 {} 需处理: {}",
-                    host.name,
-                    host.diagnostics.join("；")
+                return Err(crate::native_message::message(
+                    "jumpNeedsAttention",
+                    serde_json::json!({"arg0": (host.name).to_string(),"arg1": {"message":crate::native_message::combine(&host.diagnostics,"；")}}),
                 ));
             }
             // An explicit comma route supplies the transport for later hops; only the
@@ -400,7 +401,7 @@ pub fn resolve_jumps(hosts: &[Host], target: &Host) -> Result<Vec<Host>, String>
                 append(hosts, host, route, seen)?;
             }
             if route.len() >= 8 {
-                return Err("ProxyJump 路线超过 8 跳".into());
+                return Err(crate::native_message::plain("jumpTooLong"));
             }
             route.push(host.clone());
         }

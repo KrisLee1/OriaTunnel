@@ -163,7 +163,11 @@
       "health": "Проверить готовность",
       "forward": "Целевая переадресация"
     },
-    "checks": "Проверка состояния и готовности"
+    "checks": "Проверка состояния и готовности",
+    "attempts_one": "{{count}} проверка",
+    "attempts_few": "{{count}} проверки",
+    "attempts_many": "{{count}} проверок",
+    "attempts_other": "{{count}} проверки"
   },
   "sharing": {
     "environmentDefault": "Использовать политику окружения хоста",
@@ -189,7 +193,11 @@
     "enable": "Включить выполнение",
     "outputStats": "Сохранено {{retained}} МиБ · отброшено {{discarded}} МиБ",
     "importStopped": "Импорт не подключается по SSH и не выполняет команды. Перенаправления остановлены, автоподключение выключено.",
-    "previewHint": "Проверьте хосты, перенаправления и скрипты. Выбранные записи копируются без замены существующих."
+    "previewHint": "Проверьте хосты, перенаправления и скрипты. Выбранные записи копируются без замены существующих.",
+    "exportRules_one": "Выбрано перенаправление: {{count}}",
+    "exportRules_few": "Выбрано перенаправления: {{count}}",
+    "exportRules_many": "Выбрано перенаправлений: {{count}}",
+    "exportRules_other": "Выбрано перенаправления: {{count}}"
   },
   "templates": {
     "title": "Шаблоны сервисов",
@@ -263,7 +271,11 @@
     "deleteSelected": "Удалить выбранные",
     "exportSelected": "Экспорт выбранных",
     "exportAll": "Экспорт всех",
-    "deleteTitle": "Удалить сервисы: {{count}}"
+    "deleteTitle": "Удалить сервисы: {{count}}",
+    "deleteTitle_one": "Удалить {{count}} сервис",
+    "deleteTitle_few": "Удалить {{count}} сервиса",
+    "deleteTitle_many": "Удалить {{count}} сервисов",
+    "deleteTitle_other": "Удалить {{count}} сервиса"
   },
   "searchServices": "Поиск сервисов…",
   "review": {
@@ -278,5 +290,13 @@
     "unlimited": "Без ограничения"
   },
   "copyService": "Создать сервис на основе этого",
-  "terminalTimeout": "Тайм-аут (секунды, 0 = без ограничения)"
+  "terminalTimeout": "Тайм-аут (секунды, 0 = без ограничения)",
+  "serviceCount_one": "{{count}} сервис",
+  "serviceCount_few": "{{count}} сервиса",
+  "serviceCount_many": "{{count}} сервисов",
+  "serviceCount_other": "{{count}} сервиса",
+  "commandCount_one": "{{count}} команда",
+  "commandCount_few": "{{count}} команды",
+  "commandCount_many": "{{count}} команд",
+  "commandCount_other": "{{count}} команды"
 }

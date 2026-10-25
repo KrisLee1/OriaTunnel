@@ -90,8 +90,14 @@ impl AppState {
         discovery: ssh_config::Discovery,
     ) -> Result<Self, String> {
         let config: Config = if path.exists() {
-            serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
-                .map_err(|e| format!("配置文件无法读取，不覆盖原文件: {e}"))?
+            serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?).map_err(
+                |e| {
+                    crate::native_message::message(
+                        "configRead",
+                        serde_json::json!({"e": (e).to_string()}),
+                    )
+                },
+            )?
         } else {
             Config::default()
         };
@@ -208,13 +214,14 @@ impl AppState {
         file_name: String,
     ) -> Result<crate::config_import::Preview, String> {
         let package = crate::config_import::parse(bytes)?;
-        let base =
-            serde_json::to_vec(&*self.config.lock().unwrap()).map_err(|_| "无法预览当前配置")?;
+        let base = serde_json::to_vec(&*self.config.lock().unwrap())
+            .map_err(|_| crate::native_message::plain("configPreview"))?;
         let snapshot = self.snapshot();
         if base
-            != serde_json::to_vec(&*self.config.lock().unwrap()).map_err(|_| "无法预览当前配置")?
+            != serde_json::to_vec(&*self.config.lock().unwrap())
+                .map_err(|_| crate::native_message::plain("configPreview"))?
         {
-            return Err("配置已变化，请重新预览".into());
+            return Err(crate::native_message::plain("configChanged"));
         }
         let token = uuid::Uuid::new_v4().to_string();
         let preview = package.preview(&snapshot, token.clone(), file_name);
@@ -235,11 +242,14 @@ impl AppState {
         let import = pending
             .as_ref()
             .filter(|p| p.token == token)
-            .ok_or("导入预览已过期，请重新选择文件")?;
+            .ok_or(crate::native_message::plain("importExpired"))?;
         let plan = import.package.prepare(&snapshot, choices)?;
         let mut current = self.config.lock().unwrap();
-        if import.base != serde_json::to_vec(&*current).map_err(|_| "无法核对当前配置")? {
-            return Err("配置已变化，请重新预览；尚未写入任何导入数据".into());
+        if import.base
+            != serde_json::to_vec(&*current)
+                .map_err(|_| crate::native_message::plain("configCompare"))?
+        {
+            return Err(crate::native_message::plain("importChanged"));
         }
         let mut next = current.clone();
         next.hosts.extend(plan.hosts);
@@ -252,7 +262,7 @@ impl AppState {
     }
     fn add_discovered_hosts(&self, ids: &[String]) -> Result<(), String> {
         if ids.is_empty() {
-            return Err("请选择要添加的 SSH 主机".into());
+            return Err(crate::native_message::plain("selectHosts"));
         }
         let hosts = self.snapshot().hosts;
         // Validate the entire selection before writing a single transaction.
@@ -265,7 +275,7 @@ impl AppState {
                     .iter()
                     .find(|h| &h.id == id && h.source == "config")
                     .cloned()
-                    .ok_or("部分发现主机已不存在，请刷新后重试")
+                    .ok_or(crate::native_message::plain("hostsDisappeared"))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut config = self.config.lock().unwrap();
@@ -298,10 +308,10 @@ impl AppState {
             || host.user.trim().is_empty()
             || host.port == 0
         {
-            return Err("请填写名称、地址、用户名和有效 SSH 端口".into());
+            return Err(crate::native_message::plain("hostFields"));
         }
         if host.id.starts_with("ssh:") || host.id.starts_with("ssh-jump:") {
-            return Err("本机配置主机请在源文件中修改".into());
+            return Err(crate::native_message::plain("editSourceHost"));
         }
         if host.id.is_empty() {
             host.id = uuid::Uuid::new_v4().to_string()
@@ -333,7 +343,7 @@ impl AppState {
             {
                 let mut h = saved.clone();
                 h.diagnostics
-                    .push("主机来源已失效，请重新绑定或另存为手动主机".into());
+                    .push(crate::native_message::plain("hostSourceLost"));
                 hosts.push(h);
             }
         }
@@ -398,13 +408,13 @@ impl AppState {
             diagnostics: {
                 let mut diagnostics = discovery.diagnostics.clone();
                 if self.activity.lock().unwrap().write_failed {
-                    diagnostics.push("运行日志暂时无法写入".into());
+                    diagnostics.push(crate::native_message::plain("activityWrite"));
                 }
                 if self
                     .power_missing
                     .load(std::sync::atomic::Ordering::Relaxed)
                 {
-                    diagnostics.push("系统唤醒通知不可用；断线仍由 SSH 保活检测".into());
+                    diagnostics.push(crate::native_message::plain("wakeUnavailable"));
                 }
                 diagnostics
             },
@@ -499,7 +509,7 @@ impl AppState {
     }
     fn allow_launch(&self) -> Result<(), String> {
         if self.shutting_down.load(std::sync::atomic::Ordering::SeqCst) {
-            Err("应用正在退出".into())
+            Err(crate::native_message::plain("exiting"))
         } else if self.update_installing() {
             Err("updateInstalling".into())
         } else {
@@ -648,7 +658,7 @@ impl AppState {
     fn remove_rules(&self, ids: &[String]) -> Result<(), String> {
         let ids: std::collections::BTreeSet<_> = ids.iter().collect();
         if ids.is_empty() {
-            return Err("请选择要删除的转发".into());
+            return Err(crate::native_message::plain("selectDeleteRules"));
         }
         let mut c = self.config.lock().unwrap();
         let mut next = c.clone();
@@ -659,7 +669,7 @@ impl AppState {
             .cloned()
             .collect();
         if removed.len() != ids.len() {
-            return Err("部分转发已不存在，请重新选择".into());
+            return Err(crate::native_message::plain("rulesDisappeared"));
         }
         next.rules.retain(|r| !ids.contains(&r.id));
         self.persist(&next)?;
@@ -704,7 +714,7 @@ impl AppState {
                     id,
                 )
         }) {
-            return Err("请先修改引用此主机的跳板路线".into());
+            return Err(crate::native_message::plain("hostJumpInUse"));
         }
         if self
             .runtimes
@@ -718,7 +728,7 @@ impl AppState {
                 )
             })
         {
-            return Err("请先停止此主机的连接测试".into());
+            return Err(crate::native_message::plain("hostTestRunning"));
         }
         let rules: Vec<_> = c
             .rules
@@ -730,13 +740,13 @@ impl AppState {
         if ids.iter().collect::<std::collections::BTreeSet<_>>()
             != expected_rule_ids.iter().collect()
         {
-            return Err("关联转发已变化，请重新确认删除".into());
+            return Err(crate::native_message::plain("hostRulesChanged"));
         }
         if !c.hosts.iter().any(|h| h.id == id)
             && !c.host_metadata.contains_key(id)
             && rules.is_empty()
         {
-            return Err("此主机尚未添加".into());
+            return Err(crate::native_message::plain("hostNotAdded"));
         }
         let host = DeletedHost {
             id: id.into(),
@@ -762,20 +772,22 @@ impl AppState {
     fn restore_rule(&self) -> Result<(), String> {
         let mut config = self.config.lock().unwrap();
         let mut deleted = self.deleted.lock().unwrap();
-        let entry = deleted.last().ok_or("没有可撤销的删除")?;
+        let entry = deleted
+            .last()
+            .ok_or(crate::native_message::plain("nothingToUndo"))?;
         if config
             .rules
             .iter()
             .any(|r| entry.rules.iter().any(|old| old.id == r.id))
         {
-            return Err("规则标识已被使用".into());
+            return Err(crate::native_message::plain("ruleIdUsed"));
         }
         let mut next = config.clone();
         if let Some(host) = &entry.host {
             if next.hosts.iter().any(|h| h.id == host.id)
                 || next.host_metadata.contains_key(&host.id)
             {
-                return Err("主机标识已被使用".into());
+                return Err(crate::native_message::plain("hostIdUsed"));
             }
             if let Some(manual) = &host.manual {
                 next.hosts.push(manual.clone());
@@ -808,12 +820,11 @@ impl AppState {
             for old in &current.hosts {
                 if !next.hosts.iter().any(|h| h.id == old.id) {
                     let mut host = old.clone();
-                    if !host
-                        .diagnostics
-                        .iter()
-                        .any(|d| d == "来源同步失败，请刷新后重试")
-                    {
-                        host.diagnostics.push("来源同步失败，请刷新后重试".into());
+                    if !host.diagnostics.iter().any(|d| {
+                        crate::native_message::key(d).as_deref() == Some("sourceSyncFailed")
+                    }) {
+                        host.diagnostics
+                            .push(crate::native_message::plain("sourceSyncFailed"));
                     }
                     next.hosts.push(host);
                 }
@@ -846,7 +857,10 @@ impl AppState {
             Ok(true) => {}
             Err(error) => {
                 let mut discovery = self.discovery.lock().unwrap();
-                let message = format!("来源快照保存失败: {error}");
+                let message = crate::native_message::message(
+                    "sourceSaveFailed",
+                    serde_json::json!({"error": (error).to_string()}),
+                );
                 if discovery.diagnostics.contains(&message) {
                     return;
                 }
@@ -879,7 +893,7 @@ pub fn set_host_sources(
             && !path.starts_with("~/")
             && !path.starts_with("~\\")
     }) {
-        return Err("附加来源请填写绝对路径或 ~/ 路径".into());
+        return Err(crate::native_message::plain("sourceAbsolutePath"));
     }
     {
         let mut c = state.config.lock().unwrap();
@@ -912,14 +926,14 @@ pub fn save_host_metadata(
     tags: Vec<String>,
 ) -> Result<Snapshot, String> {
     if name.trim().is_empty() {
-        return Err("主机显示名称不能为空".into());
+        return Err(crate::native_message::plain("hostNameEmpty"));
     }
     let host = state
         .snapshot()
         .hosts
         .into_iter()
         .find(|h| h.id == id && h.source == "config")
-        .ok_or("仅对配置来源主机设置应用元数据")?;
+        .ok_or(crate::native_message::plain("sourceMetadataOnly"))?;
     {
         let mut c = state.config.lock().unwrap();
         let mut next = c.clone();
@@ -979,9 +993,9 @@ fn save_rule_profile(
         .hosts
         .into_iter()
         .find(|h| h.id == rule.host_id)
-        .ok_or("主机来源失效，请重新选择")?;
+        .ok_or(crate::native_message::plain("selectHostSource"))?;
     if !host.diagnostics.is_empty() {
-        return Err(host.diagnostics.join("\n"));
+        return Err(crate::native_message::combine(&host.diagnostics, "\n"));
     }
     if rule.id.is_empty() {
         rule.id = uuid::Uuid::new_v4().to_string()
@@ -1035,7 +1049,7 @@ pub async fn start_rule(
         .rules
         .into_iter()
         .find(|r| r.id == id)
-        .ok_or("规则不存在")?;
+        .ok_or(crate::native_message::plain("ruleMissing"))?;
     launch(
         state.inner().clone(),
         app,
@@ -1097,7 +1111,7 @@ pub fn clear_password(state: tauri::State<Arc<AppState>>, id: String) -> Result<
         .hosts
         .into_iter()
         .find(|h| h.id == id)
-        .ok_or("主机不存在")?;
+        .ok_or(crate::native_message::plain("hostMissing"))?;
     state.vault.forget(&host)?;
     state.credential_errors.lock().unwrap().remove(&id);
     Ok(())
@@ -1114,7 +1128,7 @@ pub async fn test_host(
 ) -> Result<(), String> {
     let rule = Rule {
         id: format!("host-test:{id}"),
-        name: "SSH 连接测试".into(),
+        name: crate::native_message::plain("hostTestName"),
         host_id: id,
         bind_port: 1,
         target_host: "127.0.0.1".into(),
@@ -1187,16 +1201,16 @@ async fn launch_impl(
     state.trust.lock().unwrap().remove(&id);
     let snapshot = state.snapshot();
     if !test_only && !snapshot.rules.iter().any(|saved| saved.id == rule.id) {
-        return Err("规则已被删除".into());
+        return Err(crate::native_message::plain("ruleDeleted"));
     }
     let hosts = snapshot.hosts;
     let host = hosts
         .iter()
         .find(|h| h.id == rule.host_id)
         .cloned()
-        .ok_or("主机来源失效")?;
+        .ok_or(crate::native_message::plain("hostSourceMissing"))?;
     if !host.diagnostics.is_empty() {
-        return Err(host.diagnostics.join("\n"));
+        return Err(crate::native_message::combine(&host.diagnostics, "\n"));
     }
     let host_key = format!("{}:{}", host.address, host.port);
     let jumps = resolve_jumps(&hosts, &host)?;
@@ -1219,9 +1233,7 @@ async fn launch_impl(
                     .trusted_keys
                     .contains_key(&format!("{}:{}", h.address, h.port))
             {
-                return Err(
-                    "自动连接需要已核对的主机指纹以及私钥或系统代理；请手动启动完成认证".into(),
-                );
+                return Err(crate::native_message::plain("autoConnectAuth"));
             }
         }
     }
@@ -1339,7 +1351,7 @@ async fn launch_impl(
                         run_id: current_run,
                         status: "verifying-host".into(),
                         fingerprint: Some(fingerprint),
-                        message: "首次连接，请核对主机指纹".into(),
+                        message: crate::native_message::plain("firstHostKey"),
                         verification_endpoint: Some(endpoint),
                         desired_running: true,
                         ..Default::default()
@@ -1448,29 +1460,34 @@ pub async fn open_service(
 ) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
     let workers = state.workers.lock().await;
-    let worker = workers.get(&id).ok_or("请先启动转发")?;
+    let worker = workers
+        .get(&id)
+        .ok_or(crate::native_message::plain("startForward"))?;
     let snapshot = state.snapshot();
     let rule = snapshot
         .rules
         .iter()
         .find(|r| r.id == id)
-        .ok_or("转发不存在")?;
+        .ok_or(crate::native_message::plain("forwardMissing"))?;
     if !rule.same_connection(&worker.rule) {
-        return Err("转发配置已更改，请重新连接后打开服务".into());
+        return Err(crate::native_message::plain("forwardChanged"));
     }
     let runtime = snapshot
         .runtimes
         .iter()
         .find(|r| r.rule_id == id)
-        .ok_or("请先启动转发")?;
+        .ok_or(crate::native_message::plain("startForward"))?;
     let host = runtime
         .host_snapshot
         .as_ref()
-        .ok_or("缺少运行中的主机信息")?;
+        .ok_or(crate::native_message::plain("runningHostMissing"))?;
     let url = crate::service::service_url(rule, host, runtime)?;
-    app.shell()
-        .open(url, None)
-        .map_err(|e| format!("无法打开服务：{e}"))
+    app.shell().open(url, None).map_err(|e| {
+        crate::native_message::message(
+            "openServiceFailed",
+            serde_json::json!({"e": (e).to_string()}),
+        )
+    })
 }
 #[tauri::command]
 pub async fn stop_rule(
@@ -1497,9 +1514,11 @@ pub fn trust_host(
     fingerprint: String,
 ) -> Result<(), String> {
     let mut trust = state.trust.lock().unwrap();
-    let pending = trust.get(&id).ok_or("确认已失效")?;
+    let pending = trust
+        .get(&id)
+        .ok_or(crate::native_message::plain("trustExpired"))?;
     if pending.run_id != run_id || pending.fingerprint != fingerprint || pending.reply.is_closed() {
-        return Err("确认已失效，请重新连接".into());
+        return Err(crate::native_message::plain("trustReconnect"));
     }
     let endpoint = pending.endpoint.clone();
     {
@@ -1660,7 +1679,7 @@ pub async fn start_batch(
             {
                 return Ok(());
             }
-            let rule = rule.ok_or("规则不存在")?;
+            let rule = rule.ok_or(crate::native_message::plain("ruleMissing"))?;
             let secret = secrets.get(&rule.host_id).cloned().unwrap_or_default();
             launch(
                 state,
@@ -1730,7 +1749,10 @@ pub async fn export_config(
     )?;
     tokio::task::spawn_blocking(move || {
         let Some(path) = rfd::FileDialog::new()
-            .set_title("保存 OriaTunnel 配置文件")
+            .set_title(crate::native_message::text(
+                "saveConfigTitle",
+                serde_json::json!({}),
+            ))
             .add_filter("JSON", &["json"])
             .set_file_name("oria-tunnel.json")
             .save_file()
@@ -1741,29 +1763,35 @@ pub async fn export_config(
         Ok(Some(path.to_string_lossy().into_owned()))
     })
     .await
-    .map_err(|_| "导出对话框无法完成".to_string())?
+    .map_err(|_| crate::native_message::plain("exportDialogFailed"))?
 }
 #[tauri::command]
 pub async fn pick_identity_file() -> Result<Option<String>, String> {
     tokio::task::spawn_blocking(|| {
         rfd::FileDialog::new()
-            .set_title("选择 SSH 私钥文件")
+            .set_title(crate::native_message::text(
+                "pickIdentityTitle",
+                serde_json::json!({}),
+            ))
             .pick_file()
             .map(|path| path.to_string_lossy().into_owned())
     })
     .await
-    .map_err(|_| "无法打开私钥文件选择器".to_string())
+    .map_err(|_| crate::native_message::plain("pickIdentityFailed"))
 }
 #[tauri::command]
 pub async fn pick_ssh_config_file() -> Result<Option<String>, String> {
     tokio::task::spawn_blocking(|| {
         rfd::FileDialog::new()
-            .set_title("选择 SSH 配置文件")
+            .set_title(crate::native_message::text(
+                "pickConfigTitle",
+                serde_json::json!({}),
+            ))
             .pick_file()
             .map(|path| path.to_string_lossy().into_owned())
     })
     .await
-    .map_err(|_| "无法打开 SSH 配置文件选择器".to_string())
+    .map_err(|_| crate::native_message::plain("pickConfigFailed"))
 }
 #[tauri::command]
 pub fn set_autostart(
@@ -1772,7 +1800,7 @@ pub fn set_autostart(
     enabled: bool,
 ) -> Result<Snapshot, String> {
     if !crate::long_running::AUTOSTART_SUPPORTED {
-        return Err("当前无法开启开机自启".into());
+        return Err(crate::native_message::plain("autostartUnavailable"));
     }
     crate::long_running::set(enabled)?;
     let actual = crate::long_running::read();
@@ -1791,7 +1819,7 @@ pub async fn preview_import_file(
     *state.import.lock().unwrap() = None;
     let (bytes, name) = tokio::task::spawn_blocking(move || source.read())
         .await
-        .map_err(|_| "无法读取所选配置文件".to_string())??;
+        .map_err(|_| crate::native_message::plain("selectedConfigRead"))??;
     state.stage_import(&bytes, name)
 }
 #[tauri::command]

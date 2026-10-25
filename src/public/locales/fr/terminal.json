@@ -107,5 +107,6 @@
   },
   "resizeWidth": "Redimensionner la largeur du panneau (flèches Gauche/Droite)",
   "closeSearch": "Fermer la recherche",
-  "remoteUnknownShort": "État distant inconnu"
+  "remoteUnknownShort": "État distant inconnu",
+  "screenReaderOutputLimit": "La sortie du terminal est trop longue pour être lue. Accédez à la sortie pour poursuivre la lecture."
 }

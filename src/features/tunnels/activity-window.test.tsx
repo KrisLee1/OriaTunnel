@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import "@/i18n";
-import "@/tunnel-i18n";
 import { activityRows } from "./activity-model";
 import { ActivityList } from "./activity-list";
 import {

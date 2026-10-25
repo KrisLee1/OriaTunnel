@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import type { RemoteService, Snapshot } from "@/types";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import { emptyHost, emptyRule } from "@/features/tunnels/rule-model";
 import {
   PresetCommandProvider,

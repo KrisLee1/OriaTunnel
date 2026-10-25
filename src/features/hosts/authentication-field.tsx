@@ -1,3 +1,4 @@
+import { formatNativeMessage } from "@/lib/native-message";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { EyeIcon, EyeClosedIcon } from "lucide-react";
@@ -29,7 +30,13 @@ export function AuthenticationField({
   const { t } = useTranslation("tunnel");
   const id = useId();
   const inputId = `${id}-password`;
-  const identity = JSON.stringify([host.id, host.address, host.port, host.user, host.authMethod]);
+  const identity = JSON.stringify([
+    host.id,
+    host.address,
+    host.port,
+    host.user,
+    host.authMethod,
+  ]);
   const [revealedFor, setRevealedFor] = useState<string | null>(null);
   const revealed = revealedFor === identity;
   const [status, setStatus] = useState<bridge.PasswordStatus>();
@@ -51,7 +58,7 @@ export function AuthenticationField({
           if (live) setStatus(next);
         })
         .catch(() => {
-          if (live) setError(t("passwordStorageUnavailable"));
+          if (live) setError("passwordStorageUnavailable");
         });
     return () => {
       live = false;
@@ -69,8 +76,18 @@ export function AuthenticationField({
   return (
     <div className={actions ? "space-y-2" : "mb-4 space-y-2"}>
       <div className="field">
-        <Label htmlFor={inputId} className={hideLabel ? "sr-only" : "text-xs font-normal text-muted-foreground"}>
-          {host.name} · {t(host.authMethod === "privateKey" ? "privateKeyPassphrase" : "password")}
+        <Label
+          htmlFor={inputId}
+          className={
+            hideLabel ? "sr-only" : "text-xs font-normal text-muted-foreground"
+          }
+        >
+          {host.name} ·{" "}
+          {t(
+            host.authMethod === "privateKey"
+              ? "privateKeyPassphrase"
+              : "password",
+          )}
         </Label>
         <div className="relative">
           <Input
@@ -95,7 +112,11 @@ export function AuthenticationField({
             aria-pressed={revealed}
             onClick={() => setRevealedFor(revealed ? null : identity)}
           >
-            {revealed ? <EyeIcon aria-hidden="true" /> : <EyeClosedIcon aria-hidden="true" />}
+            {revealed ? (
+              <EyeIcon aria-hidden="true" />
+            ) : (
+              <EyeClosedIcon aria-hidden="true" />
+            )}
           </Button>
         </div>
       </div>
@@ -127,7 +148,11 @@ export function AuthenticationField({
                     })
                     .catch((e) => {
                       if (lifetime.current === version)
-                        toast.add({ title: String(e), type: "error", timeout: 6000 });
+                        toast.add({
+                          title: formatNativeMessage(String(e)),
+                          type: "error",
+                          timeout: 6000,
+                        });
                     })
                     .finally(() => {
                       if (lifetime.current === version) setClearing(false);
@@ -142,13 +167,18 @@ export function AuthenticationField({
       )}
       {(error || status?.error) && (
         <p role="alert" className="text-xs text-destructive">
-          {error || status?.error}
+          {formatNativeMessage(
+            error ? t(error, { defaultValue: error }) : status?.error || "",
+          )}
         </p>
       )}
       {((eligible && status?.supported) || actions) && (
         <ActionsRow className="authentication-actions flex items-center justify-between gap-3">
           {eligible && status?.supported && (
-            <Label htmlFor={id} className="w-fit min-h-7 cursor-pointer text-sm font-normal">
+            <Label
+              htmlFor={id}
+              className="w-fit min-h-7 cursor-pointer text-sm font-normal"
+            >
               <input
                 id={id}
                 type="checkbox"
@@ -159,7 +189,11 @@ export function AuthenticationField({
               {t("rememberPassword")}
             </Label>
           )}
-          {actions && <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {actions}
+            </div>
+          )}
         </ActionsRow>
       )}
     </div>

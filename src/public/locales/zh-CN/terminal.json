@@ -107,5 +107,6 @@
   },
   "resizeWidth": "调整面板宽度（左/右方向键）",
   "closeSearch": "关闭查找",
-  "remoteUnknownShort": "远端状态未知"
+  "remoteUnknownShort": "远端状态未知",
+  "screenReaderOutputLimit": "终端输出过多，已暂停逐行朗读。请导航到输出内容继续阅读。"
 }

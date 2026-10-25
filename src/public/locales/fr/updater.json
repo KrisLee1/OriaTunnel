@@ -57,5 +57,9 @@
     "moreApps": "Autres applications",
     "feedback": "Signaler un problème"
   },
-  "goUpdate": "Mettre à jour"
+  "goUpdate": "Mettre à jour",
+  "activeForwards_one": "Redirection active : {{count}}",
+  "activeForwards_other": "Redirections actives : {{count}}",
+  "activeTests_one": "Test d’hôte actif : {{count}}",
+  "activeTests_other": "Tests d’hôte actifs : {{count}}"
 }

@@ -24,7 +24,7 @@ impl ImportSource {
     pub fn read(self) -> Result<(Vec<u8>, String), String> {
         fn check_name(name: &str) -> Result<(), String> {
             if !text(name) || !name.to_ascii_lowercase().ends_with(".json") {
-                return Err("请选择 JSON 格式的配置文件".into());
+                return Err(crate::native_message::plain("jsonFileRequired"));
             }
             Ok(())
         }
@@ -32,10 +32,10 @@ impl ImportSource {
             Self::Upload { file_name, content } => {
                 check_name(&file_name)?;
                 if file_name.contains(['/', '\\']) {
-                    return Err("配置文件名无效".into());
+                    return Err(crate::native_message::plain("configFileName"));
                 }
                 if content.len() > MAX_BYTES {
-                    return Err("配置包超过 2 MiB 限制".into());
+                    return Err(crate::native_message::plain("configTooLarge"));
                 }
                 (content.into_bytes(), file_name)
             }
@@ -44,23 +44,26 @@ impl ImportSource {
                 let name = path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .ok_or("配置文件名无效")?;
+                    .ok_or(crate::native_message::plain("configFileName"))?;
                 check_name(name)?;
-                let file = std::fs::File::open(path).map_err(|_| "无法读取所选配置文件")?;
-                let metadata = file.metadata().map_err(|_| "无法读取所选配置文件")?;
+                let file = std::fs::File::open(path)
+                    .map_err(|_| crate::native_message::plain("selectedConfigRead"))?;
+                let metadata = file
+                    .metadata()
+                    .map_err(|_| crate::native_message::plain("selectedConfigRead"))?;
                 if !metadata.is_file() || metadata.len() > MAX_BYTES as u64 {
-                    return Err("配置文件应为不超过 2 MiB 的普通文件".into());
+                    return Err(crate::native_message::plain("configRegularFile"));
                 }
                 use std::io::Read;
                 let mut bytes = Vec::new();
                 file.take((MAX_BYTES + 1) as u64)
                     .read_to_end(&mut bytes)
-                    .map_err(|_| "无法读取所选配置文件")?;
+                    .map_err(|_| crate::native_message::plain("selectedConfigRead"))?;
                 (bytes, name.to_string())
             }
         };
         if bytes.len() > MAX_BYTES {
-            return Err("配置包超过 2 MiB 限制".into());
+            return Err(crate::native_message::plain("configTooLarge"));
         }
         Ok((bytes, file_name))
     }
@@ -235,12 +238,13 @@ fn unique_name(name: &str, names: &mut BTreeSet<String>) -> String {
 }
 pub fn parse(bytes: &[u8]) -> Result<Package, String> {
     if bytes.len() > MAX_BYTES {
-        return Err("配置包超过 2 MiB 限制".into());
+        return Err(crate::native_message::plain("configTooLarge"));
     }
     // Serde errors may contain untrusted field values. Never return their text to UI/logs.
     let package: Package = serde_json::from_slice(bytes)
-        .map_err(|_| "配置包格式无效，或包含不允许的字段（凭据、命令、运行态等）".to_string())?;
-    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| "配置包格式无效")?;
+        .map_err(|_| crate::native_message::plain("configForbiddenFields"))?;
+    let value: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|_| crate::native_message::plain("configInvalid"))?;
     for item in value["hosts"]
         .as_array()
         .into_iter()
@@ -265,7 +269,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
                 .as_object()
                 .is_some_and(|map| map.keys().any(|k| !allowed.contains(&k.as_str())))
             {
-                return Err("配置包连接参数包含不允许的字段".into());
+                return Err(crate::native_message::plain("configConnectionFields"));
             }
         }
     }
@@ -276,7 +280,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
         || package.credentials_included
         || package.runtime_included
     {
-        return Err("仅支持不含凭据和运行态的 OriaTunnel v1/v2 配置包".into());
+        return Err(crate::native_message::plain("configVersion"));
     }
     if (package.hosts.is_empty() && (package.version == 1 || !package.rules.is_empty()))
         || package.hosts.len() > 500
@@ -284,9 +288,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
         || package.rules.len() > 1000
         || package.services.as_ref().is_some_and(|s| s.len() > 256)
     {
-        return Err(
-            "配置包最多包含 500 台主机、1000 条规则和 256 个服务，规则或服务不能全为空".into(),
-        );
+        return Err(crate::native_message::plain("configLimits"));
     }
     let mut ids = BTreeSet::new();
     for h in &package.hosts {
@@ -306,7 +308,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
             || h.identity_files.len() > 32
             || h.identity_files.iter().any(|p| p.is_empty() || !text(p))
         {
-            return Err("配置包主机字段无效或 ID 重复".into());
+            return Err(crate::native_message::plain("configHostsInvalid"));
         }
         h.connection.validate()?;
         crate::ssh_algorithms::preferred(&h.algorithms)?;
@@ -321,7 +323,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
             || !text(&r.target_host)
             || (!r.no_remote_command && !r.remote_command_omitted)
         {
-            return Err("配置包规则无效、ID 重复、缺少主机或缺少命令省略标记".into());
+            return Err(crate::native_message::plain("configRulesInvalid"));
         }
         r.to_rule(r.id.clone(), r.host_id.clone()).validate()?;
     }
@@ -466,7 +468,7 @@ impl Package {
     }
     pub fn prepare(&self, snapshot: &Snapshot, choices: &Choices) -> Result<Plan, String> {
         if choices.rule_ids.is_empty() && choices.service_ids.is_empty() {
-            return Err("请选择至少一条规则或一个服务".into());
+            return Err(crate::native_message::plain("selectImportItems"));
         }
         let wanted: BTreeSet<_> = choices.rule_ids.iter().collect();
         if wanted.len() != choices.rule_ids.len()
@@ -474,7 +476,7 @@ impl Package {
                 .iter()
                 .any(|id| !self.rules.iter().any(|r| &r.id == *id))
         {
-            return Err("导入选择无效".into());
+            return Err(crate::native_message::plain("importSelectionInvalid"));
         }
         let selected_services: BTreeSet<_> = choices.service_ids.iter().collect();
         if selected_services.len() != choices.service_ids.len()
@@ -494,7 +496,7 @@ impl Package {
                     .iter()
                     .any(|h| &h.id == existing && h.diagnostics.is_empty())
             {
-                return Err("复用主机已不存在或需处理，请重新预览".into());
+                return Err(crate::native_message::plain("reuseHostInvalid"));
             }
         }
         let mut needed = BTreeSet::new();
@@ -524,7 +526,7 @@ impl Package {
         }
         for rule in self.rules.iter().filter(|r| wanted.contains(&r.id)) {
             if (rule.remote_command_omitted || !rule.no_remote_command) && !choices.forward_only {
-                return Err("所选规则省略了远程命令，请跳过或明确改为仅转发".into());
+                return Err(crate::native_message::plain("importCommandOmitted"));
             }
             dependencies(&rule.host_id, &originals, &choices.reuse_hosts, &mut needed);
         }
@@ -533,10 +535,7 @@ impl Package {
                 && h.connection_blocked
                 && !choices.reuse_hosts.contains_key(&h.id)
         }) {
-            return Err(
-                "所选依赖包含来源标记为不兼容的主机；请跳过相关规则或明确复用已验证的现有主机"
-                    .into(),
-            );
+            return Err(crate::native_message::plain("importIncompatibleHost"));
         }
         let mapping: BTreeMap<_, _> = needed
             .iter()
@@ -556,17 +555,21 @@ impl Package {
             .iter()
             .filter(|h| needed.contains(&h.id) && !choices.reuse_hosts.contains_key(&h.id))
             .map(|h| {
-                let jump = h
-                    .proxy_jump
-                    .as_ref()
-                    .map(|expression| {
-                        expression
-                            .split(',')
-                            .map(|id| mapping.get(id.trim()).cloned().ok_or("跳板依赖缺失"))
-                            .collect::<Result<Vec<_>, _>>()
-                            .map(|ids| ids.join(","))
-                    })
-                    .transpose()?;
+                let jump =
+                    h.proxy_jump
+                        .as_ref()
+                        .map(|expression| {
+                            expression
+                                .split(',')
+                                .map(|id| {
+                                    mapping.get(id.trim()).cloned().ok_or(
+                                        crate::native_message::plain("jumpDependencyMissing"),
+                                    )
+                                })
+                                .collect::<Result<Vec<_>, _>>()
+                                .map(|ids| ids.join(","))
+                        })
+                        .transpose()?;
                 Ok(h.to_host(mapping[&h.id].clone(), jump))
             })
             .collect::<Result<Vec<_>, String>>()?;

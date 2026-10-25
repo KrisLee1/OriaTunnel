@@ -51,7 +51,7 @@
     "confirmationRequired": "先に操作を確認してください。",
     "runMissing": "実行記録が存在しません。",
     "authentication": "認証に失敗しました。認証情報を入力して再試行できます。",
-    "hostKey": "ホストの指紋が拒否されたか変更されています。",
+    "hostKey": "ホストのフィンガープリントが拒否されたか変更されています。",
     "connectionTimeout": "SSH 接続がタイムアウトしました。未実行です。",
     "connectionFailed": "SSH 接続に失敗しました。未実行です。",
     "notExecuted": "コマンドは実行されていません。",
@@ -88,7 +88,7 @@
   "phase": {
     "connecting": "接続中",
     "authenticating": "認証中",
-    "verifying-host": "指紋の確認待ち",
+    "verifying-host": "フィンガープリントの確認待ち",
     "opening-pty": "PTY を要求中",
     "submitted": "送信済み",
     "running": "接続済み",
@@ -107,5 +107,6 @@
   },
   "resizeWidth": "パネルの幅を調整（左右矢印キー）",
   "closeSearch": "検索を閉じる",
-  "remoteUnknownShort": "リモート状態は不明"
+  "remoteUnknownShort": "リモート状態は不明",
+  "screenReaderOutputLimit": "端末の出力が多すぎるため、行ごとの読み上げを停止しました。出力領域に移動して読み進めてください。"
 }

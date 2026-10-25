@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import { emptyHost } from "@/features/tunnels/rule-model";
 import { AuthenticationField } from "./authentication-field";
 

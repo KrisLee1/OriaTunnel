@@ -112,7 +112,12 @@ impl TrayMenu {
                                 host.name, host.user, host.address, host.port
                             )
                         })
-                        .unwrap_or_else(|| format!("来源失效 · {}", rule.host_id));
+                        .unwrap_or_else(|| {
+                            crate::native_message::text(
+                                "traySourceMissingId",
+                                serde_json::json!({"arg0":rule.host_id}),
+                            )
+                        });
                     groups.push(TrayGroup {
                         host_id: rule.host_id.clone(),
                         label,
@@ -183,7 +188,7 @@ impl TrayMenu {
                     .filter(|_| !service.actions.iter().any(|action| action.kind == "stop")))
                 {
                     actions.push(TrayServiceAction {
-                        label: "停止".into(),
+                        label: crate::native_message::text("trayStop", serde_json::json!({})),
                         enabled: foreground.is_some(),
                         request: request(&start.id, true),
                     });
@@ -192,7 +197,9 @@ impl TrayMenu {
                     label: format!(
                         "{} · {}",
                         rule.name,
-                        host.map(|host| host.name.as_str()).unwrap_or("来源失效")
+                        host.map(|host| host.name.clone()).unwrap_or_else(|| {
+                            crate::native_message::text("traySourceMissing", serde_json::json!({}))
+                        })
                     ),
                     actions,
                 });
@@ -221,6 +228,7 @@ fn is_active(status: &str) -> bool {
 }
 struct TraySummary {
     revision: u64,
+    language: String,
     menu: TrayMenu,
     tooltip: String,
     activity: TrayServiceActivity,
@@ -250,11 +258,16 @@ fn tooltip(snapshot: &crate::model::Snapshot) -> String {
             _ => {}
         }
     }
-    format!("OriaTunnel · 监听 {listening} · 重连 {retrying} · 需处理 {attention}")
+    crate::native_message::text(
+        "trayTooltip",
+        serde_json::json!({"listening":listening,"retrying":retrying,"attention":attention}),
+    )
+}
+pub(crate) fn refresh_language(app: &tauri::AppHandle) {
+    update_tray(app, &crate::app::state(app).snapshot());
 }
 pub fn update_tray(app: &tauri::AppHandle, snapshot: &crate::model::Snapshot) {
     let snapshot = snapshot.clone();
-    let tooltip = tooltip(&snapshot);
     let revision = snapshot.revision;
     let handle = app.clone();
     // Native menus belong to the UI thread. Do not hold a shared lock while
@@ -270,13 +283,17 @@ pub fn update_tray(app: &tauri::AppHandle, snapshot: &crate::model::Snapshot) {
         let Some(tray) = handle.tray_by_id("main-tray") else {
             return;
         };
+        // Render after dispatch so an older queued refresh cannot restore a previous language.
+        let tooltip = tooltip(&snapshot);
         let activity = crate::app::state(&handle).tray_service_activity();
         let menu = TrayMenu::with_activity(&snapshot, &activity);
-        let mut updated = previous.menu == menu;
+        let mut updated =
+            previous.menu == menu && previous.language == crate::native_message::language();
         if !updated {
             if let Ok(native_menu) = build_tray_menu(&handle, &menu) {
                 if tray.set_menu(Some(native_menu)).is_ok() {
                     previous.menu = menu;
+                    previous.language = crate::native_message::language().into();
                     updated = true;
                 }
             }
@@ -295,16 +312,20 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
     menu.append(&MenuItem::with_id(
         app,
         "show",
-        "显示 OriaTunnel",
+        crate::native_message::text("trayShow", serde_json::json!({})),
         true,
         None::<&str>,
     )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
-    let services = Submenu::new(app, "服务命令", true)?;
+    let services = Submenu::new(
+        app,
+        crate::native_message::text("trayServiceCommands", serde_json::json!({})),
+        true,
+    )?;
     services.append(&MenuItem::with_id(
         app,
         "tray:service-commands",
-        "打开命令面板",
+        crate::native_message::text("trayOpenCommands", serde_json::json!({})),
         true,
         None::<&str>,
     )?)?;
@@ -317,7 +338,7 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
             submenu.append(&MenuItem::with_id(
                 app,
                 format!("tray:service-unbound:{service_index}"),
-                "未关联转发",
+                crate::native_message::text("trayUnbound", serde_json::json!({})),
                 false,
                 None::<&str>,
             )?)?;
@@ -346,11 +367,15 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
         services.append(&submenu)?;
     }
     menu.append(&services)?;
-    let terminals = Submenu::new(app, "SSH 终端", true)?;
+    let terminals = Submenu::new(
+        app,
+        crate::native_message::text("traySshTerminal", serde_json::json!({})),
+        true,
+    )?;
     terminals.append(&MenuItem::with_id(
         app,
         "tray:ssh-terminal",
-        "打开 SSH 终端",
+        crate::native_message::text("trayOpenTerminal", serde_json::json!({})),
         true,
         None::<&str>,
     )?)?;
@@ -369,8 +394,18 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
     menu.append(&terminals)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     for (start, label, all_label, groups) in [
-        (true, "启动转发", "全部启动", &model.start),
-        (false, "停止转发", "全部停止", &model.stop),
+        (
+            true,
+            crate::native_message::text("trayStartForwards", serde_json::json!({})),
+            crate::native_message::text("trayStartAll", serde_json::json!({})),
+            &model.start,
+        ),
+        (
+            false,
+            crate::native_message::text("trayStopForwards", serde_json::json!({})),
+            crate::native_message::text("trayStopAll", serde_json::json!({})),
+            &model.stop,
+        ),
     ] {
         let action = if start { "start" } else { "stop" };
         let submenu = Submenu::new(app, label, true)?;
@@ -407,7 +442,7 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        "退出 OriaTunnel",
+        crate::native_message::text("trayQuit", serde_json::json!({})),
         true,
         None::<&str>,
     )?)?;
@@ -556,9 +591,10 @@ pub fn acquire(directory: &Path, app: tauri::AppHandle) -> std::io::Result<Optio
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
-            return Err(std::io::Error::other(
-                "OriaTunnel 已在当前用户下运行，但窗口唤起暂时失败",
-            ));
+            return Err(std::io::Error::other(crate::native_message::text(
+                "instanceActivation",
+                serde_json::json!({}),
+            )));
         }
         Err(std::fs::TryLockError::Error(e)) => return Err(e),
     }
@@ -614,6 +650,7 @@ pub fn install_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     }
     tray.build(app)?;
     app.manage(std::sync::Mutex::new(TraySummary {
+        language: crate::native_message::language().into(),
         revision: snapshot.revision,
         menu: model,
         tooltip,

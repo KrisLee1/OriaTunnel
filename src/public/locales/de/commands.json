@@ -163,7 +163,9 @@
       "health": "Bereitschaft prüfen",
       "forward": "Zielweiterleitung"
     },
-    "checks": "Status- und Zustandsprüfungen"
+    "checks": "Status- und Zustandsprüfungen",
+    "attempts_one": "{{count}} Prüfung",
+    "attempts_other": "{{count}} Prüfungen"
   },
   "sharing": {
     "environmentDefault": "Umgebungsrichtlinie des Hosts verwenden",
@@ -189,7 +191,9 @@
     "enable": "Ausführung aktivieren",
     "outputStats": "Gespeichert {{retained}} MiB · verworfen {{discarded}} MiB",
     "importStopped": "Der Import verbindet nicht per SSH und führt nichts aus. Weiterleitungen bleiben gestoppt, automatische Verbindung ist aus.",
-    "previewHint": "Hosts, Weiterleitungen und Dienstskripte prüfen. Kopien werden erstellt, vorhandene Einträge bleiben erhalten."
+    "previewHint": "Hosts, Weiterleitungen und Dienstskripte prüfen. Kopien werden erstellt, vorhandene Einträge bleiben erhalten.",
+    "exportRules_one": "Ausgewählte Weiterleitung: {{count}}",
+    "exportRules_other": "Ausgewählte Weiterleitungen: {{count}}"
   },
   "templates": {
     "title": "Dienstvorlagen",
@@ -263,7 +267,9 @@
     "deleteSelected": "Auswahl löschen",
     "exportSelected": "Auswahl exportieren",
     "exportAll": "Alle exportieren",
-    "deleteTitle": "{{count}} Dienste löschen"
+    "deleteTitle": "{{count}} Dienste löschen",
+    "deleteTitle_one": "{{count}} Dienst löschen",
+    "deleteTitle_other": "{{count}} Dienste löschen"
   },
   "searchServices": "Dienste suchen…",
   "review": {
@@ -278,5 +284,9 @@
     "unlimited": "Unbegrenzt"
   },
   "copyService": "Dienst aus dieser Vorlage erstellen",
-  "terminalTimeout": "Zeitlimit (Sekunden, 0 = unbegrenzt)"
+  "terminalTimeout": "Zeitlimit (Sekunden, 0 = unbegrenzt)",
+  "serviceCount_one": "{{count}} Dienst",
+  "serviceCount_other": "{{count}} Dienste",
+  "commandCount_one": "{{count}} Befehl",
+  "commandCount_other": "{{count}} Befehle"
 }

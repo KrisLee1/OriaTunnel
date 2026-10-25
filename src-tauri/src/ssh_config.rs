@@ -55,7 +55,7 @@ fn words(line: &str) -> Result<Vec<String>, String> {
         }
     }
     if quote.is_some() {
-        return Err("未闭合的引号".into());
+        return Err(crate::native_message::plain("sshUnclosedQuote"));
     }
     if !word.is_empty() {
         words.push(word)
@@ -82,7 +82,10 @@ fn load(
     let canonical = match path.canonicalize() {
         Ok(p) => p,
         Err(e) => {
-            let message = format!("{}: {e}", path.display());
+            let message = crate::native_message::message(
+                "sshFileRead",
+                serde_json::json!({"file":path.display().to_string(),"error":e.to_string()}),
+            );
             if stack.is_empty() {
                 parsed.warnings.push(message);
             } else {
@@ -94,14 +97,20 @@ fn load(
     if stack.len() >= 16 || stack.contains(&canonical) {
         parse_error(
             parsed,
-            format!("Include 循环或超过 16 层: {}", path.display()),
+            crate::native_message::message(
+                "sshIncludeCycle",
+                serde_json::json!({"arg0": (path.display()).to_string()}),
+            ),
         );
         return;
     }
     let text = match std::fs::read_to_string(&canonical) {
         Ok(t) => t,
         Err(e) => {
-            let message = format!("{}: {e}", path.display());
+            let message = crate::native_message::message(
+                "sshFileRead",
+                serde_json::json!({"file":path.display().to_string(),"error":e.to_string()}),
+            );
             if stack.is_empty() {
                 parsed.warnings.push(message);
             } else {
@@ -128,7 +137,10 @@ fn load(
             Err(e) => {
                 parse_error(
                     parsed,
-                    format!("{}:{}: {e}", path.display(), line_index + 1),
+                    crate::native_message::message(
+                        "sshFileLine",
+                        serde_json::json!({"file":path.display().to_string(),"line":line_index+1,"error":{"message":e}}),
+                    ),
                 );
                 continue;
             }
@@ -137,7 +149,10 @@ fn load(
             if !parts.is_empty() {
                 parse_error(
                     parsed,
-                    format!("{}:{}: 指令缺少参数", path.display(), line_index + 1),
+                    crate::native_message::message(
+                        "sshMissingArgument",
+                        serde_json::json!({"arg0": (path.display()).to_string(),"arg1": (line_index + 1).to_string()}),
+                    ),
                 );
             }
             continue;
@@ -221,7 +236,10 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             Ok(true) => {}
             Ok(false) => continue,
             Err(e) => {
-                parsed.warnings.push(format!("{}: {e}", path.display()));
+                parsed.warnings.push(crate::native_message::message(
+                    "sshFileRead",
+                    serde_json::json!({"file":path.display().to_string(),"error":e.to_string()}),
+                ));
                 continue;
             }
         }
@@ -356,7 +374,10 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
                         needs_final |= outcome.final_pass;
                         active = outcome.active;
                         if outcome.unsupported {
-                            diagnostics.push(format!("{}: Match 条件包含不支持或需要执行命令/运行环境的条件，不执行并阻止连接",entry.file));
+                            diagnostics.push(crate::native_message::message(
+                                "sshUnsupportedMatch",
+                                serde_json::json!({"arg0": (entry.file).to_string()}),
+                            ));
                         }
                         continue;
                     }
@@ -416,7 +437,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
                             configured_forwards.push(forward);
                         }
                     } // Source information only; never import listeners implicitly.
-                    _ => diagnostics.push(format!("{}: 暂不支持 {}", entry.file, entry.key)),
+                    _ => diagnostics.push(crate::native_message::message("sshUnsupportedDirective", serde_json::json!({"arg0": (entry.file).to_string(),"arg1": (entry.key).to_string()}))),
                 }
             }
         }
@@ -440,12 +461,12 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             .map(|p| p.parse::<u16>())
             .transpose()
             .unwrap_or_else(|_| {
-                diagnostics.push("SSH 端口无效".into());
+                diagnostics.push(crate::native_message::plain("sshPortInvalid"));
                 Some(0)
             })
             .unwrap_or(22);
         if port == 0 {
-            diagnostics.push("SSH 端口必须大于 0".into())
+            diagnostics.push(crate::native_message::plain("sshPortZero"))
         }
         let identity_files: Vec<String> = keys
             .into_iter()
@@ -469,7 +490,10 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
         };
         // Use the same capability check for discovery and the actual handshake.
         for (key, error) in crate::ssh_algorithms::diagnostics(&algorithms) {
-            diagnostics.push(format!("{}: {error}", field_sources[&key]));
+            diagnostics.push(crate::native_message::message(
+                "sshFileRead",
+                serde_json::json!({"file":field_sources[&key],"error":{"message":error}}),
+            ));
         }
         for (name, slot) in [
             ("connecttimeout", &mut connection.connect_timeout_secs),
@@ -481,14 +505,17 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             if let Some(value) = values.get(name) {
                 match value.parse() {
                     Ok(number) => *slot = number,
-                    Err(_) => diagnostics.push(format!("{name}: 无效秒数")),
+                    Err(_) => diagnostics.push(crate::native_message::message(
+                        "sshSecondsInvalid",
+                        serde_json::json!({"name": (name).to_string()}),
+                    )),
                 }
             }
         }
         if let Some(value) = values.get("serveralivecountmax") {
             match value.parse() {
                 Ok(number) => connection.keepalive_max = number,
-                Err(_) => diagnostics.push("ServerAliveCountMax 无效".into()),
+                Err(_) => diagnostics.push(crate::native_message::plain("sshAliveCount")),
             }
         }
         if let Err(error) = connection.validate() {
@@ -498,7 +525,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             None | Some("no") => false,
             Some("yes") => true,
             _ => {
-                diagnostics.push("IdentitiesOnly 仅支持 yes/no".into());
+                diagnostics.push(crate::native_message::plain("sshIdentitiesOnly"));
                 false
             }
         };
@@ -509,8 +536,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             .as_ref()
             .is_some_and(|p| p.contains(['$', '%']))
         {
-            diagnostics
-                .push("IdentityAgent 包含尚不支持的环境变量或 Token，请改用实际通道路径".into());
+            diagnostics.push(crate::native_message::plain("sshIdentityAgentToken"));
         }
         let proxy_jump = values
             .get("proxyjump")
@@ -545,11 +571,11 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
                 }
             });
         if !result.diagnostics.is_empty() {
-            diagnostics.push("配置来源有读取或解析错误，请先处理来源诊断".into());
+            diagnostics.push(crate::native_message::plain("sshSourceBlocked"));
         }
         for value in [&address, &user].into_iter().chain(identity_files.iter()) {
             if value.contains('%') {
-                diagnostics.push("配置包含尚未展开的 Token".into());
+                diagnostics.push(crate::native_message::plain("sshUnexpandedToken"));
                 break;
             }
         }
@@ -602,9 +628,10 @@ pub fn discover_with(additional: &[String]) -> Discovery {
     for path in additional {
         let path = expand(path, &home);
         if matches!(path.try_exists(), Ok(false)) {
-            discovery
-                .diagnostics
-                .push(format!("附加来源不存在: {}", path.display()));
+            discovery.diagnostics.push(crate::native_message::message(
+                "sshSourceMissing",
+                serde_json::json!({"arg0": (path.display()).to_string()}),
+            ));
         }
     }
     if !discovery.diagnostics.is_empty() {
@@ -612,10 +639,10 @@ pub fn discover_with(additional: &[String]) -> Discovery {
             if !host
                 .diagnostics
                 .iter()
-                .any(|d| d.contains("配置来源有读取或解析错误"))
+                .any(|d| crate::native_message::key(d).as_deref() == Some("sshSourceBlocked"))
             {
                 host.diagnostics
-                    .push("配置来源有读取或解析错误，请先处理来源诊断".into());
+                    .push(crate::native_message::plain("sshSourceBlocked"));
             }
         }
     }

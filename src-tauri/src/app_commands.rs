@@ -3,7 +3,7 @@ use super::*;
 use crate::commands::{Event, Run, Service};
 use tauri::ipc::Channel;
 
-pub(super) fn local(window: &tauri::WebviewWindow) -> Result<(), String> {
+pub(crate) fn local(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
         return Err("unauthorizedWindow".into());
     }

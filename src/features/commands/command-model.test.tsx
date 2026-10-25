@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import {
   mergeRuns,
   OutputDecoder,
@@ -200,10 +199,16 @@ describe("command output and configuration", () => {
       expect(html).toContain("aria-describedby=");
       expect(html).toContain("for=");
       expect(html).not.toContain("kindLabel");
-      const base = Object.keys(i18n.getResourceBundle("en", "commands"));
-      expect(Object.keys(i18n.getResourceBundle(lang, "commands"))).toEqual(
-        base,
+      const baseKeys = (keys: string[]) =>
+        keys
+          .filter((key) => !/_(zero|one|two|few|many|other)$/.test(key))
+          .sort();
+      const base = baseKeys(
+        Object.keys(i18n.getResourceBundle("en", "commands")),
       );
+      expect(
+        baseKeys(Object.keys(i18n.getResourceBundle(lang, "commands"))),
+      ).toEqual(base);
     }
     await i18n.changeLanguage("zh-CN");
   });

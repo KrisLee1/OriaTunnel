@@ -37,7 +37,7 @@ mod platform {
     }
     pub fn subscribe(wake: watch::Sender<u64>) -> Result<PowerSubscription, String> {
         WAKE.set(wake)
-            .map_err(|_| "电源恢复通知已注册".to_string())?;
+            .map_err(|_| crate::native_message::plain("wakeRegistered"))?;
         // No raw context points into application state. The process-lifetime sender is safe
         // even if a callback races shutdown/unregistration.
         let mut parameters = Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
@@ -53,7 +53,7 @@ mod platform {
             )
         };
         if code != 0 {
-            return Err("无法注册系统唤醒通知".into());
+            return Err(crate::native_message::plain("wakeRegisterFailed"));
         }
         Ok(PowerSubscription {
             handle: handle as isize,
@@ -67,7 +67,10 @@ mod platform {
     pub fn read() -> Result<bool, String> {
         read_at(
             KEY,
-            &super::startup_command(&std::env::current_exe().map_err(|_| "无法读取应用路径")?)?,
+            &super::startup_command(
+                &std::env::current_exe()
+                    .map_err(|_| crate::native_message::plain("applicationPath"))?,
+            )?,
         )
     }
     fn read_at(key: &str, expected: &str) -> Result<bool, String> {
@@ -88,14 +91,16 @@ mod platform {
             return Ok(false);
         }
         if result != 0 {
-            return Err("无法读取当前用户的登录启动设置".into());
+            return Err(crate::native_message::plain("autostartRead"));
         }
         let actual = String::from_utf16_lossy(&value[..(length as usize / 2).saturating_sub(1)]);
         Ok(actual == expected)
     }
     pub fn set(enabled: bool) -> Result<(), String> {
-        let command =
-            super::startup_command(&std::env::current_exe().map_err(|_| "无法读取应用路径")?)?;
+        let command = super::startup_command(
+            &std::env::current_exe()
+                .map_err(|_| crate::native_message::plain("applicationPath"))?,
+        )?;
         set_at(KEY, &command, enabled)
     }
     fn set_at(key: &str, command: &str, enabled: bool) -> Result<(), String> {
@@ -105,7 +110,7 @@ mod platform {
                 let mut handle = std::ptr::null_mut();
                 let created = RegCreateKeyW(HKEY_CURRENT_USER, wide(key).as_ptr(), &mut handle);
                 if created != 0 {
-                    return Err("无法创建当前用户的登录启动设置".into());
+                    return Err(crate::native_message::plain("autostartCreate"));
                 }
                 RegCloseKey(handle);
                 RegSetKeyValueW(
@@ -127,7 +132,7 @@ mod platform {
         if result == 0 || (!enabled && result == 2) {
             Ok(())
         } else {
-            Err("无法修改当前用户的登录启动设置".into())
+            Err(crate::native_message::plain("autostartModify"))
         }
     }
     #[cfg(test)]
@@ -182,17 +187,19 @@ pub fn read() -> Result<bool, String> {
 }
 #[cfg(not(any(windows, target_os = "macos")))]
 pub fn set(_: bool) -> Result<(), String> {
-    Err("当前平台尚未支持登录启动".into())
+    Err(crate::native_message::plain("autostartUnsupported"))
 }
 #[cfg(any(windows, test))]
 pub fn startup_command(path: &std::path::Path) -> Result<String, String> {
-    let path = path.to_str().ok_or("应用路径无法用于登录启动")?;
+    let path = path
+        .to_str()
+        .ok_or(crate::native_message::plain("autostartApplicationPath"))?;
     if path.contains(['"', '\0', '\n', '\r']) {
-        return Err("应用路径无法用于登录启动".into());
+        return Err(crate::native_message::plain("autostartApplicationPath"));
     }
     let command = format!("\"{path}\" --background");
     if command.encode_utf16().count() > 260 {
-        return Err("登录启动命令超出 Windows 的长度限制".into());
+        return Err(crate::native_message::plain("autostartCommandLength"));
     }
     Ok(command)
 }

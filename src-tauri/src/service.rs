@@ -27,25 +27,28 @@ fn authority(host: &str) -> Result<String, String> {
                     .all(|b| b.is_ascii_alphanumeric() || b == b'-')
         })
     {
-        return Err("服务地址无效".into());
+        return Err(crate::native_message::plain("serviceAddress"));
     }
     Ok(host.into())
 }
 
 pub fn service_url(rule: &Rule, host: &Host, runtime: &Runtime) -> Result<String, String> {
     if runtime.rule_id != rule.id || runtime.status != "listening" {
-        return Err("请先启动转发并等待监听就绪".into());
+        return Err(crate::native_message::plain("serviceListening"));
     }
     if runtime.configuration_changed {
-        return Err("主机配置已更改，请重新连接后打开服务".into());
+        return Err(crate::native_message::plain("serviceHostChanged"));
     }
-    let scheme = match rule.service_protocol.ok_or("请先选择服务协议")? {
+    let scheme = match rule
+        .service_protocol
+        .ok_or(crate::native_message::plain("serviceProtocol"))?
+    {
         ServiceProtocol::Http => "http",
         ServiceProtocol::Https => "https",
         ServiceProtocol::Vnc => "vnc",
     };
     let address = match rule.kind {
-        ForwardKind::D => return Err("SOCKS5 转发没有固定服务入口".into()),
+        ForwardKind::D => return Err(crate::native_message::plain("serviceSocks")),
         ForwardKind::L => match rule.bind_address.as_str() {
             "0.0.0.0" => "127.0.0.1",
             "::" => "::1",
@@ -53,7 +56,7 @@ pub fn service_url(rule: &Rule, host: &Host, runtime: &Runtime) -> Result<String
         },
         ForwardKind::R => {
             if loopback(&rule.bind_address) {
-                return Err("远端回环监听无法从此电脑直接访问".into());
+                return Err(crate::native_message::plain("serviceRemoteLoopback"));
             }
             match rule.bind_address.as_str() {
                 "0.0.0.0" | "::" | "*" => host.address.as_str(),
@@ -62,17 +65,17 @@ pub fn service_url(rule: &Rule, host: &Host, runtime: &Runtime) -> Result<String
         }
     };
     if rule.bind_port == 0 {
-        return Err("服务端口无效".into());
+        return Err(crate::native_message::plain("servicePort"));
     }
     let authority = authority(address)?;
     let url = tauri::Url::parse(&format!("{scheme}://{authority}:{}/", rule.bind_port))
-        .map_err(|_| "服务地址无效".to_string())?;
+        .map_err(|_| crate::native_message::plain("serviceAddress"))?;
     if rule.kind == ForwardKind::R
         && url
             .host_str()
             .is_some_and(|host| loopback(host.trim_matches(['[', ']'])))
     {
-        return Err("远端回环监听无法从此电脑直接访问".into());
+        return Err(crate::native_message::plain("serviceRemoteLoopback"));
     }
     Ok(url.into())
 }

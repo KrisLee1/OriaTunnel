@@ -42,7 +42,7 @@ impl ApplicationIcon {
             "light" => Ok(Self::Light),
             "dark" => Ok(Self::Dark),
             "mono" => Ok(Self::Mono),
-            _ => Err("Application icon must be light, dark, or mono".to_string()),
+            _ => Err(crate::native_message::plain("iconChoice")),
         }
     }
 
@@ -72,10 +72,14 @@ impl ApplicationIcon {
 }
 
 pub fn set<R: Runtime>(app: &AppHandle<R>, icon: ApplicationIcon) -> Result<(), String> {
-    let image = Image::from_bytes(icon.bytes())
-        .map_err(|error| format!("Cannot decode the Windows application icon: {error}"))?;
+    let image = Image::from_bytes(icon.bytes()).map_err(|error| {
+        crate::native_message::message(
+            "iconWindowsDecode",
+            serde_json::json!({"error":error.to_string()}),
+        )
+    })?;
     let Some(window) = app.get_webview_window("main") else {
-        return Err("The main window is unavailable".to_string());
+        return Err(crate::native_message::plain("iconMainWindow"));
     };
 
     // Installed Windows apps can keep using the icon recorded in their Start
@@ -102,7 +106,10 @@ pub fn set<R: Runtime>(app: &AppHandle<R>, icon: ApplicationIcon) -> Result<(), 
 }
 
 fn window_icon_error(error: impl std::fmt::Display) -> String {
-    format!("Cannot update the Windows application icon: {error}")
+    crate::native_message::message(
+        "iconWindowsUpdate",
+        serde_json::json!({"error":error.to_string()}),
+    )
 }
 
 fn synchronize_installed_shortcut_icon<R: Runtime>(

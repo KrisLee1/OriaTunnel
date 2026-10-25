@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, ModalActions } from "@/components/tunnel-form";
@@ -92,10 +93,7 @@ export function ServiceTemplateDialog({
               });
             })
             .catch((error) => {
-              if (mounted.current)
-                setError(
-                  t(`error.${String(error)}`, { defaultValue: String(error) }),
-                );
+              if (mounted.current) setError(formatUiError(String(error), t));
             })
             .finally(() => {
               pending.current = false;
@@ -158,7 +156,7 @@ export function ServiceTemplateDialog({
         <p className="muted">{t("templates.replaceHint")}</p>
         {error && (
           <p role="alert" className="inline-error">
-            {error}
+            {formatUiError(error, t)}
           </p>
         )}
       </form>

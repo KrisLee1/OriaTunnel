@@ -163,7 +163,9 @@
       "health": "Check health",
       "forward": "Target forward"
     },
-    "checks": "Status and health checks"
+    "checks": "Status and health checks",
+    "attempts_one": "{{count}} attempt",
+    "attempts_other": "{{count}} attempts"
   },
   "sharing": {
     "environmentDefault": "Use the host’s configured environment policy",
@@ -189,7 +191,9 @@
     "enable": "Enable execution",
     "outputStats": "Retained {{retained}} MiB · discarded {{discarded}} MiB",
     "importStopped": "Import does not connect to SSH or run commands. Imported forwards stay stopped with auto-connect off.",
-    "previewHint": "Review hosts, forwards and service scripts. Selected items are added as copies without replacing existing entries."
+    "previewHint": "Review hosts, forwards and service scripts. Selected items are added as copies without replacing existing entries.",
+    "exportRules_one": "Selected forward: {{count}}",
+    "exportRules_other": "Selected forwards: {{count}}"
   },
   "templates": {
     "title": "Service templates",
@@ -263,7 +267,9 @@
     "deleteSelected": "Delete selected",
     "exportSelected": "Export selected",
     "exportAll": "Export all",
-    "deleteTitle": "Delete {{count}} services"
+    "deleteTitle": "Delete {{count}} services",
+    "deleteTitle_one": "Delete {{count}} service",
+    "deleteTitle_other": "Delete {{count}} services"
   },
   "searchServices": "Search services…",
   "review": {
@@ -278,5 +284,9 @@
     "unlimited": "Unlimited"
   },
   "copyService": "Create a service from this one",
-  "terminalTimeout": "Timeout (seconds, 0 = unlimited)"
+  "terminalTimeout": "Timeout (seconds, 0 = unlimited)",
+  "serviceCount_one": "{{count}} service",
+  "serviceCount_other": "{{count}} services",
+  "commandCount_one": "{{count}} command",
+  "commandCount_other": "{{count}} commands"
 }

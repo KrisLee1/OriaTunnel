@@ -1,3 +1,4 @@
+import { formatUiError } from "@/lib/ui-message";
 import { useEffect, useId, useState, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import { Modal, ModalActions } from "@/components/tunnel-form";
@@ -574,11 +575,7 @@ export function CredentialRetry({
                     onRun(next);
                     close();
                   })
-                  .catch((e) =>
-                    onError(
-                      t(`error.${String(e)}`, { defaultValue: String(e) }),
-                    ),
-                  )
+                  .catch((e) => onError(formatUiError(String(e), t)))
                   .finally(() => setBusy(false));
               }}
             >

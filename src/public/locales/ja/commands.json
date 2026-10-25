@@ -44,7 +44,7 @@
   "phase": {
     "connecting": "接続中",
     "authenticating": "認証中",
-    "verifying-host": "指紋の確認待ち",
+    "verifying-host": "フィンガープリントの確認待ち",
     "submitted": "送信済み",
     "running": "実行中",
     "succeeded": "成功",
@@ -71,7 +71,7 @@
     "confirmationRequired": "先に操作を確認してください。",
     "runMissing": "実行記録が存在しません。",
     "authentication": "認証に失敗しました。認証情報を入力して再試行できます。",
-    "hostKey": "ホストの指紋が拒否されたか変更されています。",
+    "hostKey": "ホストのフィンガープリントが拒否されたか変更されています。",
     "connectionTimeout": "SSH 接続がタイムアウトしました。未実行です。",
     "connectionFailed": "SSH 接続に失敗しました。未実行です。",
     "notExecuted": "コマンドは実行されていません。",
@@ -93,7 +93,7 @@
     "notReady": "サービスはまだ準備中です。",
     "readinessTimeout": "準備完了の待機時間を超過しました。",
     "statusUnknown": "サービスの実行を確認できないため、操作を停止しました。",
-    "forwardRemoteCommand": "重複実行を避けるため、転送の既存の遠隔コマンドを無効にしてください。",
+    "forwardRemoteCommand": "重複実行を避けるため、転送に設定されたリモートコマンドを無効にしてください。",
     "forwardFailed": "転送の接続に失敗しました。既存のリソースは保持されます。",
     "forwardChanged": "転送の設定または接続世代が変更されました。",
     "forwardTimeout": "転送の接続待機がタイムアウトしました。現在の状態を確認してください。",
@@ -205,7 +205,7 @@
     "noResults": "一致するサービステンプレートはありません",
     "groups": {
       "web": "Web・アプリケーション",
-      "containers": "コンテナ・インフラ",
+      "containers": "コンテナー・インフラ",
       "development": "開発・コラボレーション",
       "inference": "モデル・AI",
       "desktop": "リモートデスクトップ",
@@ -257,13 +257,13 @@
   "category": "サービス分類",
   "categoryOther": "未分類",
   "batch": {
-    "select": "{{name}}を選択",
+    "select": "{{name}} を選択",
     "selectAll": "表示結果をすべて選択",
-    "selected": "{{count}}件選択",
+    "selected": "{{count}} 件選択中",
     "deleteSelected": "選択を削除",
     "exportSelected": "選択をエクスポート",
     "exportAll": "すべてエクスポート",
-    "deleteTitle": "{{count}}件のサービスを削除"
+    "deleteTitle": "{{count}} 件のサービスを削除"
   },
   "searchServices": "サービスを検索…",
   "review": {

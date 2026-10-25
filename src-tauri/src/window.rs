@@ -19,7 +19,7 @@ pub async fn set_window_appearance(
         || !appearance.corner_radius.is_finite()
         || !(0.0..=64.0).contains(&appearance.corner_radius)
     {
-        return Err("Invalid window appearance".into());
+        return Err(crate::native_message::plain("windowAppearanceInvalid"));
     }
     #[cfg(target_os = "windows")]
     {
@@ -51,11 +51,11 @@ pub fn read_dropped_file(path: String, max_bytes: u64) -> Result<Vec<u8>, String
         .and_then(|e| e.to_str())
         .is_some_and(|e| e.eq_ignore_ascii_case("json"))
     {
-        return Err("仅支持主题 JSON 文件".into());
+        return Err(crate::native_message::plain("themeJson"));
     }
     let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
     if !metadata.is_file() || metadata.len() > max_bytes.min(1_048_576) {
-        return Err("主题文件过大".into());
+        return Err(crate::native_message::plain("themeTooLarge"));
     }
     std::fs::read(path).map_err(|e| e.to_string())
 }
@@ -71,9 +71,10 @@ pub fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), Strin
 }
 
 fn validated_external_url(value: &str) -> Result<String, String> {
-    let url = tauri::Url::parse(value).map_err(|_| "The external link is invalid")?;
+    let url = tauri::Url::parse(value)
+        .map_err(|_| crate::native_message::plain("externalLinkInvalid"))?;
     if !matches!(url.scheme(), "http" | "https") {
-        return Err("Only HTTP and HTTPS external links are allowed".into());
+        return Err(crate::native_message::plain("externalLinkInvalid"));
     }
     Ok(url.to_string())
 }

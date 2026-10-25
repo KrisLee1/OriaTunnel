@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { groupHosts, HostGroups } from "./host-groups";
 import { emptyHost } from "@/features/tunnels/rule-model";
 import type { Runtime } from "@/types";
-import "@/tunnel-i18n";
 describe("host grouping", () => {
   const hosts = [
     { ...emptyHost(), id: "a", name: "A", tags: ["prod", "prod", "team"] },

@@ -17,11 +17,11 @@ OriaTunnel est une application de bureau de redirection de ports SSH pour Window
 
 ## Captures d’écran
 
-Configuration de démonstration isolée : 3 hôtes et 6 redirections L / R / D, toutes arrêtées. Aucun serveur réel ni identifiant de connexion.
+Captures natives de la version de développement actuelle, adaptées au mode clair ou sombre du système. Configuration de démonstration isolée : 3 hôtes et 6 redirections L / R / D, toutes arrêtées. Aucun serveur réel ni identifiant de connexion.
 
-| ![Carte des connexions](../assets/screenshots/connection-map.png) | ![Liste des redirections](../assets/screenshots/forwards.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Carte des connexions"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Liste des redirections"></picture> |
 | :---: | :---: |
-| ![Hôtes SSH](../assets/screenshots/hosts.png) | ![Journaux](../assets/screenshots/logs.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="Hôtes SSH"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Journaux"></picture> |
 
 ## Fonctionnalités
 

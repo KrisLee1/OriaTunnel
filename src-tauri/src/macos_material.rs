@@ -32,7 +32,7 @@ pub async fn apply(window: tauri::WebviewWindow, blur: u32, radius: f64) -> Resu
                 if applied {
                     Ok(())
                 } else {
-                    Err("macOS 背景模糊初始化失败".to_string())
+                    Err(crate::native_message::plain("macBlurInit"))
                 }
             })();
             let _ = sender.send(result);
@@ -40,7 +40,7 @@ pub async fn apply(window: tauri::WebviewWindow, blur: u32, radius: f64) -> Resu
         .map_err(|e| e.to_string())?;
     receiver
         .await
-        .map_err(|_| "macOS 窗口材质更新已取消".to_string())?
+        .map_err(|_| crate::native_message::plain("macMaterialCancelled"))?
 }
 fn set_native_corner_radius(native_window: &NSWindow, radius: f64) {
     let Some(content_view) = native_window.contentView() else {

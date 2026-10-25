@@ -50,8 +50,8 @@ impl Vault {
         let Some(bytes) = platform::read(&self.target(host))? else {
             return Ok(None);
         };
-        let mut stored: Stored =
-            serde_json::from_slice(&bytes).map_err(|_| "已保存密码格式不可用，请清除后重新保存")?;
+        let mut stored: Stored = serde_json::from_slice(&bytes)
+            .map_err(|_| crate::native_message::plain("savedPasswordInvalid"))?;
         if stored.binding != binding(host) {
             *epochs.entry(host.id.clone()).or_default() += 1;
             platform::delete(&self.target(host))?;
@@ -86,7 +86,7 @@ impl Vault {
                 binding: binding(host),
                 password,
             })
-            .map_err(|_| "密码保存准备失败")?,
+            .map_err(|_| crate::native_message::plain("passwordPrepareFailed"))?,
         );
         platform::write(&self.target(host), &bytes)
     }
@@ -115,7 +115,7 @@ mod platform {
                 return if GetLastError() == ERROR_NOT_FOUND {
                     Ok(None)
                 } else {
-                    Err("无法读取 Windows 凭据管理器".into())
+                    Err(crate::native_message::plain("windowsCredentialRead"))
                 };
             }
             let value = &mut *credential;
@@ -123,7 +123,7 @@ mod platform {
                 || (value.CredentialBlobSize > 0 && value.CredentialBlob.is_null())
             {
                 CredFree(credential.cast());
-                return Err("已保存密码格式不可用，请清除后重新保存".into());
+                return Err(crate::native_message::plain("savedPasswordInvalid"));
             }
             let bytes = if value.CredentialBlobSize == 0 {
                 Zeroizing::new(Vec::new())
@@ -142,7 +142,7 @@ mod platform {
     }
     pub fn write(target: &str, bytes: &[u8]) -> Result<(), String> {
         if bytes.len() > CRED_MAX_CREDENTIAL_BLOB_SIZE as usize {
-            return Err("密码过长，无法保存至 Windows 凭据管理器".into());
+            return Err(crate::native_message::plain("windowsPasswordTooLong"));
         }
         let mut name = wide(target);
         let mut user = wide("OriaTunnel");
@@ -157,7 +157,7 @@ mod platform {
             ..unsafe { std::mem::zeroed() }
         };
         if unsafe { CredWriteW(&credential, 0) } == 0 {
-            return Err("无法保存到 Windows 凭据管理器".into());
+            return Err(crate::native_message::plain("windowsCredentialSave"));
         }
         Ok(())
     }
@@ -165,7 +165,7 @@ mod platform {
         if unsafe { CredDeleteW(wide(target).as_ptr(), CRED_TYPE_GENERIC, 0) } == 0
             && unsafe { GetLastError() } != ERROR_NOT_FOUND
         {
-            return Err("无法从 Windows 凭据管理器清除密码".into());
+            return Err(crate::native_message::plain("windowsCredentialDelete"));
         }
         Ok(())
     }
@@ -191,18 +191,18 @@ mod platform {
         match generic_password(options(target)) {
             Ok(bytes) => Ok(Some(Zeroizing::new(bytes))),
             Err(error) if error.code() == NOT_FOUND => Ok(None),
-            Err(_) => Err("无法读取 macOS 钥匙串".into()),
+            Err(_) => Err(crate::native_message::plain("macCredentialRead")),
         }
     }
     pub fn write(target: &str, bytes: &[u8]) -> Result<(), String> {
         set_generic_password_options(bytes, options(target))
-            .map_err(|_| "无法保存到 macOS 钥匙串".into())
+            .map_err(|_| crate::native_message::plain("macCredentialSave"))
     }
     pub fn delete(target: &str) -> Result<(), String> {
         match delete_generic_password_options(options(target)) {
             Ok(()) => Ok(()),
             Err(error) if error.code() == NOT_FOUND => Ok(()),
-            Err(_) => Err("无法从 macOS 钥匙串清除密码".into()),
+            Err(_) => Err(crate::native_message::plain("macCredentialDelete")),
         }
     }
 }
@@ -314,9 +314,9 @@ mod platform {
         Ok(None)
     }
     pub fn write(_: &str, _: &[u8]) -> Result<(), String> {
-        Err("当前平台暂不支持记住密码".into())
+        Err(crate::native_message::plain("passwordUnsupported"))
     }
     pub fn delete(_: &str) -> Result<(), String> {
-        Err("当前平台暂不支持记住密码".into())
+        Err(crate::native_message::plain("passwordUnsupported"))
     }
 }

@@ -1,3 +1,5 @@
+import { NativeLanguageSync } from "@/components/language/native-language-sync";
+import { formatNativeMessage, nativeMessageKey } from "@/lib/native-message";
 import { ConfigExportDialog } from "@/features/tunnels/config-export";
 import {
   TerminalWorkspaceProvider,
@@ -152,7 +154,6 @@ import {
 } from "./components/settings/appearance-settings";
 import * as bridge from "./lib/bridge";
 import type { Host, Rule, Runtime, Snapshot, BatchResult } from "./types";
-import "./tunnel-i18n";
 import i18n from "./i18n";
 import {
   groupRulesByHost,
@@ -180,7 +181,11 @@ function Status({ runtime }: { runtime?: Runtime }) {
   return (
     <span
       className={`status ${runtime?.status || "stopped"} tone-${status.tone}`}
-      title={runtime?.message || t(status.label)}
+      title={
+        runtime?.message
+          ? formatNativeMessage(runtime.message)
+          : t(status.label)
+      }
     >
       <i />
       {t(status.label)}
@@ -291,13 +296,15 @@ export function App() {
       title:
         error === "updateInstalling"
           ? i18n.t("phase.installing", { ns: "updater" })
-          : i18n.t(`error.${error}`, { ns: "terminal", defaultValue: error }),
+          : formatNativeMessage(
+              i18n.t(`error.${error}`, { ns: "terminal", defaultValue: error }),
+            ),
       type: "error",
       priority: "high",
       timeout: 0,
       onClose: () => setError((current) => (current === error ? "" : current)),
     });
-  }, [error, setError]);
+  }, [error, setError, t]);
   const notifyBatch = (results: BatchResult[], operation: "start" | "stop") => {
     const accepted = results.filter((result) => result.accepted).length;
     const rejected = results.length - accepted;
@@ -308,8 +315,9 @@ export function App() {
         rejected,
       }),
       description:
-        results.find((result) => !result.accepted)?.error ||
-        (rejected ? t("batchRequestFailed") : undefined),
+        formatNativeMessage(
+          results.find((result) => !result.accepted)?.error || "",
+        ) || (rejected ? t("batchRequestFailed") : undefined),
       type: rejected ? "warning" : "info",
       timeout: rejected ? 6000 : 4000,
     });
@@ -363,7 +371,7 @@ export function App() {
     setRuleDraft({
       ...rule,
       id: "",
-      name: rule.name + " (copy)",
+      name: t("copyName", { name: rule.name }),
       bindPort: 0,
       autoConnect: false,
     });
@@ -597,6 +605,7 @@ export function App() {
   ).length;
   return (
     <TerminalWorkspaceProvider data={data}>
+      <NativeLanguageSync />
       <PresetCommandProvider
         data={data}
         onSnapshot={accept}
@@ -742,7 +751,7 @@ export function App() {
                       configuredForwards: [],
                       hidden: false,
                       diagnostics: [],
-                      name: h.name + " (copy)",
+                      name: t("copyName", { name: h.name }),
                     })
                   }
                 />
@@ -821,7 +830,7 @@ export function App() {
                               )}
                             </div>
                             <span className="source-badge">
-                              {group.rules.length} {t("tunnels")}
+                              {t("forwardCount", { count: group.rules.length })}
                             </span>
                           </header>
                           {group.rules.map((rule) => {
@@ -868,7 +877,9 @@ export function App() {
                                       <>
                                         ↑ {rate(runtime.sentPerSecond)} · ↓{" "}
                                         {rate(runtime.receivedPerSecond)} ·{" "}
-                                        {runtime.connections} {t("connections")}
+                                        {t("connectionCount", {
+                                          count: runtime.connections,
+                                        })}
                                       </>
                                     )}
                                   </small>
@@ -920,16 +931,16 @@ export function App() {
           </main>
           <div className="app-footnote">
             <GraphStarIcon size={13} />
-            <span>
-              {active} {t("active")}
-            </span>
+            <span>{t("activeCount", { count: active })}</span>
             <span className="footnote-divider" />
             <span>OriaTunnel</span>
           </div>
           {!!data.diagnostics.length && (
             <div className="diagnostics overlay">
               {data.diagnostics.map((d, i) => (
-                <div key={i}>{d === "browserPreview" ? t(d) : d}</div>
+                <div key={i}>
+                  {d === "browserPreview" ? t(d) : formatNativeMessage(d)}
+                </div>
               ))}
             </div>
           )}
@@ -1988,7 +1999,7 @@ function Hosts({
                       : "inline-error"
                   }
                 >
-                  {testRuntime.message}
+                  {formatNativeMessage(testRuntime.message)}
                 </p>
               )}
               <dl>
@@ -2065,7 +2076,7 @@ function Hosts({
               )}
               {host.diagnostics.map((d, i) => (
                 <p className="inline-error" key={i}>
-                  {d}
+                  {formatNativeMessage(d)}
                 </p>
               ))}
               {!!references.length && (
@@ -2081,7 +2092,9 @@ function Hosts({
                     disabled={
                       busy ||
                       !bridge.desktop ||
-                      host.diagnostics.some((d) => !d.includes("来源已失效"))
+                      host.diagnostics.some(
+                        (d) => nativeMessageKey(d) !== "hostSourceLost",
+                      )
                     }
                     onClick={() => onCopy(host)}
                   >
@@ -2218,7 +2231,7 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
         className="tunnel-card themed-surface local-card"
         {...entrance}
         style={portDragSize || localCardSize(d.ports)}
-        aria-label={`${t("local")} · ${d.count || 0} ${t("tunnels")}`}
+        aria-label={`${t("local")} · ${t("forwardCount", { count: d.count || 0 })}`}
       >
         <CardPorts
           ports={d.ports}
@@ -2258,7 +2271,7 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
         </span>
         <div className="host-card-heading-content">
           <div className="host-card-heading-row">
-            <span className="eyebrow">SSH HOST</span>
+            <span className="eyebrow">{t("host")}</span>
             {d.host && (
               <code title={`${d.host.user}@${d.host.address}:${d.host.port}`}>
                 {d.host.user}@{d.host.address}:{d.host.port}
@@ -2270,7 +2283,7 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
               {d.host?.name || t("sourceMissing")}
             </h2>
             <span className="source-badge">
-              {d.rules?.length || 0} {t("tunnels")}
+              {t("forwardCount", { count: d.rules?.length || 0 })}
             </span>
             {d.host && <OpenTerminalButton hostId={d.host.id} />}
           </div>
@@ -2366,7 +2379,9 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
                   <p className="muted">{t("configUpdated")}</p>
                 )}
                 {runtime?.message && (
-                  <p className="inline-error">{runtime.message}</p>
+                  <p className="inline-error">
+                    {formatNativeMessage(runtime.message)}
+                  </p>
                 )}
                 <div className="card-footer">
                   <RuleActions

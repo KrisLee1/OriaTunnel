@@ -57,5 +57,9 @@
     "moreApps": "More apps",
     "feedback": "Report an issue"
   },
-  "goUpdate": "Update"
+  "goUpdate": "Update",
+  "activeForwards_one": "Active forward: {{count}}",
+  "activeForwards_other": "Active forwards: {{count}}",
+  "activeTests_one": "Active host test: {{count}}",
+  "activeTests_other": "Active host tests: {{count}}"
 }

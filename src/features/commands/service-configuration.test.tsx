@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync, execFileSync } from "node:child_process";
 import i18n from "@/i18n";
-import "@/tunnel-i18n";
 import {
   renderInvocation,
   normalizeInvocation,
