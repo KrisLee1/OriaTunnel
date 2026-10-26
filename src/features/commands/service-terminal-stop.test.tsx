@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
-import type { RemoteService, Snapshot } from "@/types";
+import type { RemoteService, Snapshot, TerminalSession } from "@/types";
+import { serviceForegroundSession } from "@/features/terminal/terminal-model";
 import i18n from "@/i18n";
 import { emptyHost, emptyRule } from "@/features/tunnels/rule-model";
 import {
@@ -12,6 +13,7 @@ import {
 const state = vi.hoisted(() => ({
   running: true,
   busy: false,
+  origin: "forward" as string | null,
   stop: vi.fn(),
   items: new Map<string, { disabled: boolean; click: () => void }>(),
 }));
@@ -24,8 +26,27 @@ vi.mock("@/features/terminal/terminal-workspace", () => ({
   useTerminalWorkspace: () => ({
     busy: state.busy,
     serviceBusy: () => state.running,
-    foregroundSession: (_: RemoteService, ruleId?: string) =>
-      state.running && ruleId === "forward" ? { id: "terminal" } : undefined,
+    foregroundSession: (service: RemoteService, ruleId?: string) =>
+      serviceForegroundSession(
+        [
+          {
+            id: "terminal",
+            serviceId: service.id,
+            actionId: "start",
+            hostId: "host",
+            ruleId: state.origin,
+            clientId: "client",
+            phase: "running",
+            finishedAt: state.running ? null : 1,
+          } as TerminalSession,
+        ],
+        service,
+        ruleId,
+        "client",
+        ["forward", "second-forward"].includes(ruleId || "")
+          ? "host"
+          : undefined,
+      ),
     stopService: state.stop,
   }),
 }));
@@ -80,21 +101,58 @@ const render = (value: RemoteService = service, ruleId = "forward") =>
         {
           services: [value],
           hosts: [{ ...emptyHost(), id: "host" }],
-          rules: [{ ...emptyRule("host"), id: "forward" }],
+          rules: ["forward", "second-forward"].map((id) => ({
+            ...emptyRule("host"),
+            id,
+          })),
           runtimes: [],
         } as unknown as Snapshot
       }
       onSnapshot={() => {}}
     >
-      <ServiceCommandsButton ruleId={ruleId} />
+      {ruleId.startsWith("host:") ? (
+        <ServiceCommandsButton hostId={ruleId.slice(5)} />
+      ) : (
+        <ServiceCommandsButton ruleId={ruleId} />
+      )}
     </PresetCommandProvider>,
   );
 describe("foreground service stop", () => {
   beforeEach(() => {
     state.running = true;
     state.busy = false;
+    state.origin = "forward";
     state.items.clear();
     state.stop.mockReset();
+  });
+  it("synchronizes launch, terminal stop and running color from either the host or a linked forward", () => {
+    const value = {
+      ...service,
+      hostIds: ["host"],
+      ruleIds: ["forward", "second-forward"],
+    };
+    for (const origin of ["forward", null]) {
+      state.origin = origin;
+      for (const target of ["host:host", "forward", "second-forward"]) {
+        state.running = true;
+        state.items.clear();
+        state.stop.mockClear();
+        const runningHtml = render(value, target);
+        expect(state.items.get("Launch DSH")?.disabled).toBe(true);
+        const stop = state.items.get(i18n.t("kind.stop", { ns: "commands" }))!;
+        expect(stop.disabled).toBe(false);
+        expect(runningHtml).not.toContain("grayscale(1)");
+        stop.click();
+        expect(state.stop).toHaveBeenCalledExactlyOnceWith(value, target);
+        state.running = false;
+        const stoppedHtml = render(value, target);
+        expect(state.items.get("Launch DSH")?.disabled).toBe(false);
+        expect(
+          state.items.get(i18n.t("kind.stop", { ns: "commands" }))?.disabled,
+        ).toBe(true);
+        expect(stoppedHtml).toContain("grayscale(1)");
+      }
+    }
   });
   it("keeps Stop enabled while Launch is busy and closes the exact service terminal instead of executing a shell action", () => {
     render();

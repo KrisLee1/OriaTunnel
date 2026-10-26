@@ -201,5 +201,9 @@
   "iconWindowsUpdate": "Das Windows-Anwendungssymbol kann nicht aktualisiert werden: {{error}}",
   "windowAppearanceInvalid": "Ungültige Fenstereinstellungen",
   "externalLinkInvalid": "Der externe Link ist ungültig",
-  "iconPersist": "Das App-Symbol konnte nicht dauerhaft gespeichert werden. Prüfe die Schreibrechte am Speicherort der App und versuche es erneut."
+  "iconPersist": "Das App-Symbol konnte nicht dauerhaft gespeichert werden. Prüfe die Schreibrechte am Speicherort der App und versuche es erneut.",
+  "proxyBrowserDynamic": "Wählen Sie eine lauschende D-Weiterleitung",
+  "proxyBrowserMissing": "{{browser}} wurde nicht gefunden. Installieren Sie zuerst den Browser",
+  "proxyBrowserFailed": "Proxy-Browser kann nicht gestartet werden. Prüfen Sie den Zugriff auf das Anwendungsdatenverzeichnis",
+  "proxyBrowserPlatform": "Der Proxy-Browser wird derzeit unter Windows und macOS unterstützt"
 }

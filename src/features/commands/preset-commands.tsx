@@ -1,6 +1,9 @@
 import { formatUiError } from "@/lib/ui-message";
 import {
   serviceRules,
+  serviceHostIds,
+  groupServicesByHost,
+  hostServiceTarget,
   serviceTarget,
   resolveTrayServiceRequest,
   type TrayServiceRequest,
@@ -11,6 +14,10 @@ import {
   ConnectionIconPicker,
 } from "@/features/tunnels/connection-icon";
 import { ConnectionColorPicker } from "@/features/tunnels/connection-color";
+import { ServicePicker, ServiceHostPicker } from "./service-picker";
+import { ServiceIconStrip } from "./service-icon-strip";
+import { ServiceRunningContext } from "./service-running-context";
+import { addedHosts } from "@/features/hosts/host-collection";
 import {
   CommandInvocationEditor,
   renderInvocation,
@@ -39,7 +46,6 @@ import {
   fillServiceTemplate,
   serviceTemplateCategories,
   serviceCategory,
-  groupServices,
 } from "./service-template-catalog";
 import {
   OpenTerminalButton,
@@ -47,10 +53,12 @@ import {
 } from "@/features/terminal/terminal-workspace";
 import {
   createContext,
+  memo,
   useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useId,
   useRef,
   useState,
@@ -70,6 +78,7 @@ import {
   PlusIcon,
   Trash2Icon,
   Settings2Icon,
+  BoxesIcon,
   PlayIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -127,6 +136,9 @@ interface Filter {
   ruleId?: string;
 }
 interface ServiceUI {
+  data: Pick<Snapshot, "rules">;
+  assignHost: (id: string, services: string[]) => Promise<void>;
+  running: (service: RemoteService, targetId?: string) => boolean;
   open: (filter: Filter) => void;
   content: ReactNode;
   count: number;
@@ -176,58 +188,80 @@ export function ServicesPage() {
     </ScrollArea>
   );
 }
-export function ServiceCommandsButton({ hostId, ruleId }: Filter) {
+export const ServiceCommandsButton = memo(function ServiceCommandsButton({
+  hostId,
+  ruleId,
+  showName = false,
+}: Filter & { showName?: boolean }) {
   const ui = useContext(Context);
   const workspace = useTerminalWorkspace();
-  const open = ui?.open;
   const { t } = useTranslation("commands");
-  if (!open || !ui) return null;
-  if (ruleId) {
-    const services = ui.services.filter((s) => s.ruleIds.includes(ruleId));
-    if (!services.length) return null;
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              className="nodrag nopan"
-              aria-label={t("services")}
-              title={t("services")}
-              disabled={!bridge.desktop}
-            />
-          }
-        >
-          <ListChecksIcon aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="min-w-48" align="end">
-          {services.map((service) => {
-            const foreground = workspace?.foregroundSession(service, ruleId);
-            const terminalStop =
-              foreground ||
-              (service.actions.some(
-                (action) =>
-                  action.kind === "start" && action.mode === "terminal",
-              ) &&
-                !service.actions.some((action) => action.kind === "stop"));
-            return (
-              <DropdownMenuGroup key={service.id}>
-                <DropdownMenuLabel>
-                  <ConnectionIcon
-                    icon={service.icon}
-                    color={service.color ?? null}
-                  />{" "}
-                  {service.name}
+  if (!ui) return null;
+  const services = ui.services.filter((s) =>
+    ruleId
+      ? s.ruleIds.includes(ruleId)
+      : hostId
+        ? serviceHostIds(s, ui.data).includes(hostId)
+        : false,
+  );
+  if (!services.length) return null;
+  const targetId = ruleId || (hostId ? hostServiceTarget(hostId) : undefined);
+  return (
+    <div className="service-command-icons inline-flex flex-wrap items-center gap-1 nodrag nopan">
+      {services.map((service) => {
+        const foreground = workspace?.foregroundSession(service, targetId);
+        const running = ui.running(service, targetId);
+        const color = running
+          ? service.color || "var(--oria-color-accent)"
+          : "var(--oria-color-muted-fg)";
+        const icon = (
+          <span
+            className="inline-flex shrink-0"
+            style={{
+              filter: running ? undefined : "grayscale(1)",
+              opacity: running ? 1 : 0.7,
+            }}
+          >
+            <ConnectionIcon icon={service.icon} color={color} />
+          </span>
+        );
+        const terminalStop =
+          foreground ||
+          (service.actions.some(
+            (a) => a.kind === "start" && a.mode === "terminal",
+          ) &&
+            !service.actions.some((a) => a.kind === "stop"));
+        return (
+          <DropdownMenu key={service.id}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  size={showName ? "sm" : "icon-sm"}
+                  variant="ghost"
+                  className="nodrag nopan"
+                  aria-label={`${t("services")} ${service.name}`}
+                  title={service.name}
+                  disabled={!bridge.desktop}
+                />
+              }
+            >
+              {icon}
+              {showName && <span>{service.name}</span>}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-48" align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="flex items-center gap-2">
+                  {icon}
+                  <span>{service.name}</span>
                 </DropdownMenuLabel>
                 {service.actions
-                  .filter((action) => !(foreground && action.kind === "stop"))
+                  .filter((a) => !(foreground && a.kind === "stop"))
                   .map((action) => (
                     <DropdownMenuItem
                       key={action.id}
-                      disabled={ui.disabled(service, ruleId)}
-                      onClick={() => ui.execute(service, action, ruleId)}
+                      disabled={ui.disabled(service, targetId)}
+                      onClick={() => ui.execute(service, action, targetId)}
                     >
                       {action.label}
                     </DropdownMenuItem>
@@ -235,38 +269,106 @@ export function ServiceCommandsButton({ hostId, ruleId }: Filter) {
                 {terminalStop && (
                   <DropdownMenuItem
                     disabled={!bridge.desktop || !foreground || workspace?.busy}
-                    onClick={() => void workspace?.stopService(service, ruleId)}
+                    onClick={() =>
+                      void workspace?.stopService(service, targetId)
+                    }
                   >
                     {t("kind.stop")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuGroup>
-            );
-          })}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => open({ ruleId })}>
-            {t("manageServices")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-  return (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant="ghost"
-      className="nodrag nopan"
-      aria-haspopup="dialog"
-      aria-label={t("title")}
-      title={t("title")}
-      disabled={!bridge.desktop}
-      onClick={() => open({ hostId, ruleId })}
-    >
-      <ListChecksIcon aria-hidden="true" />
-    </Button>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => ui.open({ hostId, ruleId })}>
+                {t("manageServices")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      })}
+    </div>
   );
-}
+});
+
+export const HostServices = memo(function HostServices({
+  hostId,
+}: {
+  hostId: string;
+}) {
+  const ui = useContext(Context);
+  const { t } = useTranslation("commands");
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const serviceCount = (ui?.services || []).filter(
+    (s) => ui && serviceHostIds(s, ui.data).includes(hostId),
+  ).length;
+  if (!ui) return null;
+  return (
+    <>
+      <ServiceIconStrip
+        className="host-card-services"
+        count={serviceCount}
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("manageServices")}
+            title={t("manageServices")}
+            disabled={!bridge.desktop}
+            onClick={() => {
+              setSelected(
+                ui.services
+                  .filter((s) => serviceHostIds(s, ui.data).includes(hostId))
+                  .map((s) => s.id),
+              );
+              setEditing(true);
+            }}
+          >
+            <BoxesIcon aria-hidden="true" />
+          </Button>
+        }
+      >
+        <ServiceCommandsButton hostId={hostId} />
+      </ServiceIconStrip>
+      {editing && (
+        <Modal title={t("manageServices")} close={() => setEditing(false)}>
+          <ServicePicker
+            services={ui.services}
+            value={selected}
+            onChange={setSelected}
+            disabled={busy}
+          />
+          <ModalActions>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setEditing(false)}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void ui
+                  .assignHost(hostId, selected)
+                  .then(() => setEditing(false))
+                  .catch((e) =>
+                    toast.add({ title: formatUiError(e, t), type: "error" }),
+                  )
+                  .finally(() => setBusy(false));
+              }}
+            >
+              {t("save")}
+            </Button>
+          </ModalActions>
+        </Modal>
+      )}
+    </>
+  );
+});
+
 export function PresetCommandProvider({
   data,
   onSnapshot,
@@ -292,7 +394,7 @@ export function PresetCommandProvider({
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const listId = useId();
   const [runs, setRuns] = useState<CommandRun[]>([]);
-  const observations = useServiceObservations(!!filter);
+  const observations = useServiceObservations(true);
   const [selectedRun, setSelectedRun] = useState("");
   const [editing, setEditing] = useState<RemoteService | null>(null);
   const [intent, setIntent] = useState<{
@@ -368,14 +470,18 @@ export function PresetCommandProvider({
     filter?.ruleId
       ? s.ruleIds.includes(filter?.ruleId)
       : filter?.hostId
-        ? serviceRules(s, data).some((r) => r.hostId === filter?.hostId)
+        ? serviceHostIds(s, data).includes(filter.hostId)
         : true,
   );
   const targetFor = (service: RemoteService, ruleId?: string) =>
     serviceTarget(
       service,
       data,
-      ruleId || filter?.ruleId || targets[service.id],
+      ruleId ||
+        filter?.ruleId ||
+        (filter?.hostId
+          ? hostServiceTarget(filter.hostId)
+          : targets[service.id]),
     );
   const visibleServices = services.filter((service) => {
     if (!page || filter) return true;
@@ -614,7 +720,7 @@ export function PresetCommandProvider({
       void subscription.then((off) => off()).catch(() => {});
     };
   }, []);
-  const createService = () => setEditing(newService(""));
+  const createService = () => setEditing(newService(filter?.hostId || ""));
   const categoryOptions = [
     { value: "all", label: t("all", { ns: "tunnel" }) },
     ...[...serviceTemplateCategories, "other"].map((category) => ({
@@ -632,8 +738,15 @@ export function PresetCommandProvider({
   ).length;
   const serviceGroups =
     page && !filter
-      ? groupServices(visibleServices)
-      : [{ category: "", services: visibleServices }];
+      ? groupServicesByHost(visibleServices, data)
+      : [
+          {
+            id: "filtered",
+            hostId: "",
+            host: undefined,
+            services: visibleServices,
+          },
+        ];
   const importButton = (
     <Button
       type="button"
@@ -651,6 +764,7 @@ export function PresetCommandProvider({
   );
   const renderService = (service: RemoteService) => {
     const bound = serviceRules(service, data);
+    const associatedHosts = serviceHostIds(service, data);
     const target = targetFor(service);
     const host = data.hosts.find((h) => h.id === target?.hostId);
     const active =
@@ -678,7 +792,7 @@ export function PresetCommandProvider({
             onChange={(event) =>
               setSelectedServiceIds((ids) =>
                 event.target.checked
-                  ? [...ids, service.id]
+                  ? [...new Set([...ids, service.id])]
                   : ids.filter((id) => id !== service.id),
               )
             }
@@ -802,39 +916,47 @@ export function PresetCommandProvider({
             </Button>
           </div>
         </div>
-        {(!page || filter) && bound.length > 1 && (
-          <div className="field">
-            <span>{t("executionForward")}</span>
-            <Select
-              value={target?.id || ""}
-              items={bound.map((r) => ({
-                value: r.id,
-                label: `${r.name} · ${data.hosts.find((h) => h.id === r.hostId)?.name || r.hostId}`,
-              }))}
-              onValueChange={(value) =>
-                value && setTargets((old) => ({ ...old, [service.id]: value }))
-              }
-            >
-              <SelectTrigger aria-label={t("executionForward")}>
-                <SelectValue placeholder={t("serviceTargetRequired")} />
-              </SelectTrigger>
-              <SelectContent>
-                {bound.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name} · {data.hosts.find((h) => h.id === r.hostId)?.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {(!page || filter) &&
+          !filter?.hostId &&
+          !filter?.ruleId &&
+          associatedHosts.length > 1 && (
+            <div className="field">
+              <span>{t("hosts", { ns: "tunnel" })}</span>
+              <Select
+                value={target?.id || ""}
+                items={associatedHosts.map((id) => ({
+                  value: hostServiceTarget(id),
+                  label: data.hosts.find((h) => h.id === id)?.name || id,
+                }))}
+                onValueChange={(value) =>
+                  value &&
+                  setTargets((old) => ({ ...old, [service.id]: value }))
+                }
+              >
+                <SelectTrigger aria-label={t("hosts", { ns: "tunnel" })}>
+                  <SelectValue placeholder={t("serviceTargetRequired")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {associatedHosts.map((id) => (
+                    <SelectItem key={id} value={hostServiceTarget(id)}>
+                      {data.hosts.find((h) => h.id === id)?.name || id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         {(!page || filter) &&
           observations.some(
-            (o) => o.serviceId === service.id && o.ruleId === target?.id,
+            (o) =>
+              o.serviceId === service.id &&
+              (o.ruleId === target?.id || o.hostId === target?.hostId),
           ) && (
             <ServiceState
               observation={observations.find(
-                (o) => o.serviceId === service.id && o.ruleId === target?.id,
+                (o) =>
+                  o.serviceId === service.id &&
+                  (o.ruleId === target?.id || o.hostId === target?.hostId),
               )}
             />
           )}
@@ -1073,18 +1195,17 @@ export function PresetCommandProvider({
           {serviceGroups.map((group) => (
             <section
               className="service-page-group"
-              key={group.category}
+              key={group.id}
               aria-labelledby={
-                group.category ? `${listId}-${group.category}` : undefined
+                page && !filter ? `${listId}-${group.id}` : undefined
               }
             >
-              {group.category && (
-                <h2 id={`${listId}-${group.category}`}>
-                  {t(
-                    group.category === "other"
-                      ? "categoryOther"
-                      : `templates.groups.${group.category}`,
-                  )}{" "}
+              {page && !filter && (
+                <h2 id={`${listId}-${group.id}`}>
+                  {group.host?.name ||
+                    (group.hostId
+                      ? t("sourceMissing", { ns: "tunnel" })
+                      : t("unassignedHost"))}{" "}
                   <span>{group.services.length}</span>
                 </h2>
               )}
@@ -1167,7 +1288,9 @@ export function PresetCommandProvider({
                   action: retryAction,
                   fallback: true,
                   operation: retryOperation,
-                  ruleId: selected.workflowRuleId || undefined,
+                  ruleId:
+                    selected.workflowRuleId ||
+                    hostServiceTarget(selected.hostId),
                 });
                 setSecrets({});
                 setRemember({});
@@ -1179,20 +1302,80 @@ export function PresetCommandProvider({
       </>
     </>
   );
+  const serviceUi = useMemo<ServiceUI>(
+    () => ({
+      data,
+      assignHost: async (hostId, ids) => {
+        onSnapshot(
+          await bridge.setHostServices(
+            hostId,
+            (data.services || []).map((s) => ({
+              id: s.id,
+              revision: s.revision,
+              selected: ids.includes(s.id),
+            })),
+          ),
+        );
+      },
+      running: (service, targetId) => {
+        const target = targetFor(service, targetId);
+        if (!target) return false;
+        const foreground = workspace?.foregroundSession(service, target.id);
+        if (foreground?.phase === "running" && foreground.finishedAt === null)
+          return true;
+        return observations.some(
+          (o) =>
+            o.serviceId === service.id &&
+            o.serviceRevision === service.revision &&
+            (o.ruleId === target.id || o.hostId === target.hostId) &&
+            !o.status.expired &&
+            o.status.value === "running",
+        );
+      },
+      open,
+      content: serviceList,
+      count: visibleServices.length,
+      create: createService,
+      canCreate: bridge.desktop && !busy,
+      services: data.services || [],
+      disabled: isDisabled,
+      execute,
+    }),
+    [
+      data.hosts,
+      data.rules,
+      data.services,
+      data.addedHostIds,
+      onSnapshot,
+      page,
+      workspace,
+      t,
+      sharing,
+      importing,
+      reviewing,
+      inspectingService,
+      filter,
+      query,
+      targets,
+      categoryFilter,
+      selectedServiceIds,
+      runs,
+      observations,
+      selectedRun,
+      editing,
+      intent,
+      deleting,
+      secrets,
+      remember,
+      busy,
+      error,
+    ],
+  );
   return (
-    <Context.Provider
-      value={{
-        open,
-        content: serviceList,
-        count: visibleServices.length,
-        create: createService,
-        canCreate: bridge.desktop && !busy,
-        services: data.services || [],
-        disabled: isDisabled,
-        execute,
-      }}
-    >
-      {children}
+    <Context.Provider value={serviceUi}>
+      <ServiceRunningContext.Provider value={serviceUi.running}>
+        {children}
+      </ServiceRunningContext.Provider>
       <AnimatePresence>
         {inspectingService && (
           <Modal
@@ -1508,6 +1691,7 @@ export function ServiceEditor({
   const id = useId();
   const [draft, setDraft] = useState<RemoteService>(() => ({
     ...service,
+    hostIds: serviceHostIds(service, data),
     category: serviceCategory(service),
   }));
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -1603,6 +1787,28 @@ export function ServiceEditor({
           value={draft.color ?? null}
           onChange={(color) => setDraft({ ...draft, color })}
         />
+        <ServiceHostPicker
+          hosts={addedHosts(data)}
+          value={draft.hostIds || []}
+          onChange={(hostIds) => setDraft({ ...draft, hostIds })}
+          disabled={busy}
+        />
+        <label className="field" htmlFor={`${id}-port`}>
+          {t("servicePort")}
+          <Input
+            id={`${id}-port`}
+            type="number"
+            min={1}
+            max={65535}
+            value={draft.port ?? ""}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                port: e.target.value ? Number(e.target.value) : null,
+              })
+            }
+          />
+        </label>
         <ConnectionIconPicker
           fieldLabel={t("serviceIcon")}
           initialCategory="service"
@@ -2012,7 +2218,9 @@ export function CommandResult({
         observation={observations.find(
           (o) =>
             o.serviceId === current.serviceId &&
-            o.ruleId === current.workflowRuleId,
+            (current.workflowRuleId
+              ? o.ruleId === current.workflowRuleId
+              : o.hostId === current.hostId),
         )}
       />
       {data && onRerun && (

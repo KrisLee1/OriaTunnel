@@ -1,4 +1,5 @@
 import { formatUiError } from "@/lib/ui-message";
+import { equalJsonValue } from "@/lib/json-equal";
 import { useEffect, useId, useState, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import { Modal, ModalActions } from "@/components/tunnel-form";
@@ -45,7 +46,10 @@ export function useServiceObservations(visible: boolean) {
       reading = true;
       try {
         const data = await bridge.serviceObservations();
-        if (live) setObservations(data);
+        if (live)
+          setObservations((before) =>
+            equalJsonValue(before, data) ? before : data,
+          );
       } finally {
         reading = false;
       }
@@ -138,7 +142,7 @@ export function ServiceOperations({
           {t("service.checkHealth")}
         </Button>
       </div>
-      {!!rules.length && (
+      {!!rules.length && !target.startsWith("host:") && (
         <div className="service-connect-row">
           {!ruleId && (
             <Select
@@ -515,7 +519,7 @@ export function CredentialRetry({
     !run.submitted &&
     run.error === "authentication" &&
     hosts.some((host) => host.authMethod !== "agent") &&
-    (!run.workflowRuleId ||
+    ((!run.workflowRuleId && !!service.hostIds?.includes(run.hostId)) ||
       data.rules.some(
         (r) =>
           r.id === run.workflowRuleId &&
@@ -579,7 +583,7 @@ export function CredentialRetry({
                     requestId: requestId.current,
                     operation,
                     actionId: operation === "action" ? run.actionId : undefined,
-                    ruleId: run.workflowRuleId || undefined,
+                    ruleId: run.workflowRuleId || `host:${run.hostId}`,
                     confirmed: true,
                     secrets: values,
                     rememberHostIds: Object.keys(remember).filter(

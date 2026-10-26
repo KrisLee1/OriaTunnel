@@ -201,5 +201,9 @@
   "iconWindowsUpdate": "无法更新 Windows 应用图标：{{error}}",
   "windowAppearanceInvalid": "窗口外观设置无效",
   "externalLinkInvalid": "外部链接无效",
-  "iconPersist": "无法保存应用图标。请确认应用所在位置可写，然后重试。"
+  "iconPersist": "无法保存应用图标。请确认应用所在位置可写，然后重试。",
+  "proxyBrowserDynamic": "请选择正在监听的 D 转发",
+  "proxyBrowserMissing": "未找到 {{browser}}，请先安装该浏览器",
+  "proxyBrowserFailed": "无法启动代理浏览器，请检查应用数据目录的权限",
+  "proxyBrowserPlatform": "代理浏览器目前支持 Windows 和 macOS"
 }

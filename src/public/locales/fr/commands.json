@@ -290,5 +290,9 @@
   "serviceCount_one": "{{count}} service",
   "serviceCount_other": "{{count}} services",
   "commandCount_one": "{{count}} commande",
-  "commandCount_other": "{{count}} commandes"
+  "commandCount_other": "{{count}} commandes",
+  "servicePort": "Port du service",
+  "unassignedHost": "Aucun hôte associé",
+  "expandServices": "Développer les services",
+  "collapseServices": "Réduire les services"
 }

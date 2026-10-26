@@ -201,5 +201,9 @@
   "iconWindowsUpdate": "無法更新 Windows 應用程式圖示：{{error}}",
   "windowAppearanceInvalid": "視窗外觀設定無效",
   "externalLinkInvalid": "外部連結無效",
-  "iconPersist": "無法儲存應用程式圖示。請確認應用程式所在位置可寫，然後重試。"
+  "iconPersist": "無法儲存應用程式圖示。請確認應用程式所在位置可寫，然後重試。",
+  "proxyBrowserDynamic": "請選擇正在監聽的 D 轉發",
+  "proxyBrowserMissing": "找不到 {{browser}}，請先安裝該瀏覽器",
+  "proxyBrowserFailed": "無法啟動代理瀏覽器，請檢查應用程式資料目錄的權限",
+  "proxyBrowserPlatform": "代理瀏覽器目前支援 Windows 和 macOS"
 }

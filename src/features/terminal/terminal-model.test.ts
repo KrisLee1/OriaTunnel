@@ -13,6 +13,77 @@ import type { TerminalSession, RemoteService } from "@/types";
 import { emptyHost } from "@/features/tunnels/rule-model";
 import i18n from "@/i18n";
 describe("terminal input and lifecycle", () => {
+  it("shares a service terminal between the host and its forwards without crossing hosts or clients", () => {
+    const service = {
+      id: "dsh",
+      hostIds: ["a", "b"],
+      actions: [
+        { id: "start", kind: "start", mode: "terminal" },
+        { id: "logs", kind: "logs", mode: "terminal" },
+      ],
+    } as RemoteService;
+    const session = {
+      id: "terminal",
+      serviceId: service.id,
+      actionId: "start",
+      hostId: "a",
+      ruleId: "forward-a",
+      clientId: "client",
+      phase: "running",
+      finishedAt: null,
+    } as TerminalSession;
+    for (const origin of ["forward-a", null]) {
+      const current = { ...session, ruleId: origin };
+      for (const [target, host] of [
+        ["host:a", "a"],
+        ["forward-a", "a"],
+        ["another-forward-a", "a"],
+      ]) {
+        expect(
+          serviceForegroundSession([current], service, target, "client", host),
+        ).toBe(current);
+      }
+      expect(
+        serviceForegroundSession([current], service, "host:b", "client", "b"),
+      ).toBeUndefined();
+      expect(
+        serviceForegroundSession(
+          [current],
+          service,
+          "host:a",
+          "other-client",
+          "a",
+        ),
+      ).toBeUndefined();
+      expect(
+        serviceForegroundSession(
+          [{ ...current, finishedAt: 10 }],
+          service,
+          "host:a",
+          "client",
+          "a",
+        ),
+      ).toBeUndefined();
+      expect(
+        serviceForegroundSession(
+          [{ ...current, actionId: "logs" }],
+          service,
+          "host:a",
+          "client",
+          "a",
+        ),
+      ).toBeUndefined();
+      expect(
+        serviceForegroundSession(
+          [current],
+          { ...service, hostIds: ["b"] },
+          "host:a",
+          "client",
+          "a",
+        ),
+      ).toBeUndefined();
+    }
+  });
   it("selects only this client's active foreground start terminal on the exact service and forward", () => {
     const service = {
       id: "dsh",

@@ -75,7 +75,26 @@ pub fn package_with_services(
     } else {
         package(snapshot, ids, include_key_paths)?
     };
-    let hosts = value["hosts"].as_array().unwrap().clone();
+    let mut hosts = value["hosts"].as_array().unwrap().clone();
+    for host in &snapshot.hosts {
+        if services.iter().any(|s| {
+            s.host_ids.iter().any(|id| {
+                rule_uses_host(
+                    &crate::model::Rule {
+                        host_id: id.clone(),
+                        ..Default::default()
+                    },
+                    &snapshot.hosts,
+                    &host.id,
+                )
+            })
+        }) && !hosts
+            .iter()
+            .any(|saved| saved["id"].as_str() == Some(&host.id))
+        {
+            hosts.push(portable_host(host, include_key_paths));
+        }
+    }
     let mut profiles = Vec::new();
     for service in services {
         service.validate()?;
@@ -84,7 +103,12 @@ pub fn package_with_services(
             .iter()
             .filter(|id| ids.contains(id))
             .collect();
-        profiles.push(json!({"id":service.id,"name":service.name,"category":service.category,"color":service.color,"icon":service.icon,"executionHostId":"","ruleIds":links,"noLocalEnvironment":service.no_local_environment,"actions":service.actions,"control":service.control}));
+        let host_ids: Vec<_> = service
+            .host_ids
+            .iter()
+            .filter(|id| hosts.iter().any(|h| h["id"].as_str() == Some(id)))
+            .collect();
+        profiles.push(json!({"id":service.id,"name":service.name,"category":service.category,"color":service.color,"icon":service.icon,"port":service.port,"executionHostId":"","hostIds":host_ids,"ruleIds":links,"noLocalEnvironment":service.no_local_environment,"actions":service.actions,"control":service.control}));
     }
     value["version"] = json!(2);
     value["hosts"] = json!(hosts);

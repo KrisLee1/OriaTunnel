@@ -278,5 +278,9 @@
     "unlimited": "無制限"
   },
   "copyService": "このサービスから新規作成",
-  "terminalTimeout": "タイムアウト（秒、0 は無制限）"
+  "terminalTimeout": "タイムアウト（秒、0 は無制限）",
+  "servicePort": "サービスのポート",
+  "unassignedHost": "ホスト未割り当て",
+  "expandServices": "サービスを展開",
+  "collapseServices": "サービスを折りたたむ"
 }

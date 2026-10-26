@@ -54,6 +54,8 @@ export function newService(_hostId: string, ruleId?: string): RemoteService {
     id: "",
     name: "",
     executionHostId: "",
+    hostIds: _hostId ? [_hostId] : [],
+    port: null,
     category: "other",
     ruleIds: ruleId ? [ruleId] : [],
     revision: "",
@@ -69,6 +71,7 @@ export function copyService(source: RemoteService): RemoteService {
   copy.id = "";
   copy.revision = "";
   copy.executionHostId = "";
+  copy.hostIds = [];
   copy.ruleIds = [];
   copy.actions = copy.actions.map((action) => ({
     ...action,

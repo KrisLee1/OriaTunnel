@@ -128,6 +128,10 @@ struct PortableRule {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PortableService {
     #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    host_ids: Vec<String>,
+    #[serde(default)]
     category: Option<String>,
     #[serde(default)]
     color: Option<String>,
@@ -145,12 +149,14 @@ struct PortableService {
 impl PortableService {
     fn definition(&self) -> crate::commands::Service {
         crate::commands::Service {
+            port: self.port,
             category: self.category.clone(),
             color: self.color.clone(),
             icon: self.icon.clone(),
             id: self.id.clone(),
             name: self.name.clone(),
             execution_host_id: self.execution_host_id.clone(),
+            host_ids: self.host_ids.clone(),
             rule_ids: self.rule_ids.clone(),
             revision: String::new(),
             no_local_environment: self.no_local_environment,
@@ -334,6 +340,7 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
             || service.actions.iter().any(|a| !text(&a.label))
             || !service_ids.insert(&service.id)
             || (!service.execution_host_id.is_empty() && !ids.contains(&service.execution_host_id))
+            || service.host_ids.iter().any(|host| !ids.contains(host))
             || service.rule_ids.iter().any(|id| !rule_ids.contains(id))
             || service.rule_ids.iter().collect::<BTreeSet<_>>().len() != service.rule_ids.len()
         {
@@ -343,6 +350,18 @@ pub fn parse(bytes: &[u8]) -> Result<Package, String> {
             .definition()
             .validate()
             .map_err(|_| "invalidServicePackage")?;
+    }
+    for rule in package.rules.iter().filter(|r| r.kind != ForwardKind::D) {
+        if package
+            .services
+            .iter()
+            .flatten()
+            .filter(|s| s.rule_ids.contains(&rule.id))
+            .count()
+            > 1
+        {
+            return Err("invalidServicePackage".into());
+        }
     }
     // Validate the complete dependency graph before offering an import, including unselected routes.
     let hosts = package
@@ -530,6 +549,16 @@ impl Package {
             }
             dependencies(&rule.host_id, &originals, &choices.reuse_hosts, &mut needed);
         }
+        for service in self
+            .services
+            .iter()
+            .flatten()
+            .filter(|s| selected_services.contains(&s.id))
+        {
+            for host_id in &service.host_ids {
+                dependencies(host_id, &originals, &choices.reuse_hosts, &mut needed);
+            }
+        }
         if self.hosts.iter().any(|h| {
             needed.contains(&h.id)
                 && h.connection_blocked
@@ -620,6 +649,47 @@ impl Package {
                 .iter()
                 .filter_map(|id| rule_mapping.get(id).cloned())
                 .collect();
+            service.host_ids = imported
+                .host_ids
+                .iter()
+                .filter_map(|id| mapping.get(id).cloned())
+                .chain(
+                    rules
+                        .iter()
+                        .filter(|r| service.rule_ids.contains(&r.id))
+                        .map(|r| r.host_id.clone()),
+                )
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            if service.port.is_none() {
+                let ports: BTreeSet<_> = rules
+                    .iter()
+                    .filter(|r| service.rule_ids.contains(&r.id) && r.kind != ForwardKind::D)
+                    .map(|r| {
+                        if r.kind == ForwardKind::L {
+                            r.target_port
+                        } else {
+                            r.bind_port
+                        }
+                    })
+                    .collect();
+                if ports.len() == 1 {
+                    service.port = ports.into_iter().next();
+                }
+            }
+            if let Some(port) = service.port {
+                for rule in rules
+                    .iter_mut()
+                    .filter(|r| service.rule_ids.contains(&r.id))
+                {
+                    if rule.kind == ForwardKind::L {
+                        rule.target_port = port;
+                    } else if rule.kind == ForwardKind::R {
+                        rule.bind_port = port;
+                    }
+                }
+            }
             let action_mapping: BTreeMap<_, _> = service
                 .actions
                 .iter()
@@ -1279,6 +1349,58 @@ mod tests {
             "HEALTH_CANARY"
         );
         assert!(preview["services"][0].get("executionEnabled").is_none());
+    }
+    #[test]
+    fn host_only_service_sharing_preserves_port_and_association_without_any_forward() {
+        let mut value = service_fixture();
+        value["rules"] = serde_json::json!([]);
+        value["services"][0]["ruleIds"] = serde_json::json!([]);
+        value["services"][0]["hostIds"] = serde_json::json!(["host"]);
+        value["services"][0]["port"] = serde_json::json!(3689);
+        let plan = parsed(&value)
+            .unwrap()
+            .prepare(
+                &Snapshot::default(),
+                &Choices {
+                    service_ids: vec!["service".into()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(plan.rules.is_empty());
+        assert_eq!(plan.hosts.len(), 2); // Associated host and its required jump host.
+        assert_eq!(plan.services[0].host_ids.len(), 1);
+        let host = plan
+            .hosts
+            .iter()
+            .find(|h| plan.services[0].host_ids.contains(&h.id))
+            .unwrap();
+        assert_eq!(
+            crate::model::resolve_jumps(&plan.hosts, host)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(plan.services[0].port, Some(3689));
+        assert!(!plan.services[0].execution_enabled);
+        let snapshot = Snapshot {
+            hosts: plan.hosts,
+            services: plan.services,
+            ..Default::default()
+        };
+        let exported = crate::config_export::package_with_services(
+            &snapshot,
+            &[],
+            &[snapshot.services[0].id.clone()],
+            false,
+        )
+        .unwrap();
+        assert_eq!(exported["services"][0]["port"], 3689);
+        assert_eq!(
+            exported["services"][0]["hostIds"][0],
+            snapshot.services[0].host_ids[0]
+        );
+        assert!(parsed(&exported).is_ok());
     }
     #[test]
     fn v2_service_only_reuses_explicit_host_and_discards_unselected_links_and_dependencies() {

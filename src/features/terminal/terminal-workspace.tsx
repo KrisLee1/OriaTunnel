@@ -1,4 +1,5 @@
 import { formatUiError } from "@/lib/ui-message";
+import { serviceTarget } from "@/features/commands/service-target";
 import {
   createContext,
   lazy,
@@ -7,6 +8,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -436,9 +438,7 @@ export function TerminalWorkspaceProvider({
     remembered,
     ruleId,
   ) => {
-    const target = data.rules.find(
-      (r) => r.id === ruleId && service.ruleIds.includes(r.id),
-    );
+    const target = serviceTarget(service, data, ruleId);
     if (!target) throw new Error("serviceTargetRequired");
     await launch(
       target.hostId,
@@ -496,9 +496,14 @@ export function TerminalWorkspaceProvider({
             unsubmittedPreset(session, data.services || [])?.service
               .revision ===
               automaticAuthRequests.current.get(session.requestId) &&
-            data.rules.some(
-              (r) => r.id === session.ruleId && r.hostId === session.hostId,
-            ))),
+            ((!session.ruleId &&
+              (
+                unsubmittedPreset(session, data.services || [])?.service
+                  .hostIds || []
+              ).includes(session.hostId)) ||
+              data.rules.some(
+                (r) => r.id === session.ruleId && r.hostId === session.hostId,
+              )))),
     );
     if (!failed) return;
     promptedSessions.current.add(failed.id);
@@ -554,28 +559,49 @@ export function TerminalWorkspaceProvider({
   const ExpandIcon = (dock === "left" ? !maximized : maximized)
     ? ChevronLastIcon
     : ChevronFirstIcon;
+  const latestActions = useRef({ openHost, openPreset, showCommand, close });
+  useLayoutEffect(() => {
+    latestActions.current = { openHost, openPreset, showCommand, close };
+  });
+  const workspaceApi = useMemo<WorkspaceApi>(
+    () => ({
+      openHost: (hostId) => latestActions.current.openHost(hostId),
+      openPreset: (...args) => latestActions.current.openPreset(...args),
+      showCommand: (run) => latestActions.current.showCommand(run),
+      serviceBusy: (id) =>
+        sessions.some(
+          (session) => session.serviceId === id && terminalActive(session),
+        ),
+      busy,
+      foregroundSession: (service, ruleId) => {
+        const target = serviceTarget(service, { rules: data.rules }, ruleId);
+        return target
+          ? serviceForegroundSession(
+              sessions,
+              service,
+              target.id,
+              clientId,
+              target.hostId,
+            )
+          : undefined;
+      },
+      stopService: async (service, ruleId) => {
+        const target = serviceTarget(service, { rules: data.rules }, ruleId);
+        if (!target) return;
+        const session = serviceForegroundSession(
+          sessions,
+          service,
+          target.id,
+          clientId,
+          target.hostId,
+        );
+        if (session) await latestActions.current.close(session);
+      },
+    }),
+    [sessions, busy, clientId, data.rules],
+  );
   return (
-    <Context.Provider
-      value={{
-        openHost,
-        openPreset,
-        showCommand,
-        serviceBusy: (id) =>
-          sessions.some((s) => s.serviceId === id && terminalActive(s)),
-        busy,
-        foregroundSession: (service, ruleId) =>
-          serviceForegroundSession(sessions, service, ruleId, clientId),
-        stopService: async (service, ruleId) => {
-          const session = serviceForegroundSession(
-            sessions,
-            service,
-            ruleId,
-            clientId,
-          );
-          if (session) await close(session);
-        },
-      }}
-    >
+    <Context.Provider value={workspaceApi}>
       {children}
       <motion.aside
         ref={workspaceRef}
@@ -995,7 +1021,11 @@ export function TerminalWorkspaceProvider({
       </motion.aside>
       <AnimatePresence
         onExitComplete={() => {
-          if (!document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open]'))
+          if (
+            !document.querySelector(
+              '[role="dialog"][data-open], [role="alertdialog"][data-open]',
+            )
+          )
             document
               .querySelector<HTMLTextAreaElement>(
                 ".terminal-session-panel:not([hidden]):not([data-hidden]) .xterm-helper-textarea",

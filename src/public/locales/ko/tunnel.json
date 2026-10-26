@@ -378,5 +378,8 @@
   "activeCount": "실행 중인 전달 {{count}}개",
   "connectionCount": "활성 연결 {{count}}개",
   "emojiCategory": "이모지",
-  "copyName": "{{name}} (사본)"
+  "copyName": "{{name}} (사본)",
+  "openProxyBrowser": "프록시 브라우저 열기",
+  "servicePortLinked": "포트는 선택한 서비스를 따릅니다. 서비스 설정에서 변경하세요",
+  "servicePort": "먼저 서비스 설정에서 포트를 입력하세요"
 }

@@ -408,5 +408,8 @@
   "deleteHostCascadeHint_other": "Deleting this host also deletes the following {{count}} forwards and stops their active connections. SSH source files remain unchanged.",
   "deleteHostCascadeHint_one": "Deleting this host also deletes the following {{count}} forward and stops its active connection. SSH source files remain unchanged.",
   "emojiCategory": "Emoji",
-  "copyName": "{{name}} (copy)"
+  "copyName": "{{name}} (copy)",
+  "openProxyBrowser": "Open proxy browser",
+  "servicePortLinked": "The port follows the selected service. Change it in service settings",
+  "servicePort": "Set the port in service settings first"
 }

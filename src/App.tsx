@@ -1,4 +1,5 @@
 import { NativeLanguageSync } from "@/components/language/native-language-sync";
+import { mergeSnapshot } from "@/lib/snapshot-state";
 import { FirstUsePreferences } from "@/components/settings/first-use-preferences";
 import { formatNativeMessage, nativeMessageKey } from "@/lib/native-message";
 import { ConfigExportDialog } from "@/features/tunnels/config-export";
@@ -11,9 +12,11 @@ import {
   ServicesPage,
   AddServiceButton,
   ServiceCommandsButton,
+  HostServices,
 } from "./features/commands/preset-commands";
 import {
   useCallback,
+  memo,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -31,12 +34,12 @@ import {
   Background,
   Handle,
   Position,
-  MarkerType,
   ReactFlowProvider,
   useReactFlow,
   useNodesInitialized,
   useUpdateNodeInternals,
   applyNodeChanges,
+  type NodeChange,
   type NodeProps,
   type Node,
   type Edge,
@@ -87,6 +90,10 @@ import {
 import { addedHosts, hostFilterStatus } from "./features/hosts/host-collection";
 import { RuleToolbar } from "./features/tunnels/rule-toolbar";
 import { OpenServiceButton } from "./features/tunnels/service-protocol";
+import {
+  OpenProxyBrowserButton,
+  ProxyServiceButtons,
+} from "./features/tunnels/proxy-browser";
 import { RuleActions } from "./features/tunnels/rule-actions";
 import {
   ParameterField,
@@ -119,6 +126,11 @@ import { WorkspaceActions } from "./features/tunnels/workspace-actions";
 import { ImportConfig } from "./features/tunnels/import-config";
 import { ConnectionIcon } from "./features/tunnels/connection-icon";
 import { ConnectionEdge } from "./features/tunnels/connection-edge";
+import {
+  projectCardRuntimes,
+  projectCanvasEdges,
+  type CardRuntime,
+} from "./features/tunnels/canvas-runtime";
 import { LocalPortHandle } from "./features/tunnels/local-port-handle";
 import { LocalAddForward } from "./features/tunnels/local-add-forward";
 import {
@@ -138,10 +150,7 @@ import {
   localCardSize,
   reconcileCanvasNodes,
 } from "./features/tunnels/canvas-state";
-import {
-  connectionPorts,
-  connectionVisual,
-} from "./features/tunnels/connection-visual";
+import { connectionPorts } from "./features/tunnels/connection-visual";
 import {
   emptyHost,
   emptyRule,
@@ -158,6 +167,7 @@ import type { Host, Rule, Runtime, Snapshot, BatchResult } from "./types";
 import i18n from "./i18n";
 import {
   groupRulesByHost,
+  canvasHostGroups,
   groupPositions,
 } from "./features/tunnels/rule-groups";
 
@@ -176,7 +186,14 @@ const initial: Snapshot = {
   autostart: false,
   autostartSupported: false,
 };
-function Status({ runtime }: { runtime?: Runtime }) {
+function Status({
+  runtime,
+}: {
+  runtime?: Pick<
+    Runtime,
+    "status" | "errorKind" | "configurationChanged" | "message"
+  >;
+}) {
   const { t } = useTranslation("tunnel");
   const status = runtimeStatus(runtime);
   return (
@@ -197,8 +214,7 @@ function useSnapshot() {
   const [data, setData] = useState(initial);
   const [error, setError] = useState("");
   const accept = useCallback(
-    (next: Snapshot) =>
-      setData((prev) => (next.revision >= prev.revision ? next : prev)),
+    (next: Snapshot) => setData((prev) => mergeSnapshot(prev, next)),
     [],
   );
   useEffect(() => {
@@ -708,12 +724,19 @@ export function App() {
                   <TunnelCanvas
                     data={data}
                     onAdd={(placement) => newRule("", placement)}
+                    onHostEdit={setHostDraft}
+                    onHostAddForward={(id) => newRule(id)}
                     canAdd={!busy && bridge.desktop}
                     creation={canvasCreation}
                     onCreationPlaced={() => setCanvasCreation(null)}
                     onStart={start}
                     onOpenService={(id) =>
                       void action(() => bridge.openService(id))
+                    }
+                    onOpenProxyBrowser={(id, browser, serviceId) =>
+                      void action(() =>
+                        bridge.openProxyBrowser(id, browser, serviceId),
+                      )
                     }
                     onStop={stop}
                     onDetails={(rule) => setInspecting(rule.id)}
@@ -901,25 +924,62 @@ export function App() {
                                     t("local"),
                                   )}
                                 </small>
-                                <RuleActions
-                                  rule={rule}
-                                  onDetails={(item) => setInspecting(item.id)}
-                                  onEdit={(item) => {
-                                    setRuleSuspended(false);
-                                    setRuleDraft(item);
-                                  }}
-                                  onCopy={copyRule}
-                                  onDelete={(item) => setDeleting([item])}
-                                  serviceActions={
-                                    <ServiceCommandsButton ruleId={rule.id} />
-                                  }
-                                >
-                                  <RunButton
+                                <div className="rule-row-actions">
+                                  <RuleActions
+                                    rule={rule}
+                                    onDetails={(item) => setInspecting(item.id)}
+                                    onEdit={(item) => {
+                                      setRuleSuspended(false);
+                                      setRuleDraft(item);
+                                    }}
+                                    onCopy={copyRule}
+                                    onDelete={(item) => setDeleting([item])}
+                                    serviceActions={
+                                      <>
+                                        {rule.kind !== "D" && (
+                                          <ServiceCommandsButton
+                                            ruleId={rule.id}
+                                          />
+                                        )}
+                                        <OpenProxyBrowserButton
+                                          rule={rule}
+                                          runtime={runtime}
+                                          desktop={bridge.desktop}
+                                          onOpen={(id, browser) =>
+                                            void action(() =>
+                                              bridge.openProxyBrowser(
+                                                id,
+                                                browser,
+                                              ),
+                                            )
+                                          }
+                                        />
+                                      </>
+                                    }
+                                  >
+                                    <RunButton
+                                      runtime={runtime}
+                                      start={() => start(rule.id)}
+                                      stop={() => void stop(rule.id)}
+                                    />
+                                  </RuleActions>
+                                  <ProxyServiceButtons
+                                    rule={rule}
                                     runtime={runtime}
-                                    start={() => start(rule.id)}
-                                    stop={() => void stop(rule.id)}
+                                    services={data.services}
+                                    desktop={bridge.desktop}
+                                    expandable={false}
+                                    onOpen={(id, browser, serviceId) =>
+                                      void action(() =>
+                                        bridge.openProxyBrowser(
+                                          id,
+                                          browser,
+                                          serviceId,
+                                        ),
+                                      )
+                                    }
                                   />
-                                </RuleActions>
+                                </div>
                               </motion.div>
                             );
                           })}
@@ -1777,7 +1837,7 @@ function RunButton({
   start,
   stop,
 }: {
-  runtime?: Runtime;
+  runtime?: Pick<Runtime, "status">;
   start: () => void;
   stop: () => void;
 }) {
@@ -2125,6 +2185,13 @@ function Hosts({
 }
 
 type CardData = {
+  onHostEdit: (host: Host) => void;
+  onHostAddForward: (id: string) => void;
+  onOpenProxyBrowser: (
+    id: string,
+    browser: bridge.ProxyBrowser,
+    serviceId?: string,
+  ) => void;
   onAdd: (placement: PortPlacement) => void;
   canAdd: boolean;
   onOpenService: (id: string) => void;
@@ -2140,7 +2207,8 @@ type CardData = {
   ports: CardPort[];
   rules?: Rule[];
   host?: Host;
-  runtimes?: Runtime[];
+  runtimes?: CardRuntime[];
+  services?: Snapshot["services"];
   count?: number;
   onStart: (id: string) => void;
   onStop: (id: string) => unknown;
@@ -2209,6 +2277,15 @@ function CardPorts({
   });
 }
 function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
+  return <CardContent id={id} data={d} dragging={d.local && dragging} />;
+}
+// React Flow updates node coordinates on every pointer move. Only these props
+// affect the card contents; moving a host must not rebuild all of its menus.
+const CardContent = memo(function CardContent({
+  id,
+  data: d,
+  dragging,
+}: Pick<NodeProps<CardNode>, "id" | "data" | "dragging">) {
   const { t } = useTranslation("tunnel");
   // Opacity only: transforms belong to React Flow and port measurement.
   const entrance = useEntranceMotion(0);
@@ -2226,13 +2303,14 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
   useLayoutEffect(() => {
     updateInternals(id);
   }, [id, portLayout, updateInternals]);
+  const localSize = portDragSize || localCardSize(d.ports);
   if (d.local)
     return (
       <motion.article
         ref={cardRef}
         className="tunnel-card themed-surface local-card"
         {...entrance}
-        style={portDragSize || localCardSize(d.ports)}
+        style={localSize}
         aria-label={`${t("local")} · ${t("forwardCount", { count: d.count || 0 })}`}
       >
         <CardPorts
@@ -2250,6 +2328,7 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
         <span className="local-card-title">{t("local")}</span>
         <LocalAddForward
           card={cardRef}
+          size={localSize}
           disabled={!d.canAdd}
           suspended={!!dragging || !!portDragSize}
           onAdd={d.onAdd}
@@ -2287,11 +2366,38 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
             <span className="source-badge">
               {t("forwardCount", { count: d.rules?.length || 0 })}
             </span>
-            {d.host && <OpenTerminalButton hostId={d.host.id} />}
+            {d.host && (
+              <>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="nodrag nopan"
+                  aria-label={`${t("edit")} ${d.host.name}`}
+                  title={t("edit")}
+                  onClick={() => d.onHostEdit(d.host!)}
+                >
+                  <Settings2Icon />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="nodrag nopan"
+                  aria-label={`${t("createForward")} ${d.host.name}`}
+                  title={t("createForward")}
+                  onClick={() => d.onHostAddForward(d.host!.id)}
+                >
+                  <GitPullRequestCreateArrowIcon />
+                </Button>
+                <OpenTerminalButton hostId={d.host.id} />
+              </>
+            )}
           </div>
         </div>
       </div>
       <>
+        {d.host && <HostServices hostId={d.host.id} />}
         <div className="host-card-rules">
           {d.rules?.map((rule) => {
             const runtime = d.runtimes?.find((item) => item.ruleId === rule.id);
@@ -2368,15 +2474,31 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
                     )}
                   </code>
                   <div className="port-path-actions ml-auto flex shrink-0 items-center gap-1 empty:hidden nodrag nopan">
-                    <ServiceCommandsButton ruleId={rule.id} />
+                    {rule.kind !== "D" && (
+                      <ServiceCommandsButton ruleId={rule.id} />
+                    )}
                     <OpenServiceButton
                       rule={rule}
                       runtime={runtime}
                       desktop={bridge.desktop}
                       onOpen={d.onOpenService}
                     />
+                    <OpenProxyBrowserButton
+                      rule={rule}
+                      runtime={runtime}
+                      desktop={bridge.desktop}
+                      onOpen={d.onOpenProxyBrowser}
+                    />
                   </div>
                 </div>
+                <ProxyServiceButtons
+                  rule={rule}
+                  runtime={runtime}
+                  services={d.services}
+                  desktop={bridge.desktop}
+                  onOpen={d.onOpenProxyBrowser}
+                  expandable
+                />
                 {runtime?.configurationChanged && (
                   <p className="muted">{t("configUpdated")}</p>
                 )}
@@ -2407,16 +2529,60 @@ function Card({ id, data: d, dragging }: NodeProps<CardNode>) {
       </>
     </motion.article>
   );
-}
+});
 const nodeTypes = { card: Card };
 const edgeTypes = { connection: ConnectionEdge };
+const CanvasFlow = memo(ReactFlow<CardNode>);
+const canvasProOptions = { hideAttribution: true };
+const canvasFitOptions = { padding: 0.3, maxZoom: 1 };
+const canvasBackground = <Background gap={24} size={1} />;
+type CardActions = Pick<
+  CardData,
+  | "onHostEdit"
+  | "onHostAddForward"
+  | "onAdd"
+  | "onOpenService"
+  | "onOpenProxyBrowser"
+  | "onStart"
+  | "onStop"
+  | "onEdit"
+  | "onDetails"
+  | "onCopy"
+  | "onDelete"
+>;
+function useCardActions(actions: CardActions) {
+  const latest = useRef(actions);
+  useLayoutEffect(() => {
+    latest.current = actions;
+  });
+  return useMemo<CardActions>(
+    () => ({
+      onHostEdit: (host) => latest.current.onHostEdit(host),
+      onHostAddForward: (id) => latest.current.onHostAddForward(id),
+      onAdd: (placement) => latest.current.onAdd(placement),
+      onOpenService: (id) => latest.current.onOpenService(id),
+      onOpenProxyBrowser: (id, browser, serviceId) =>
+        latest.current.onOpenProxyBrowser(id, browser, serviceId),
+      onStart: (id) => latest.current.onStart(id),
+      onStop: (id) => latest.current.onStop(id),
+      onEdit: (rule) => latest.current.onEdit(rule),
+      onDetails: (rule) => latest.current.onDetails(rule),
+      onCopy: (rule) => latest.current.onCopy(rule),
+      onDelete: (rule) => latest.current.onDelete(rule),
+    }),
+    [],
+  );
+}
 function TunnelCanvas({
   data,
+  onHostEdit,
+  onHostAddForward,
   onAdd,
   canAdd,
   creation,
   onCreationPlaced,
   onOpenService,
+  onOpenProxyBrowser,
   onStart,
   onStop,
   onEdit,
@@ -2427,11 +2593,18 @@ function TunnelCanvas({
   onFocusDone,
 }: {
   data: Snapshot;
+  onHostEdit: (host: Host) => void;
+  onHostAddForward: (id: string) => void;
   onAdd: (placement: PortPlacement) => void;
   canAdd: boolean;
   creation: CanvasCreation | null;
   onCreationPlaced: () => void;
   onOpenService: (id: string) => void;
+  onOpenProxyBrowser: (
+    id: string,
+    browser: bridge.ProxyBrowser,
+    serviceId?: string,
+  ) => void;
   onStart: (id: string) => void;
   onStop: (id: string) => unknown;
   onEdit: (rule: Rule) => void;
@@ -2444,6 +2617,19 @@ function TunnelCanvas({
   const { t } = useTranslation("tunnel");
   const flow = useReactFlow<CardNode>();
   const nodesReady = useNodesInitialized();
+  const cardActions = useCardActions({
+    onHostEdit,
+    onHostAddForward,
+    onAdd,
+    onOpenService,
+    onOpenProxyBrowser,
+    onStart,
+    onStop,
+    onEdit,
+    onDetails,
+    onCopy,
+    onDelete,
+  });
   useEffect(() => {
     if (
       !creation &&
@@ -2561,7 +2747,7 @@ function TunnelCanvas({
     [],
   );
   const projectedNodes = useMemo<CardNode[]>(() => {
-    const groups = groupRulesByHost(data.rules, data.hosts);
+    const groups = canvasHostGroups(data.rules, addedHosts(data));
     const layout = groupPositions(groups, renderPositions);
     const localPorts: CardPort[] = [];
     const hostPorts: Record<string, CardPort[]> = {};
@@ -2601,18 +2787,11 @@ function TunnelCanvas({
         position: renderPositions.local || { x: 0, y: 0 },
         data: {
           local: true,
-          onAdd,
+          ...cardActions,
           canAdd,
           onPortMove,
-          onOpenService,
-          onDetails,
-          onCopy,
-          onDelete,
           ports: localPorts,
           count: data.rules.length,
-          onStart,
-          onStop,
-          onEdit,
         },
       },
       ...groups.map((group) => ({
@@ -2621,62 +2800,123 @@ function TunnelCanvas({
         position: layout[group.id],
         data: {
           local: false,
-          onAdd,
+          ...cardActions,
           canAdd,
           onPortMove,
-          onOpenService,
-          onDetails,
-          onCopy,
-          onDelete,
           ports: hostPorts[group.id],
           rules: group.rules,
           host: group.host,
-          runtimes: data.runtimes,
-          onStart,
-          onStop,
-          onEdit,
+          services: data.services,
         },
       })),
     ];
   }, [
-    data,
-    onAdd,
+    data.rules,
+    data.hosts,
+    data.addedHostIds,
+    data.services,
+    cardActions,
     canAdd,
     renderPositions,
     renderPlacements,
     onPortMove,
-    onOpenService,
-    onStart,
-    onStop,
-    onEdit,
-    onDetails,
-    onCopy,
-    onDelete,
   ]);
-  const [nodes, setNodes] = useState<CardNode[]>(projectedNodes);
+  const previousRuntimes = useRef<CardRuntime[]>([]);
+  const cardRuntimes = useMemo(
+    () => projectCardRuntimes(data.runtimes, previousRuntimes.current),
+    [data.runtimes],
+  );
+  const runtimeByRule = useMemo(
+    () => new Map(cardRuntimes.map((runtime) => [runtime.ruleId, runtime])),
+    [cardRuntimes],
+  );
   useLayoutEffect(() => {
-    setNodes((current) => reconcileCanvasNodes(current, projectedNodes));
-  }, [projectedNodes]);
-  const edges = useMemo<Edge[]>(
+    previousRuntimes.current = cardRuntimes;
+  }, [cardRuntimes]);
+  const liveNodes = useMemo(
     () =>
-      data.rules.map((rule) => {
-        const runtime = data.runtimes.find((r) => r.ruleId === rule.id);
-        const hostId = `host:${rule.hostId}`;
-        const visual = connectionVisual(rule, runtime);
-        return {
-          id: rule.id,
-          source: rule.kind === "R" ? hostId : "local",
-          target: rule.kind === "R" ? "local" : hostId,
-          sourceHandle: canvasPortId(rule.id, "source"),
-          targetHandle: canvasPortId(rule.id, "target"),
-          type: "connection",
-          data: { state: visual.state },
-          markerEnd: { type: MarkerType.ArrowClosed, color: visual.color },
-          className: `connection-edge connection-${visual.state}`,
-          style: { strokeWidth: 1.5, stroke: visual.color },
-        };
-      }),
-    [data.rules, data.runtimes],
+      projectedNodes.map((node) =>
+        node.data.local
+          ? node
+          : {
+              ...node,
+              data: {
+                ...node.data,
+                runtimes: (node.data.rules || []).flatMap((rule) => {
+                  const runtime = runtimeByRule.get(rule.id);
+                  return runtime ? [runtime] : [];
+                }),
+              },
+            },
+      ),
+    [projectedNodes, runtimeByRule],
+  );
+  const [nodes, setNodes] = useState<CardNode[]>(liveNodes);
+  useLayoutEffect(() => {
+    setNodes((current) => reconcileCanvasNodes(current, liveNodes));
+  }, [liveNodes]);
+  const previousEdges = useRef<Edge[]>([]);
+  const edges = useMemo(
+    () => projectCanvasEdges(data.rules, runtimeByRule, previousEdges.current),
+    [data.rules, runtimeByRule],
+  );
+  useLayoutEffect(() => {
+    previousEdges.current = edges;
+  }, [edges]);
+  const onMoveEnd = useCallback((_: unknown, viewport: Viewport) => {
+    try {
+      localStorage.setItem("oria-tunnel-viewport", JSON.stringify(viewport));
+    } catch (error) {
+      console.error("Unable to save canvas viewport", error);
+    }
+  }, []);
+  const onNodesChange = useCallback(
+    (changes: NodeChange<CardNode>[]) => {
+      setNodes((current) => applyNodeChanges(changes, current));
+      if (
+        changes.some(
+          (change) =>
+            change.type === "position" && change.position && !change.dragging,
+        )
+      ) {
+        const next = canvasLayout(
+          applyNodeChanges(changes, flow.getNodes()),
+          positions,
+        );
+        setPositions(next);
+        try {
+          localStorage.setItem("oria-tunnel-layout", JSON.stringify(next));
+        } catch (error) {
+          console.error("Unable to save canvas layout", error);
+        }
+      }
+    },
+    [flow, positions],
+  );
+  const onNodeDoubleClick = useCallback(
+    (_: unknown, node: CardNode) => {
+      void flow.fitView({
+        nodes: [{ id: node.id }],
+        padding: 0.5,
+        duration: 200,
+        maxZoom: 1,
+      });
+    },
+    [flow],
+  );
+  const onEdgeClick = useCallback(
+    (_: unknown, edge: Edge) => {
+      const rule = data.rules.find((rule) => rule.id === edge.id);
+      if (rule) cardActions.onEdit(rule);
+    },
+    [data.rules, cardActions],
+  );
+  const onCanvasDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      if ((event.target as HTMLElement).classList.contains("react-flow__pane"))
+        void flow.fitView({ padding: 0.25, duration: 200, maxZoom: 1 });
+    },
+    [flow],
   );
   return (
     <div className="canvas">
@@ -2687,76 +2927,28 @@ function TunnelCanvas({
         </div>
       )}
       <div className="canvas-mask">
-        <ReactFlow<CardNode>
+        <CanvasFlow
           nodes={nodes}
           defaultViewport={initialViewport}
-          onMoveEnd={(_, viewport) => {
-            try {
-              localStorage.setItem(
-                "oria-tunnel-viewport",
-                JSON.stringify(viewport),
-              );
-            } catch (error) {
-              console.error("Unable to save canvas viewport", error);
-            }
-          }}
+          onMoveEnd={onMoveEnd}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onNodesChange={(changes) => {
-            setNodes((current) => applyNodeChanges(changes, current));
-            if (
-              changes.some(
-                (change) =>
-                  change.type === "position" &&
-                  change.position &&
-                  !change.dragging,
-              )
-            ) {
-              const next = canvasLayout(
-                applyNodeChanges(changes, flow.getNodes()),
-                positions,
-              );
-              setPositions(next);
-              try {
-                localStorage.setItem(
-                  "oria-tunnel-layout",
-                  JSON.stringify(next),
-                );
-              } catch (error) {
-                console.error("Unable to save canvas layout", error);
-              }
-            }
-          }}
-          onNodeDoubleClick={(_, node) =>
-            void flow.fitView({
-              nodes: [{ id: node.id }],
-              padding: 0.5,
-              duration: 200,
-              maxZoom: 1,
-            })
-          }
-          onEdgeClick={(_, edge) => {
-            const rule = data.rules.find((r) => r.id === edge.id);
-            if (rule) onEdit(rule);
-          }}
+          onNodesChange={onNodesChange}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onEdgeClick={onEdgeClick}
           zoomOnDoubleClick={false}
-          onDoubleClick={(e) => {
-            if (
-              (e.target as HTMLElement).classList.contains("react-flow__pane")
-            )
-              void flow.fitView({ padding: 0.25, duration: 200, maxZoom: 1 });
-          }}
+          onDoubleClick={onCanvasDoubleClick}
           nodesConnectable={false}
-          proOptions={{ hideAttribution: true }}
+          proOptions={canvasProOptions}
           deleteKeyCode={null}
           minZoom={0.2}
           maxZoom={2}
           fitView={!initialViewport}
-          fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+          fitViewOptions={canvasFitOptions}
         >
-          <Background gap={24} size={1} />
-        </ReactFlow>
+          {canvasBackground}
+        </CanvasFlow>
       </div>
       <div className="canvas-controls overlay">
         <Button

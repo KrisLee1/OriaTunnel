@@ -33,6 +33,7 @@ import {
   ServiceEditor,
   ServicesPage,
   PresetCommandProvider,
+  HostServices,
 } from "./preset-commands";
 import { RuleEditor } from "@/features/tunnels/rule-editor";
 import { emptyHost, emptyRule } from "@/features/tunnels/rule-model";
@@ -102,6 +103,66 @@ function base(resource: string): ServiceTemplate {
   };
 }
 describe("service configuration", () => {
+  it("keeps host services icon-only with scroll area, disclosure and a separate Boxes manager", () => {
+    const html = renderToStaticMarkup(
+      <PresetCommandProvider
+        data={{
+          ...snapshot,
+          services: [service, { ...service, id: "second" }],
+        }}
+        onSnapshot={() => {}}
+      >
+        <HostServices hostId="host" />
+      </PresetCommandProvider>,
+    );
+    expect(html).toContain("host-service-scroll");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain("aria-controls=");
+    expect(html).toContain("lucide-boxes");
+    expect(html.indexOf("service-command-icons")).toBeLessThan(
+      html.indexOf("host-service-tools"),
+    );
+    expect(html.indexOf("host-service-tools")).toBeLessThan(
+      html.indexOf("lucide-boxes"),
+    );
+    expect(html).not.toContain('class="service-name-text"');
+  });
+  it("renders host groups, repeats shared definitions and isolates unassigned services", () => {
+    const shared = { ...service, hostIds: ["second", "host"] };
+    const html = renderToStaticMarkup(
+      <PresetCommandProvider
+        data={{
+          ...snapshot,
+          hosts: [host, { ...host, id: "second", name: "second-host" }],
+          services: [
+            shared,
+            {
+              ...service,
+              id: "unbound",
+              name: "unbound-service",
+              hostIds: [],
+              ruleIds: [],
+            },
+          ],
+        }}
+        onSnapshot={() => {}}
+        page
+      >
+        <ServicesPage />
+      </PresetCommandProvider>,
+    );
+    const headings = [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map(
+      (match) => match[1],
+    );
+    expect(headings.findIndex((h) => h.includes("fixture"))).toBeLessThan(
+      headings.findIndex((h) => h.includes("second-host")),
+    );
+    expect(headings.at(-1)).toContain(
+      i18n.t("unassignedHost", { ns: "commands" }),
+    );
+    expect(html.match(/title="Model service"/g)).toHaveLength(2);
+    expect(html.match(/title="unbound-service"/g)).toHaveLength(1);
+  });
   it("keeps disabled state beside the service name, uses forwarding selection placement and direct permission actions", () => {
     const disabled = { ...service, executionEnabled: false };
     const html = renderToStaticMarkup(
@@ -263,7 +324,10 @@ describe("service configuration", () => {
         ...result.actions[0].invocation!,
         executable: stub.replaceAll("\\", "/"),
       };
-      const args = execFileSync(posixShell, ["-c", renderInvocation(invocation)])
+      const args = execFileSync(posixShell, [
+        "-c",
+        renderInvocation(invocation),
+      ])
         .toString()
         .split("\0")
         .slice(0, -1);
@@ -521,7 +585,9 @@ describe("service configuration", () => {
       for (const action of result.actions) {
         // Parse each action in its own function body in one syntax-only shell.
         // Starting hundreds of MSYS processes blocks Vitest's worker on Windows.
-        scripts.push(`oria_template_${scripts.length}() {\n${action.command}\n}`);
+        scripts.push(
+          `oria_template_${scripts.length}() {\n${action.command}\n}`,
+        );
         if (action.invocation)
           expect(action.command).toBe(renderInvocation(action.invocation));
       }

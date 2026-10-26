@@ -278,5 +278,9 @@
     "unlimited": "不限時"
   },
   "copyService": "從此服務新增",
-  "terminalTimeout": "逾時（秒，0 為不限時）"
+  "terminalTimeout": "逾時（秒，0 為不限時）",
+  "servicePort": "服務連接埠",
+  "unassignedHost": "未關聯主機",
+  "expandServices": "展開服務",
+  "collapseServices": "收合服務"
 }

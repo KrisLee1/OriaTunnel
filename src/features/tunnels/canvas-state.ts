@@ -37,19 +37,48 @@ export function reconcileCanvasNodes<T extends Node>(
   incoming: T[],
 ): T[] {
   const previous = new Map(current.map((node) => [node.id, node]));
-  return incoming.map((node) => {
+  const next = incoming.map((node) => {
     const old = previous.get(node.id);
     if (!old) return node;
-    return {
+    const keys = Object.keys(node.data);
+    const data =
+      keys.length === Object.keys(old.data).length &&
+      keys.every((key) => {
+        const before = old.data[key],
+          after = node.data[key];
+        return (
+          before === after ||
+          (Array.isArray(before) &&
+            Array.isArray(after) &&
+            before.length === after.length &&
+            before.every((value, index) => value === after[index]))
+        );
+      })
+        ? old.data
+        : node.data;
+    const merged = {
       ...old,
       ...node,
+      data,
       position: old.dragging ? old.position : node.position,
       measured: old.measured,
       selected: old.selected,
       dragging: old.dragging,
       resizing: old.resizing,
     };
+    return Object.keys(merged).every((key) =>
+      key === "position"
+        ? old.position.x === merged.position.x &&
+          old.position.y === merged.position.y
+        : old[key as keyof T] === merged[key as keyof T],
+    )
+      ? old
+      : merged;
   });
+  return next.length === current.length &&
+    next.every((node, index) => node === current[index])
+    ? current
+    : next;
 }
 
 // Moving a handle to the other side must not change its identity: the existing

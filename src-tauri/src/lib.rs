@@ -13,6 +13,7 @@ mod long_running;
 mod macos_material;
 pub mod model;
 mod native_message;
+mod proxy_browser;
 mod service;
 pub mod service_control;
 pub mod service_templates;
@@ -132,6 +133,7 @@ pub fn run() {
             app::terminal_api::detach_terminal,
             app::terminal_api::forget_terminal,
             app::command_api::save_service_profile,
+            app::command_api::set_host_services,
             app::command_api::set_service_execution,
             app::command_api::preview_service_template,
             app::command_api::delete_service_profile,
@@ -159,6 +161,7 @@ pub fn run() {
             app::add_discovered_hosts,
             app::save_rule,
             app::open_service,
+            app::open_proxy_browser,
             app::start_rule,
             app::password_status,
             app::clear_password,

@@ -87,10 +87,12 @@ async fn launch(
             .clone();
         service.validate()?;
         service.require_execution()?;
-        let target = service.target_rule(&snapshot, request.rule_id.as_deref())?;
-        if target.map(|r| r.host_id.as_str()).ok_or("serviceUnbound")? != host.id
-            || Some(&service.revision) != request.revision.as_ref()
-        {
+        let (_, target) = service.execution_target(
+            &snapshot,
+            request.rule_id.as_deref(),
+            Some(&request.host_id),
+        )?;
+        if target.id != host.id || Some(&service.revision) != request.revision.as_ref() {
             return Err("staleAction".into());
         }
         let action = service
@@ -156,8 +158,12 @@ async fn launch(
         rule_id: profile
             .as_ref()
             .map(|(s, _)| {
-                s.target_rule(&snapshot, request.rule_id.as_deref())
-                    .map(|r| r.map(|r| r.id.clone()))
+                s.execution_target(
+                    &snapshot,
+                    request.rule_id.as_deref(),
+                    Some(&request.host_id),
+                )
+                .map(|(r, _)| r.map(|r| r.id.clone()))
             })
             .transpose()?
             .flatten(),
@@ -227,8 +233,12 @@ async fn launch(
     let frozen_rule = profile
         .as_ref()
         .map(|(s, _)| {
-            s.target_rule(&snapshot, request.rule_id.as_deref())
-                .map(|r| r.cloned())
+            s.execution_target(
+                &snapshot,
+                request.rule_id.as_deref(),
+                Some(&request.host_id),
+            )
+            .map(|(r, _)| r.cloned())
         })
         .transpose()?
         .flatten();

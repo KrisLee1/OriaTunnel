@@ -58,8 +58,13 @@
 | 主机列表与分组       | `src/features/hosts/host-groups.tsx`                                                                     | 两行名称/状态及端点/认证方式；状态使用 Rust 分类与色调，右侧详情/编辑/从此主机添加/终端/删除/测试，详情由 App 的业务 Modal 展示。标签/认证方式/持久状态分组，原生键盘折叠                                                                                                       |
 | 跳板路线             | `src/features/hosts/jump-route-editor.tsx`                                                               | 有序稳定主机引用、最多 8 跳；标题右侧添加，逐行选择与移除                                                                                                                                                                                                     |
 | 连接主机分组         | `src/features/tunnels/rule-groups.ts`                                                                    | 列表与连接图共用稳定主机身份分组；同主机 L/R/D 独立状态、连线与操作，主机布局                                                                                                                                                                                 |
+| 服务图标滚动区 | `src/features/commands/service-icon-strip.tsx` | 主机与 D 服务共用：单行横向滚动、实际溢出边缘渐隐、可选高度弹簧展开、右侧操作插槽，支持减少动态效果与高对比模式；不参与卡片固有宽度 |
 | 服务脚本审核         | `src/features/commands/service-review.tsx`                                                               | 导入/导出/启用共用，可展开命令、标签化参数、检查设置与可见隐藏字符；启用以主按钮确认，无附加勾选                                                                                                                                                              |
 | 服务模板草稿         | `src/features/commands/service-template.tsx`                                                             | 固定三列的完整模板分类/搜索，systemd 托管单独分组、保持服务实际分类；direct-service-templates.ts 构建原生命令草稿，独立 systemd 配方调用 Rust 预览；整体填入名称/分类/外观/命令/检查，不执行命令                                                                                                                                                              |
 | 配置包导出           | `src/features/tunnels/config-export.tsx`                                                                 | 转发导出默认排除服务、可切换附加；服务页显式选择后直接列出定义；紧凑数量摘要/可展开详情，保持原文件导出边界                                                                                                                                                   |
 
 连接图、主机页及主机编辑仍为 `src/App.tsx` 的领域组合；`src/features/tunnels/canvas-state.ts` 负责节点测量/交互状态合并与布局坐标保存，不属于公共组件 API。
+
+`src/features/tunnels/proxy-browser.tsx` 的 `OpenProxyBrowserButton` 由连接图和转发列表共用：仅 D 转发显示，复用 Button/DropdownMenu 选择 Edge/Chrome/Firefox，附 16px 本地彩色浏览器标识，以 Rust 监听状态及配置变化约束可用性，通过专用 IPC 打开独立 SOCKS5 浏览器。
+
+主机服务组合由 `src/features/commands/preset-commands.tsx` 的 HostServices/ServiceCommandsButton 负责：信息下方图标区复用 ScrollArea，支持横向滚动与展开换行，Boxes 管理按钮固定右侧；`service-picker.tsx` 提供主机关联服务与服务关联主机的选择器，转发限定为当前主机的服务（L/R 单选，D 多选）。

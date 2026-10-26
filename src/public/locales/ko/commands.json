@@ -278,5 +278,9 @@
     "unlimited": "무제한"
   },
   "copyService": "이 서비스에서 새로 만들기",
-  "terminalTimeout": "제한 시간 (초, 0 = 무제한)"
+  "terminalTimeout": "제한 시간 (초, 0 = 무제한)",
+  "servicePort": "서비스 포트",
+  "unassignedHost": "연결된 호스트 없음",
+  "expandServices": "서비스 펼치기",
+  "collapseServices": "서비스 접기"
 }

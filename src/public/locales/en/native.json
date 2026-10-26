@@ -201,5 +201,9 @@
   "iconWindowsUpdate": "Cannot update the Windows application icon: {{error}}",
   "windowAppearanceInvalid": "Invalid window appearance",
   "externalLinkInvalid": "The external link is invalid",
-  "iconPersist": "Could not persist the application icon. Make sure the application location is writable and try again."
+  "iconPersist": "Could not persist the application icon. Make sure the application location is writable and try again.",
+  "proxyBrowserDynamic": "Select a listening D forward",
+  "proxyBrowserMissing": "{{browser}} was not found. Install the browser first",
+  "proxyBrowserFailed": "Cannot launch the proxy browser. Check access to the application data directory",
+  "proxyBrowserPlatform": "Proxy browser is currently supported on Windows and macOS"
 }

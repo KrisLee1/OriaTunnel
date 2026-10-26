@@ -278,5 +278,9 @@
     "unlimited": "不限时"
   },
   "copyService": "从此服务新建",
-  "terminalTimeout": "超时（秒，0 为不限时）"
+  "terminalTimeout": "超时（秒，0 为不限时）",
+  "servicePort": "服务端口",
+  "unassignedHost": "未关联主机",
+  "expandServices": "展开服务",
+  "collapseServices": "收起服务"
 }

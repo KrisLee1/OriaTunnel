@@ -45,6 +45,8 @@ fn service() -> Service {
         category: None,
         color: None,
         icon: None,
+        port: Some(3000),
+        host_ids: vec!["execution".into()],
         id: "service".into(),
         name: "Model".into(),
         execution_host_id: "execution".into(),

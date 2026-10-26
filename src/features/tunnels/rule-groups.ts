@@ -25,6 +25,14 @@ export function groupRulesByHost(rules: Rule[], hosts: Host[]): RuleGroup[] {
   return [...groups.values()];
 }
 
+export function canvasHostGroups(rules: Rule[], hosts: Host[]): RuleGroup[] {
+  const groups = groupRulesByHost(rules, hosts);
+  for (const host of hosts)
+    if (!groups.some((group) => group.host?.id === host.id))
+      groups.push({ id: `host:${host.id}`, host, rules: [] });
+  return groups;
+}
+
 type Point = { x: number; y: number };
 export function groupPositions(
   groups: RuleGroup[],
@@ -34,9 +42,10 @@ export function groupPositions(
   const bottom = { left: local.y, right: local.y };
   return Object.fromEntries(
     groups.map((group) => {
-      const side = group.rules.every((rule) => rule.kind === "R")
-        ? "left"
-        : "right";
+      const side =
+        group.rules.length && group.rules.every((rule) => rule.kind === "R")
+          ? "left"
+          : "right";
       const position = saved[group.id] || {
         x: local.x + (side === "left" ? -480 : 480),
         y: bottom[side],

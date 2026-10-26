@@ -1,8 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { emptyHost, emptyRule } from "./rule-model";
-import { groupRulesByHost, groupPositions } from "./rule-groups";
+import {
+  groupRulesByHost,
+  canvasHostGroups,
+  groupPositions,
+} from "./rule-groups";
 
 describe("connections grouped by SSH profile", () => {
+  it("shows added hosts without forwards and creates no synthetic rules or edges", () => {
+    const host = { ...emptyHost(), id: "unbound" };
+    const groups = canvasHostGroups([], [host]);
+    expect(groups).toEqual([{ id: "host:unbound", host, rules: [] }]);
+    expect(groupPositions(groups, {})["host:unbound"].x).toBe(480);
+  });
   const hosts = ["a", "b"].map((id) => ({
     ...emptyHost(),
     id,

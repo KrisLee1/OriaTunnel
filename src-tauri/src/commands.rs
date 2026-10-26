@@ -139,6 +139,8 @@ pub struct Action {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Service {
+    #[serde(default)]
+    pub port: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     #[serde(default)]
@@ -150,6 +152,8 @@ pub struct Service {
     // Read compatibility only; execution targets always come from a referencing forward.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub execution_host_id: String,
+    #[serde(default)]
+    pub host_ids: Vec<String>,
     pub rule_ids: Vec<String>,
     pub revision: String,
     pub no_local_environment: bool,
@@ -163,6 +167,35 @@ fn enabled_by_default() -> bool {
     true
 }
 impl Service {
+    pub fn execution_target<'a>(
+        &self,
+        snapshot: &'a crate::model::Snapshot,
+        rule_id: Option<&str>,
+        host_id: Option<&str>,
+    ) -> Result<(Option<&'a crate::model::Rule>, &'a crate::model::Host), String> {
+        let rule = if rule_id.is_some() {
+            self.target_rule(snapshot, rule_id)?
+        } else {
+            None
+        };
+        let host_id = match (rule, host_id) {
+            (Some(rule), Some(host)) if rule.host_id != host => {
+                return Err("serviceTargetRequired".into())
+            }
+            (Some(rule), _) => rule.host_id.as_str(),
+            (None, Some(host)) => host,
+            (None, None) => return Err("serviceTargetRequired".into()),
+        };
+        if !self.host_ids.iter().any(|id| id == host_id) {
+            return Err("serviceUnbound".into());
+        }
+        let host = snapshot
+            .hosts
+            .iter()
+            .find(|host| host.id == host_id && snapshot.added_host_ids.contains(&host.id))
+            .ok_or("hostMissing")?;
+        Ok((rule, host))
+    }
     pub fn target_rule<'a>(
         &self,
         snapshot: &'a crate::model::Snapshot,
@@ -220,6 +253,14 @@ impl Service {
             || (self.actions.is_empty() && self.control.health_probe.is_none())
             || self.actions.len() > 32
             || self.rule_ids.len() > 256
+            || self.host_ids.len() > 500
+            || self.port == Some(0)
+            || self
+                .host_ids
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != self.host_ids.len()
         {
             return Err("invalidService".into());
         }
@@ -694,6 +735,39 @@ pub async fn execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direct_execution_requires_an_associated_added_host_and_never_a_fabricated_forward() {
+        let service: Service = serde_json::from_value(serde_json::json!({"id":"s","name":"fixture","hostIds":["h"],"ruleIds":[],"revision":"v1","noLocalEnvironment":true,"actions":[{"id":"a","kind":"status","label":"status","command":"true","timeoutSecs":1,"successCodes":[0],"confirm":false}]})).unwrap();
+        let snapshot = crate::model::Snapshot {
+            hosts: vec![
+                crate::model::Host {
+                    id: "h".into(),
+                    ..Default::default()
+                },
+                crate::model::Host {
+                    id: "other".into(),
+                    ..Default::default()
+                },
+            ],
+            added_host_ids: vec!["h".into(), "other".into()],
+            ..Default::default()
+        };
+        let (rule, host) = service
+            .execution_target(&snapshot, None, Some("h"))
+            .unwrap();
+        assert!(rule.is_none());
+        assert_eq!(host.id, "h");
+        assert!(service
+            .execution_target(&snapshot, None, Some("other"))
+            .is_err());
+        assert!(service.execution_target(&snapshot, None, None).is_err());
+        assert!(service
+            .execution_target(&snapshot, Some("missing"), Some("h"))
+            .is_err());
+        let mut removed = snapshot;
+        removed.added_host_ids.clear();
+        assert!(service.execution_target(&removed, None, Some("h")).is_err());
+    }
     fn run(id: &str) -> Run {
         Run {
             id: id.into(),
@@ -1025,6 +1099,8 @@ mod tests {
     #[test]
     fn service_validation_rejects_unbounded_and_ambiguous_actions() {
         let mut s = Service {
+            host_ids: vec![],
+            port: None,
             category: None,
             color: None,
             icon: None,

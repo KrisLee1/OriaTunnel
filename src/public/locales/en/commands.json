@@ -288,5 +288,9 @@
   "serviceCount_one": "{{count}} service",
   "serviceCount_other": "{{count}} services",
   "commandCount_one": "{{count}} command",
-  "commandCount_other": "{{count}} commands"
+  "commandCount_other": "{{count}} commands",
+  "servicePort": "Service port",
+  "unassignedHost": "No host assigned",
+  "expandServices": "Expand services",
+  "collapseServices": "Collapse services"
 }

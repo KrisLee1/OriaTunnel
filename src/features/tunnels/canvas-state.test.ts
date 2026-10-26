@@ -14,6 +14,53 @@ const initial = (): Node[] => [
   { id: "host:a", position: { x: 480, y: 0 }, data: { sent: 0 } },
 ];
 describe("canvas state across dragging and runtime snapshots", () => {
+  it("retains the entire node collection when no rendered fact or geometry changed", () => {
+    const nodes = initial();
+    expect(reconcileCanvasNodes(nodes, structuredClone(nodes))).toBe(nodes);
+    expect(reconcileCanvasNodes([], [])).toEqual([]);
+  });
+  it("keeps local and unrelated host nodes intact while another host receives live metrics", () => {
+    const callback = () => {};
+    const a = { sent: 0 },
+      b = { sent: 0 };
+    let nodes: Node[] = [
+      {
+        id: "local",
+        position: { x: 0, y: 0 },
+        data: { onStart: callback, ports: [] },
+      },
+      {
+        id: "host:a",
+        position: { x: 480, y: 0 },
+        data: { onStart: callback, runtimes: [a] },
+      },
+      {
+        id: "host:b",
+        position: { x: 480, y: 300 },
+        data: { onStart: callback, runtimes: [b] },
+      },
+    ];
+    const local = nodes[0],
+      other = nodes[2];
+    for (let frame = 1; frame <= 60; frame++) {
+      const incoming = nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        data: {
+          ...node.data,
+          ...(node.id === "host:a"
+            ? { runtimes: [{ sent: frame }] }
+            : node.id === "host:b"
+              ? { runtimes: [b] }
+              : { ports: [] }),
+        },
+      }));
+      nodes = reconcileCanvasNodes(nodes, incoming);
+      expect(nodes[0]).toBe(local);
+      expect(nodes[2]).toBe(other);
+      expect((nodes[1].data.runtimes as (typeof a)[])[0].sent).toBe(frame);
+    }
+  });
   it("routes local endpoints to all four sides and reserves space for their labels", () => {
     const local = { x: 100, y: 100 };
     expect(localPortSide(local, { x: 600, y: 150 })).toBe(Position.Right);

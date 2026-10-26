@@ -288,5 +288,9 @@
   "serviceCount_one": "{{count}} Dienst",
   "serviceCount_other": "{{count}} Dienste",
   "commandCount_one": "{{count}} Befehl",
-  "commandCount_other": "{{count}} Befehle"
+  "commandCount_other": "{{count}} Befehle",
+  "servicePort": "Dienst-Port",
+  "unassignedHost": "Keinem Host zugeordnet",
+  "expandServices": "Dienste aufklappen",
+  "collapseServices": "Dienste einklappen"
 }

@@ -40,7 +40,7 @@ export function ServiceProtocolPicker({
 
 export function serviceUnavailableReason(
   rule: Rule,
-  runtime?: Runtime,
+  runtime?: Pick<Runtime, "status" | "configurationChanged">,
 ): string | null {
   if (!rule.serviceProtocol) return "serviceSelectProtocol";
   if (rule.kind === "D") return "serviceDynamic";
@@ -61,7 +61,7 @@ export function OpenServiceButton({
   onOpen,
 }: {
   rule: Rule;
-  runtime?: Runtime;
+  runtime?: Pick<Runtime, "status" | "configurationChanged">;
   desktop: boolean;
   onOpen: (id: string) => void;
 }) {
@@ -71,7 +71,10 @@ export function OpenServiceButton({
     ? serviceUnavailableReason(rule, runtime)
     : "serviceDesktopOnly";
   return (
-    <span className="service-open-action nodrag nopan inline-flex" title={t(reason || "openService")}>
+    <span
+      className="service-open-action nodrag nopan inline-flex"
+      title={t(reason || "openService")}
+    >
       <Button
         type="button"
         variant="ghost"

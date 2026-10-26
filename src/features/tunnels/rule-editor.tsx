@@ -125,6 +125,14 @@ export function RuleEditor({
     services.filter((s) => s.ruleIds.includes(draft.id)).map((s) => s.id),
   );
   const serviceIds = selectedServiceIds ?? localServiceIds;
+  const availableServices = services.filter((s) =>
+    (s.hostIds || []).includes(draft.hostId),
+  );
+  const chosenServices = availableServices.filter((s) =>
+    serviceIds.includes(s.id),
+  );
+  const chosenService = draft.kind === "D" ? undefined : chosenServices[0];
+  const linkedPort = chosenService?.port;
   const setServiceIds = onServicesChange ?? setLocalServiceIds;
   const save = (launch: boolean) =>
     onSave(
@@ -132,7 +140,10 @@ export function RuleEditor({
       services.map((s) => ({
         id: s.id,
         revision: s.revision,
-        selected: serviceIds.includes(s.id),
+        selected:
+          availableServices.includes(s) &&
+          serviceIds.includes(s.id) &&
+          (draft.kind === "D" || s.id === chosenService?.id),
       })),
     );
   const eligible = selected && !selected.diagnostics.length;
@@ -188,24 +199,6 @@ export function RuleEditor({
           {formatNativeMessage(d)}
         </p>
       ))}
-      <ServicePicker
-        services={services}
-        value={serviceIds}
-        onChange={setServiceIds}
-        disabled={busy}
-        actions={
-          onManageServices && (
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              onClick={onManageServices}
-            >
-              {t("manageServices", { ns: "commands" })}
-            </Button>
-          )
-        }
-      />
       <Field label={t("forwardType")}>
         <Select
           items={[
@@ -233,6 +226,26 @@ export function RuleEditor({
         </Select>
       </Field>
       <p className="muted form-hint">{t(`example${draft.kind}`)}</p>
+      <ServicePicker
+        services={availableServices}
+        single={draft.kind !== "D"}
+        value={serviceIds}
+        onChange={setServiceIds}
+        disabled={busy}
+        actions={
+          onManageServices && (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={onManageServices}
+            >
+              {t("manageServices", { ns: "commands" })}
+            </Button>
+          )
+        }
+      />
+      {chosenService && <p className="muted">{t("servicePortLinked")}</p>}
       <ServiceProtocolPicker
         value={draft.serviceProtocol}
         disabled={draft.kind === "D"}
@@ -254,7 +267,12 @@ export function RuleEditor({
             min={1}
             max={65535}
             required
-            value={draft.bindPort || ""}
+            value={
+              (draft.kind === "R" && chosenService
+                ? linkedPort
+                : draft.bindPort) || ""
+            }
+            readOnly={draft.kind === "R" && !!chosenService}
             onChange={(e) => change({ bindPort: Number(e.target.value) })}
           />
         </Field>
@@ -278,7 +296,12 @@ export function RuleEditor({
               min={1}
               max={65535}
               required
-              value={draft.targetPort || ""}
+              value={
+                (draft.kind === "L" && chosenService
+                  ? linkedPort
+                  : draft.targetPort) || ""
+              }
+              readOnly={draft.kind === "L" && !!chosenService}
               onChange={(e) => change({ targetPort: Number(e.target.value) })}
             />
           </Field>

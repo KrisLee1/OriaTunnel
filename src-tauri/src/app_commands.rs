@@ -29,9 +29,97 @@ pub struct ServiceLink {
     pub selected: bool,
 }
 // Mutate only the caller's cloned config; persistence of the forward and links is atomic.
+#[tauri::command]
+pub async fn set_host_services(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    host_id: String,
+    links: Vec<ServiceLink>,
+) -> Result<Snapshot, String> {
+    local(&window)?;
+    let _launch = state.workers.lock().await;
+    state.allow_launch()?;
+    assign_host_services(&state, &host_id, &links)?;
+    state.publish(&app);
+    Ok(state.snapshot())
+}
+
+fn assign_host_services(
+    state: &AppState,
+    host_id: &str,
+    links: &[ServiceLink],
+) -> Result<(), String> {
+    if links.len() > 256 {
+        return Err("invalidService".into());
+    }
+    let snapshot = state.snapshot();
+    if !snapshot.added_host_ids.iter().any(|id| id == host_id) {
+        return Err("hostMissing".into());
+    }
+    let mut config = state.config.lock().unwrap();
+    let mut next = config.clone();
+    let mut ids = BTreeSet::new();
+    for link in links {
+        if !ids.insert(&link.id) {
+            return Err("invalidService".into());
+        }
+        let service = next
+            .services
+            .iter()
+            .find(|s| s.id == link.id)
+            .ok_or("serviceMissing")?;
+        if service.revision != link.revision {
+            return Err("staleAction".into());
+        }
+    }
+    if next
+        .services
+        .iter()
+        .any(|s| s.host_ids.iter().any(|id| id == host_id) && !ids.contains(&s.id))
+    {
+        return Err("staleAction".into());
+    }
+    for link in links {
+        let service = next.services.iter_mut().find(|s| s.id == link.id).unwrap();
+        if service.host_ids.iter().any(|id| id == host_id) == link.selected {
+            continue;
+        }
+        if state.terminals.busy(&service.id)
+            || state
+                .commands
+                .list()
+                .iter()
+                .any(|r| r.service_id == service.id && r.active())
+        {
+            return Err("serviceBusy".into());
+        }
+        service.host_ids.retain(|id| id != host_id);
+        if link.selected {
+            service.host_ids.push(host_id.into());
+        } else {
+            service.rule_ids.retain(|id| {
+                !snapshot
+                    .rules
+                    .iter()
+                    .any(|r| &r.id == id && r.host_id == host_id)
+            });
+        }
+        service.revision = uuid::Uuid::new_v4().to_string();
+    }
+    if let Some(host) = snapshot.hosts.iter().find(|host| host.id == host_id) {
+        next.host_snapshots.insert(host_id.into(), host.clone());
+    }
+    state.persist(&next)?;
+    *config = next;
+    drop(config);
+    Ok(())
+}
+
 pub(super) fn bind_rule_services(
     config: &mut crate::model::Config,
     rule_id: &str,
+    host_id: &str,
     links: &[ServiceLink],
 ) -> Result<Vec<String>, String> {
     if links.len() > 256 {
@@ -49,6 +137,9 @@ pub(super) fn bind_rule_services(
             .ok_or("serviceMissing")?;
         if service.revision != link.revision {
             return Err("staleAction".into());
+        }
+        if link.selected && !service.host_ids.iter().any(|id| id == host_id) {
+            return Err("serviceUnbound".into());
         }
     }
     if config
@@ -109,10 +200,22 @@ fn save_profile(state: &AppState, mut service: Service) -> Result<Snapshot, Stri
             .ok_or("serviceMissing")?
             .rule_ids
             .iter()
-            .filter(|id| snapshot.rules.iter().any(|r| &r.id == *id))
+            .filter(|id| {
+                snapshot
+                    .rules
+                    .iter()
+                    .any(|r| &r.id == *id && service.host_ids.contains(&r.host_id))
+            })
             .cloned()
             .collect()
     };
+    if service
+        .host_ids
+        .iter()
+        .any(|id| !snapshot.added_host_ids.contains(id))
+    {
+        return Err("hostMissing".into());
+    }
     if service
         .rule_ids
         .iter()
@@ -152,6 +255,26 @@ fn save_profile(state: &AppState, mut service: Service) -> Result<Snapshot, Stri
         .map(|s| s.execution_enabled)
         .unwrap_or(service.execution_enabled);
     service.revision = uuid::Uuid::new_v4().to_string();
+    for rule in &mut next.rules {
+        if service.rule_ids.contains(&rule.id) && rule.kind != ForwardKind::D {
+            if next
+                .services
+                .iter()
+                .any(|s| s.id != service.id && s.rule_ids.contains(&rule.id))
+            {
+                return Err("invalidService".into());
+            }
+            let port = service
+                .port
+                .ok_or(crate::native_message::plain("servicePort"))?;
+            let target = if rule.kind == ForwardKind::L {
+                &mut rule.target_port
+            } else {
+                &mut rule.bind_port
+            };
+            *target = port;
+        }
+    }
     next.services.retain(|s| s.id != service.id);
     next.services.push(service);
     for rule in snapshot
@@ -163,10 +286,10 @@ fn save_profile(state: &AppState, mut service: Service) -> Result<Snapshot, Stri
             next.host_snapshots.insert(host.id.clone(), host.clone());
         }
     }
-    if let Some(host) = snapshot
+    for host in snapshot
         .hosts
         .iter()
-        .find(|h| h.id == next.services.last().unwrap().execution_host_id)
+        .filter(|h| next.services.last().unwrap().host_ids.contains(&h.id))
     {
         next.host_snapshots.insert(host.id.clone(), host.clone());
     }
@@ -327,6 +450,8 @@ pub struct Start {
     action_id: String,
     #[serde(default)]
     rule_id: Option<String>,
+    #[serde(default)]
+    host_id: Option<String>,
     revision: String,
     request_id: String,
     confirmed: bool,
@@ -363,6 +488,7 @@ async fn launch_command(
             remember_host_ids: request.remember_host_ids,
             operation: crate::service_control::Operation::Action,
             rule_id: request.rule_id,
+            host_id: request.host_id,
         },
     )
     .await
@@ -421,8 +547,113 @@ pub fn preview_service_template(
 mod tests {
     use super::*;
     use crate::commands;
+    #[test]
+    fn host_services_share_ports_atomically_without_binding_the_dynamic_listener() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::isolated(dir.path().join("config.json"));
+        state.config.lock().unwrap().hosts.push(Host {
+            id: "h".into(),
+            name: "fixture".into(),
+            ..Default::default()
+        });
+        let mut service = service("h");
+        service = save_profile(&state, service).unwrap().services[0].clone();
+        let service_id = service.id.clone();
+        for (id, kind) in [
+            ("l", ForwardKind::L),
+            ("r", ForwardKind::R),
+            ("d", ForwardKind::D),
+        ] {
+            let rule = Rule {
+                id: id.into(),
+                name: id.into(),
+                host_id: "h".into(),
+                kind,
+                bind_port: 15432,
+                target_host: "127.0.0.1".into(),
+                target_port: 22,
+                ..Default::default()
+            };
+            let revision = state
+                .snapshot()
+                .services
+                .iter()
+                .find(|s| s.id == service_id)
+                .unwrap()
+                .revision
+                .clone();
+            super::super::save_rule_profile(
+                &state,
+                rule,
+                Some(vec![ServiceLink {
+                    id: service_id.clone(),
+                    revision,
+                    selected: true,
+                }]),
+            )
+            .unwrap();
+        }
+        let before = state.snapshot();
+        assert_eq!(
+            before
+                .rules
+                .iter()
+                .find(|r| r.id == "l")
+                .unwrap()
+                .target_port,
+            8080
+        );
+        assert_eq!(
+            before.rules.iter().find(|r| r.id == "r").unwrap().bind_port,
+            8080
+        );
+        assert_eq!(
+            before.rules.iter().find(|r| r.id == "d").unwrap().bind_port,
+            15432
+        );
+        let mut service = before.services[0].clone();
+        service.port = Some(9090);
+        let after = save_profile(&state, service).unwrap();
+        assert_eq!(
+            after
+                .rules
+                .iter()
+                .find(|r| r.id == "l")
+                .unwrap()
+                .target_port,
+            9090
+        );
+        assert_eq!(
+            after.rules.iter().find(|r| r.id == "r").unwrap().bind_port,
+            9090
+        );
+        assert_eq!(
+            after.rules.iter().find(|r| r.id == "d").unwrap().bind_port,
+            15432
+        );
+        let mut stale = before.services[0].clone();
+        stale.port = Some(9999);
+        assert!(save_profile(&state, stale).is_err());
+        assert_eq!(
+            state
+                .snapshot()
+                .rules
+                .iter()
+                .find(|r| r.id == "l")
+                .unwrap()
+                .target_port,
+            9090
+        );
+        assert!(state.workers.try_lock().unwrap().is_empty());
+    }
     fn service(host: &str) -> Service {
         Service {
+            host_ids: if host.is_empty() {
+                vec![]
+            } else {
+                vec![host.into()]
+            },
+            port: Some(8080),
             category: None,
             color: None,
             icon: None,
@@ -572,7 +803,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            bind_rule_services(&mut config, "forward", &links)
+            bind_rule_services(&mut config, "forward", "host", &links)
                 .unwrap()
                 .len(),
             2
@@ -580,9 +811,9 @@ mod tests {
         assert_eq!(config.services[0].rule_ids, vec!["other", "forward"]);
         assert!(config.services[1].rule_ids.is_empty());
         let current = config.services[0].revision.clone();
-        assert!(bind_rule_services(&mut config, "forward", &links).is_err());
+        assert!(bind_rule_services(&mut config, "forward", "host", &links).is_err());
         assert_eq!(config.services[0].revision, current);
-        assert!(bind_rule_services(&mut config, "forward", &[]).is_err());
+        assert!(bind_rule_services(&mut config, "forward", "host", &[]).is_err());
         let before = serde_json::to_vec(&config).unwrap();
         let duplicate = vec![
             ServiceLink {
@@ -596,8 +827,51 @@ mod tests {
                 selected: true,
             },
         ];
-        assert!(bind_rule_services(&mut config, "forward", &duplicate).is_err());
+        assert!(bind_rule_services(&mut config, "forward", "host", &duplicate).is_err());
         assert_eq!(serde_json::to_vec(&config).unwrap(), before);
+    }
+    #[test]
+    fn host_binding_is_revision_checked_and_does_not_create_a_forward_or_worker() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        let state = AppState::isolated(path.clone());
+        state
+            .upsert_host(Host {
+                name: "isolated".into(),
+                address: "127.0.0.1".into(),
+                user: "tester".into(),
+                port: 22,
+                ..Default::default()
+            })
+            .unwrap();
+        let host = state.snapshot().hosts[0].id.clone();
+        let saved = save_profile(&state, service("")).unwrap().services[0].clone();
+        let links = [ServiceLink {
+            id: saved.id.clone(),
+            revision: saved.revision.clone(),
+            selected: true,
+        }];
+        assign_host_services(&state, &host, &links).unwrap();
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.services[0].host_ids, vec![host.clone()]);
+        assert!(snapshot.rules.is_empty());
+        assert!(snapshot.runtimes.is_empty());
+        assert!(state.workers.try_lock().unwrap().is_empty());
+        let before = std::fs::read(&path).unwrap();
+        assert!(assign_host_services(&state, &host, &links).is_err());
+        assert!(assign_host_services(&state, &host, &[]).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assign_host_services(
+            &state,
+            &host,
+            &[ServiceLink {
+                id: saved.id,
+                revision: snapshot.services[0].revision.clone(),
+                selected: false,
+            }],
+        )
+        .unwrap();
+        assert!(state.snapshot().services[0].host_ids.is_empty());
     }
     #[test]
     fn service_transactions_backup_reload_stale_and_failed_save_never_launch() {

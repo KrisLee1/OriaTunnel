@@ -4,6 +4,7 @@ import i18n from "@/i18n";
 import { RuleEditor } from "./rule-editor";
 import { emptyRule, emptyHost, networkChanged, rulePath } from "./rule-model";
 import type { Rule } from "@/types";
+import { newService } from "@/features/commands/command-model";
 
 function render(draft: Rule, hasHost = false) {
   return renderToStaticMarkup(
@@ -21,10 +22,65 @@ function render(draft: Rule, hasHost = false) {
   );
 }
 describe("forward composition and semantics", () => {
+  it("locks L/R service ports while leaving the D listener independent and filtering by host", () => {
+    for (const kind of ["L", "R", "D"] as const) {
+      const html = renderToStaticMarkup(
+        <RuleEditor
+          draft={{ ...emptyRule("h"), kind, bindPort: 15432 }}
+          hosts={[{ ...emptyHost(), id: "h" }]}
+          services={[
+            {
+              ...newService("h"),
+              id: "selected",
+              name: "linked-service",
+              port: 3689,
+            },
+            {
+              ...newService("other"),
+              id: "foreign",
+              name: "foreign-service",
+              port: 3000,
+            },
+          ]}
+          selectedServiceIds={["selected", "foreign"]}
+          busy={false}
+          reconnect={false}
+          onChange={() => {}}
+          onAddHost={() => {}}
+          onManageHosts={() => {}}
+          onSave={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+      const ports = [...html.matchAll(/<input[^>]*type="number"[^>]*>/g)].map(
+        (m) => m[0],
+      );
+      expect(html).toContain("linked-service");
+      expect(html).not.toContain("foreign-service");
+      if (kind === "D") {
+        expect(
+          ports.some(
+            (p) => p.includes('value="15432"') && !p.includes("readOnly"),
+          ),
+        ).toBe(true);
+        expect(ports.some((p) => p.includes('value="3689"'))).toBe(false);
+      } else
+        expect(
+          ports.some(
+            (p) => p.includes('value="3689"') && p.includes("readOnly"),
+          ),
+        ).toBe(true);
+    }
+  });
   const text = (key: string) => i18n.t(key, { ns: "tunnel" });
   it("keeps a forward editor when no host exists and provides separate host actions", () => {
     const html = render(emptyRule());
     expect(html).toContain(text("forwardType"));
+    expect(html.indexOf(text("forwardType"))).toBeLessThan(
+      html.indexOf(
+        'aria-label="' + i18n.t("services", { ns: "commands" }) + '"',
+      ),
+    );
     expect(html).toContain(text("selectHostSearch"));
     expect(html).toContain('role="combobox"');
     expect(html).toContain(text("addHost"));

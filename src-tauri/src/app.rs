@@ -60,6 +60,7 @@ pub struct AppState {
     config: Mutex<Config>,
     discovery: Mutex<ssh_config::Discovery>,
     runtimes: Mutex<BTreeMap<String, Runtime>>,
+    runtime_rules: Mutex<BTreeMap<String, Rule>>,
     workers: tokio::sync::Mutex<BTreeMap<String, Worker>>,
     trust: Mutex<BTreeMap<String, PendingTrust>>,
     revision: std::sync::atomic::AtomicU64,
@@ -89,7 +90,7 @@ impl AppState {
         path: PathBuf,
         discovery: ssh_config::Discovery,
     ) -> Result<Self, String> {
-        let config: Config = if path.exists() {
+        let mut config: Config = if path.exists() {
             serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?).map_err(
                 |e| {
                     crate::native_message::message(
@@ -101,6 +102,36 @@ impl AppState {
         } else {
             Config::default()
         };
+        // Existing forward references already authorize these service/host pairs.
+        for service in &mut config.services {
+            if service.host_ids.is_empty() {
+                service.host_ids = config
+                    .rules
+                    .iter()
+                    .filter(|r| service.rule_ids.contains(&r.id))
+                    .map(|r| r.host_id.clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect();
+            }
+            if service.port.is_none() {
+                let ports: BTreeSet<_> = config
+                    .rules
+                    .iter()
+                    .filter(|r| service.rule_ids.contains(&r.id) && r.kind != ForwardKind::D)
+                    .map(|r| {
+                        if r.kind == ForwardKind::L {
+                            r.target_port
+                        } else {
+                            r.bind_port
+                        }
+                    })
+                    .collect();
+                if ports.len() == 1 {
+                    service.port = ports.into_iter().next();
+                }
+            }
+        }
         let state = Self {
             commands: Arc::new(Default::default()),
             observations: Arc::new(Default::default()),
@@ -112,6 +143,7 @@ impl AppState {
             config: Mutex::new(config),
             discovery: Mutex::new(discovery),
             runtimes: Mutex::new(BTreeMap::new()),
+            runtime_rules: Mutex::new(BTreeMap::new()),
             workers: tokio::sync::Mutex::new(BTreeMap::new()),
             trust: Mutex::new(BTreeMap::new()),
             revision: 0.into(),
@@ -131,6 +163,28 @@ impl AppState {
     fn persist(&self, config: &Config) -> Result<(), String> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?
+        }
+        if self.path.exists() {
+            let original = std::fs::read(&self.path).map_err(|_| "backupFailed")?;
+            let value: serde_json::Value =
+                serde_json::from_slice(&original).map_err(|_| "backupFailed")?;
+            let legacy = value["services"].as_array().is_some_and(|services| {
+                services
+                    .iter()
+                    .any(|s| s.get("hostIds").is_none() || s.get("port").is_none())
+            });
+            let backup = self.path.with_extension("pre-host-services.json");
+            if legacy && !backup.exists() {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(backup)
+                    .map_err(|_| "backupFailed")?;
+                file.write_all(&original)
+                    .and_then(|_| file.sync_all())
+                    .map_err(|_| "backupFailed")?;
+            }
         }
         if !config.services.is_empty() && self.path.exists() {
             let backup = self.path.with_extension("pre-commands.json");
@@ -364,16 +418,29 @@ impl AppState {
         }
         let mut runtimes: Vec<_> = self.runtimes.lock().unwrap().values().cloned().collect();
         for runtime in &mut runtimes {
-            runtime.configuration_changed = runtime
-                .host_snapshot
-                .iter()
-                .chain(runtime.jump_snapshots.iter())
-                .any(|before| {
-                    hosts
-                        .iter()
-                        .find(|h| h.id == before.id)
-                        .is_none_or(|after| !after.same_connection(before))
-                });
+            runtime.configuration_changed = runtime.configuration_changed
+                || self
+                    .runtime_rules
+                    .lock()
+                    .unwrap()
+                    .get(&runtime.rule_id)
+                    .is_some_and(|before| {
+                        config
+                            .rules
+                            .iter()
+                            .find(|after| after.id == before.id)
+                            .is_none_or(|after| !after.same_connection(before))
+                    })
+                || runtime
+                    .host_snapshot
+                    .iter()
+                    .chain(runtime.jump_snapshots.iter())
+                    .any(|before| {
+                        hosts
+                            .iter()
+                            .find(|h| h.id == before.id)
+                            .is_none_or(|after| !after.same_connection(before))
+                    });
         }
         let startup = self.autostart.lock().unwrap().clone();
         let mut added_host_ids: std::collections::BTreeSet<String> = config
@@ -1004,7 +1071,8 @@ fn save_rule_profile(
         let mut c = state.config.lock().unwrap();
         let mut next = c.clone();
         if let Some(links) = service_links {
-            let changed = command_api::bind_rule_services(&mut next, &rule.id, &links)?;
+            let changed =
+                command_api::bind_rule_services(&mut next, &rule.id, &rule.host_id, &links)?;
             if changed.iter().any(|id| {
                 state.terminals.busy(id)
                     || state
@@ -1014,6 +1082,27 @@ fn save_rule_profile(
                         .any(|r| &r.service_id == id && r.active())
             }) {
                 return Err("serviceBusy".into());
+            }
+        }
+        let bound: Vec<_> = next
+            .services
+            .iter()
+            .filter(|s| s.rule_ids.contains(&rule.id))
+            .collect();
+        if bound.iter().any(|s| !s.host_ids.contains(&rule.host_id)) {
+            return Err("serviceUnbound".into());
+        }
+        if rule.kind != ForwardKind::D && !bound.is_empty() {
+            if bound.len() != 1 {
+                return Err("invalidService".into());
+            }
+            let port = bound[0]
+                .port
+                .ok_or(crate::native_message::plain("servicePort"))?;
+            if rule.kind == ForwardKind::L {
+                rule.target_port = port;
+            } else {
+                rule.bind_port = port;
             }
         }
         next.host_snapshots.insert(host.id.clone(), host);
@@ -1286,6 +1375,11 @@ async fn launch_impl(
         .cloned();
     let run_id = uuid::Uuid::new_v4().to_string();
     state
+        .runtime_rules
+        .lock()
+        .unwrap()
+        .insert(id.clone(), rule.clone());
+    state
         .generations
         .lock()
         .unwrap()
@@ -1490,6 +1584,51 @@ pub async fn open_service(
     })
 }
 #[tauri::command]
+pub async fn open_proxy_browser(
+    state: tauri::State<'_, Arc<AppState>>,
+    id: String,
+    browser: crate::proxy_browser::Browser,
+    service_id: Option<String>,
+) -> Result<(), String> {
+    let workers = state.workers.lock().await;
+    let worker = workers
+        .get(&id)
+        .ok_or(crate::native_message::plain("startForward"))?;
+    let snapshot = state.snapshot();
+    let rule = snapshot
+        .rules
+        .iter()
+        .find(|r| r.id == id)
+        .ok_or(crate::native_message::plain("forwardMissing"))?;
+    let runtime = snapshot
+        .runtimes
+        .iter()
+        .find(|r| r.rule_id == id)
+        .ok_or(crate::native_message::plain("startForward"))?;
+    let proxy = crate::proxy_browser::endpoint(rule, &worker.rule, runtime)?;
+    let directory = state
+        .path
+        .parent()
+        .ok_or(crate::native_message::plain("proxyBrowserFailed"))?;
+    let url = service_id
+        .map(|id| {
+            let service = snapshot
+                .services
+                .iter()
+                .find(|s| {
+                    s.id == id
+                        && s.rule_ids.contains(&rule.id)
+                        && s.host_ids.contains(&rule.host_id)
+                })
+                .ok_or("serviceUnbound")?;
+            let port = service.port.ok_or("servicePort")?;
+            Ok::<_, &str>(format!("http://127.0.0.1:{port}/"))
+        })
+        .transpose()?;
+    crate::proxy_browser::launch(directory, runtime, &proxy, browser, url.as_deref())
+}
+
+#[tauri::command]
 pub async fn stop_rule(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
@@ -1633,6 +1772,7 @@ async fn clear_deleted_sessions(
     let mut runtimes = state.runtimes.lock().unwrap();
     for id in ids {
         runtimes.remove(id);
+        state.runtime_rules.lock().unwrap().remove(id);
     }
 }
 #[tauri::command]
@@ -2244,6 +2384,40 @@ mod tests {
             AppState::load_with_discovery(state.path.clone(), Default::default()).unwrap();
         assert_eq!(reloaded.snapshot().rules.len(), 1);
         assert!(reloaded.snapshot().runtimes.is_empty());
+    }
+    #[test]
+    fn rule_changes_remain_visible_after_supervisor_metrics_replace_the_runtime() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::isolated(dir.path().join("connections.json"));
+        let rule = Rule {
+            id: "fixture".into(),
+            target_port: 3000,
+            ..Default::default()
+        };
+        state.config.lock().unwrap().rules.push(rule.clone());
+        state
+            .runtime_rules
+            .lock()
+            .unwrap()
+            .insert(rule.id.clone(), rule.clone());
+        state.config.lock().unwrap().rules[0].target_port = 3689;
+        for sent in [0, 100] {
+            state.runtimes.lock().unwrap().insert(
+                rule.id.clone(),
+                Runtime {
+                    rule_id: rule.id.clone(),
+                    status: "listening".into(),
+                    sent,
+                    ..Default::default()
+                },
+            );
+            assert!(state.snapshot().runtimes[0].configuration_changed);
+        }
+        state.runtime_rules.lock().unwrap().insert(
+            rule.id.clone(),
+            state.config.lock().unwrap().rules[0].clone(),
+        );
+        assert!(!state.snapshot().runtimes[0].configuration_changed);
     }
     #[test]
     fn explicit_stop_clears_terminal_attention_without_inventing_rate_samples() {

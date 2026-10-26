@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { serviceTarget, resolveTrayServiceRequest } from "./service-target";
+import {
+  serviceTarget,
+  resolveTrayServiceRequest,
+  groupServicesByHost,
+} from "./service-target";
 import { newService, newAction } from "./command-model";
 import { emptyRule } from "@/features/tunnels/rule-model";
 const data = {
@@ -52,7 +56,8 @@ describe("forward-provided service execution target", () => {
   });
   it("takes the host from the selected forward, ignoring the former independent service host", () => {
     const template = {
-      ...newService("legacy-host"),
+      ...newService(""),
+      hostIds: ["host-a", "host-b"],
       executionHostId: "legacy-host",
       ruleIds: ["a", "b"],
     };
@@ -61,9 +66,40 @@ describe("forward-provided service execution target", () => {
     expect(serviceTarget(template, data, "other")).toBeUndefined();
     expect(serviceTarget(template, data)).toBeUndefined();
   });
+  it("executes directly only on an explicitly associated host without inventing a forward", () => {
+    const service = { ...newService("host-a"), id: "service" };
+    expect(serviceTarget(service, { rules: [] }, "host:host-a")).toEqual({
+      id: "host:host-a",
+      hostId: "host-a",
+    });
+    expect(serviceTarget(service, { rules: [] }, "host:other")).toBeUndefined();
+    expect(serviceTarget(service, { rules: [] })).toEqual({
+      id: "host:host-a",
+      hostId: "host-a",
+    });
+  });
+  it("groups shared services under each host and keeps unassigned services separate", () => {
+    const service = {
+      ...newService(""),
+      id: "shared",
+      hostIds: ["host-a", "host-b"],
+    };
+    const unassigned = { ...newService(""), id: "unassigned" };
+    const groups = groupServicesByHost([service, unassigned], {
+      ...data,
+      hosts: [],
+    });
+    expect(groups.map((g) => g.hostId)).toEqual(["host-a", "host-b", ""]);
+    expect(groups[0].services[0]).toBe(service);
+    expect(groups[1].services[0]).toBe(service);
+    expect(groups[2].services[0]).toBe(unassigned);
+  });
   it("permits a single reference but never invents a host for an unbound template", () => {
     expect(
-      serviceTarget({ ...newService(""), ruleIds: ["a"] }, data)?.hostId,
+      serviceTarget(
+        { ...newService(""), hostIds: undefined, ruleIds: ["a"] },
+        data,
+      )?.hostId,
     ).toBe("host-a");
     expect(
       serviceTarget(

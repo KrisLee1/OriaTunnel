@@ -16,6 +16,8 @@ pub struct Start {
     pub action_id: Option<String>,
     #[serde(default)]
     pub rule_id: Option<String>,
+    #[serde(default)]
+    pub host_id: Option<String>,
     pub confirmed: bool,
     #[serde(default)]
     pub secrets: BTreeMap<String, String>,
@@ -60,14 +62,14 @@ fn observations(state: &AppState) -> Vec<Observation> {
                 .iter()
                 .filter(|r| service.rule_ids.contains(&r.id))
                 .collect();
-            let targets: Vec<_> = if rules.is_empty() {
-                vec![(None, "")]
-            } else {
-                rules
-                    .iter()
-                    .map(|r| (Some(r.id.clone()), r.host_id.as_str()))
-                    .collect()
-            };
+            let mut targets: Vec<_> = rules
+                .iter()
+                .map(|r| (Some(r.id.clone()), r.host_id.as_str()))
+                .collect();
+            targets.extend(service.host_ids.iter().map(|host| (None, host.as_str())));
+            if targets.is_empty() {
+                targets.push((None, ""));
+            }
             targets
                 .into_iter()
                 .map(|(rule_id, host)| {
@@ -76,6 +78,7 @@ fn observations(state: &AppState) -> Vec<Observation> {
                         .unwrap_or_default();
                     let mut o = state.observations.view(service, &identity, timestamp());
                     o.rule_id = rule_id;
+                    o.host_id = Some(host.into());
                     o
                 })
                 .collect::<Vec<_>>()
@@ -112,9 +115,13 @@ pub(super) async fn start(
     if service.revision != request.revision {
         return Err("staleAction".into());
     }
-    let target_rule = service
-        .target_rule(&snapshot, request.rule_id.as_deref())?
-        .cloned();
+    let (target_rule, target_host) = service.execution_target(
+        &snapshot,
+        request.rule_id.as_deref(),
+        request.host_id.as_deref(),
+    )?;
+    let target_host = target_host.id.clone();
+    let target_rule = target_rule.cloned();
     let operation_key = match request.operation {
         Operation::Action => request.action_id.clone().ok_or("actionMissing")?,
         Operation::CheckStatus => "$status".into(),
@@ -130,7 +137,9 @@ pub(super) async fn start(
         &operation_key,
         &service.revision,
     )? {
-        if run.workflow_rule_id.as_deref() != target_rule.as_ref().map(|r| r.id.as_str()) {
+        if run.workflow_rule_id.as_deref() != target_rule.as_ref().map(|r| r.id.as_str())
+            || run.host_id != target_host
+        {
             return Err("staleAction".into());
         }
         return Ok(run);
@@ -167,11 +176,7 @@ pub(super) async fn start(
     if request.operation == Operation::CheckHealth && service.control.health_probe.is_none() {
         return Err("healthProbeMissing".into());
     }
-    let target_host = target_rule
-        .as_ref()
-        .map(|r| r.host_id.as_str())
-        .ok_or("serviceUnbound")?;
-    let mut frozen = route(&snapshot, target_host)?;
+    let mut frozen = route(&snapshot, &target_host)?;
     let identity = control::identity(&frozen);
     let host = frozen.last().unwrap().clone();
     if frozen.iter().any(|h| !h.diagnostics.is_empty()) {

@@ -1,8 +1,8 @@
 import {
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
+  useId,
   useRef,
   useState,
   type RefObject,
@@ -31,11 +31,13 @@ import {
 
 export function LocalAddForward({
   card,
+  size,
   disabled,
   suspended,
   onAdd,
 }: {
   card: RefObject<HTMLElement | null>;
+  size: { width: number; height: number };
   disabled: boolean;
   suspended: boolean;
   onAdd: (placement: PortPlacement) => void;
@@ -53,13 +55,13 @@ export function LocalAddForward({
     restDelta: 0.001,
     restSpeed: 0.01,
   });
-  const originX = useSpring(0, interactionSpring);
-  const originY = useSpring(0, interactionSpring);
+  const originX = useSpring(size.width, interactionSpring);
+  const originY = useSpring(size.height / 2, interactionSpring);
   const normalX = useSpring(1, interactionSpring);
   const normalY = useSpring(0, interactionSpring);
   const radius = useMotionValue(LOCAL_ADD_RADIUS / zoom);
-  const skinWidth = useMotionValue(200);
-  const skinHeight = useMotionValue(164);
+  const skinWidth = useMotionValue(size.width);
+  const skinHeight = useMotionValue(size.height);
   const skinCorner = useMotionValue(16);
   const rectWidth = useTransform(skinWidth, (width) =>
     Math.max(0, width - 1 / zoom),
@@ -125,14 +127,25 @@ export function LocalAddForward({
     [0, 2 / zoom, 3 / zoom, 3 / zoom, 0],
   );
 
+  // Seed and synchronize from the same layout size as the parent, including
+  // remounts while React Flow is still restoring its measured node geometry.
+  useLayoutEffect(() => {
+    skinWidth.set(size.width);
+    skinHeight.set(size.height);
+  }, [size.width, size.height, skinWidth, skinHeight]);
+
   // The rect, stretching edge and droplet share one silhouette. Text and ports
   // remain separate DOM layers and never pass through the filter.
-  useLayoutEffect(() => {
+  // Wait for the parent card's ref to attach before measuring and observing it;
+  // child layout effects run before that parent ref is available.
+  useEffect(() => {
     const element = card.current;
     if (!element) return;
     const measure = () => {
-      skinWidth.set(element.offsetWidth);
-      skinHeight.set(element.offsetHeight);
+      if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+        skinWidth.set(element.offsetWidth);
+        skinHeight.set(element.offsetHeight);
+      }
       skinCorner.set(
         parseFloat(getComputedStyle(element).borderTopLeftRadius) || 16,
       );

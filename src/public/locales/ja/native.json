@@ -201,5 +201,9 @@
   "iconWindowsUpdate": "Windows アプリのアイコンを更新できません：{{error}}",
   "windowAppearanceInvalid": "ウィンドウの外観設定が無効です",
   "externalLinkInvalid": "外部リンクが無効です",
-  "iconPersist": "アプリのアイコンを保存できません。アプリの保存先に書き込めることを確認して、再試行してください。"
+  "iconPersist": "アプリのアイコンを保存できません。アプリの保存先に書き込めることを確認して、再試行してください。",
+  "proxyBrowserDynamic": "待ち受け中の D 転送を選択してください",
+  "proxyBrowserMissing": "{{browser}} が見つかりません。先にインストールしてください",
+  "proxyBrowserFailed": "プロキシブラウザーを起動できません。アプリのデータディレクトリの権限を確認してください",
+  "proxyBrowserPlatform": "プロキシブラウザーは現在 Windows と macOS に対応しています"
 }

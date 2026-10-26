@@ -54,6 +54,10 @@ export const syncHosts = () =>
 export const setHostSources = (files: string[], autoSync: boolean) =>
   invoke<Snapshot>("set_host_sources", { files, autoSync });
 export const saveHost = (host: Host) => invoke<Snapshot>("save_host", { host });
+export const setHostServices = (
+  hostId: string,
+  links: import("@/types").ServiceLink[],
+) => invoke<Snapshot>("set_host_services", { hostId, links });
 export const addDiscoveredHosts = (ids: string[]) =>
   invoke<Snapshot>("add_discovered_hosts", { ids });
 export const pickIdentityFile = () =>
@@ -67,6 +71,12 @@ export const saveHostMetadata = (host: Host) =>
     tags: host.tags,
   });
 export const openService = (id: string) => invoke<void>("open_service", { id });
+export type ProxyBrowser = "edge" | "chrome" | "firefox";
+export const openProxyBrowser = (
+  id: string,
+  browser: ProxyBrowser,
+  serviceId?: string,
+) => invoke<void>("open_proxy_browser", { id, browser, serviceId });
 export const saveRule = (
   rule: Rule,
   serviceLinks?: import("@/types").ServiceLink[],
@@ -139,6 +149,10 @@ export const deleteServiceProfiles = (
 ) => invoke<Snapshot>("delete_service_profiles", { services });
 export const commandRuns = () =>
   invoke<import("@/types").CommandRun[]>("command_runs");
+const executionTarget = <T extends { ruleId?: string }>(request: T) => {
+  if (!request.ruleId?.startsWith("host:")) return request;
+  return { ...request, ruleId: undefined, hostId: request.ruleId.slice(5) };
+};
 export const startCommand = (request: {
   serviceId: string;
   actionId: string;
@@ -148,7 +162,10 @@ export const startCommand = (request: {
   confirmed: boolean;
   secrets: Record<string, string>;
   rememberHostIds: string[];
-}) => invoke<import("@/types").CommandRun>("start_command", { request });
+}) =>
+  invoke<import("@/types").CommandRun>("start_command", {
+    request: executionTarget(request),
+  });
 export const attachCommand = (
   id: string,
   onEvent: Channel<import("@/types").CommandEvent>,
@@ -164,7 +181,9 @@ export { Channel };
 export const terminalSessions = () =>
   invoke<import("@/types").TerminalSession[]>("terminal_sessions");
 export const openTerminal = (request: import("@/types").OpenTerminalRequest) =>
-  invoke<import("@/types").TerminalSession>("open_terminal", { request });
+  invoke<import("@/types").TerminalSession>("open_terminal", {
+    request: executionTarget(request),
+  });
 export const attachTerminal = (
   id: string,
   clientId: string,
@@ -195,7 +214,10 @@ export const serviceObservations = () =>
   invoke<import("@/types").ServiceObservation[]>("service_observations");
 export const runServiceOperation = (
   request: import("@/types").StartServiceRequest,
-) => invoke<import("@/types").CommandRun>("run_service_operation", { request });
+) =>
+  invoke<import("@/types").CommandRun>("run_service_operation", {
+    request: executionTarget(request),
+  });
 
 export const stopServiceForward = (runId: string) =>
   invoke<void>("stop_service_forward", { runId });

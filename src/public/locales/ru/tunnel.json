@@ -438,5 +438,8 @@
   "connectionCount_many": "{{count}} активных подключений",
   "connectionCount_other": "{{count}} активного подключения",
   "emojiCategory": "Эмодзи",
-  "copyName": "{{name}} (копия)"
+  "copyName": "{{name}} (копия)",
+  "openProxyBrowser": "Открыть браузер через прокси",
+  "servicePortLinked": "Порт определяется выбранным сервисом. Измените его в настройках сервиса",
+  "servicePort": "Сначала задайте порт в настройках сервиса"
 }

@@ -139,6 +139,7 @@ impl Fact {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Observation {
+    pub host_id: Option<String>,
     #[serde(default)]
     pub rule_id: Option<String>,
     pub service_id: String,
@@ -166,6 +167,7 @@ impl Observations {
             .get(&(service.id.clone(), identity.into()))
             .cloned()
             .unwrap_or_else(|| Observation {
+                host_id: None,
                 rule_id: None,
                 service_id: service.id.clone(),
                 service_revision: service.revision.clone(),
@@ -195,6 +197,7 @@ impl Observations {
         self.store(
             (s.id.clone(), identity.into()),
             Observation {
+                host_id: None,
                 rule_id: None,
                 service_id: s.id.clone(),
                 service_revision: s.revision.clone(),

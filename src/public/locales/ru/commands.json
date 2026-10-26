@@ -298,5 +298,9 @@
   "commandCount_one": "{{count}} команда",
   "commandCount_few": "{{count}} команды",
   "commandCount_many": "{{count}} команд",
-  "commandCount_other": "{{count}} команды"
+  "commandCount_other": "{{count}} команды",
+  "servicePort": "Порт сервиса",
+  "unassignedHost": "Хост не назначен",
+  "expandServices": "Развернуть службы",
+  "collapseServices": "Свернуть службы"
 }

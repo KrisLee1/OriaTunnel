@@ -56,8 +56,13 @@ export function serviceForegroundSession(
   service: RemoteService,
   ruleId: string | undefined,
   clientId: string,
+  targetHostId?: string,
 ) {
   if (!ruleId) return undefined;
+  const hostId =
+    targetHostId || (ruleId.startsWith("host:") ? ruleId.slice(5) : undefined);
+  if (hostId && service.hostIds && !service.hostIds.includes(hostId))
+    return undefined;
   const starts = new Set(
     service.actions
       .filter((action) => action.kind === "start" && action.mode === "terminal")
@@ -66,7 +71,7 @@ export function serviceForegroundSession(
   return sessions.find(
     (session) =>
       session.serviceId === service.id &&
-      session.ruleId === ruleId &&
+      (hostId ? session.hostId === hostId : session.ruleId === ruleId) &&
       session.clientId === clientId &&
       starts.has(session.actionId || "") &&
       terminalActive(session),
@@ -154,8 +159,9 @@ export function unsubmittedPreset(
   return service &&
     service.executionEnabled !== false &&
     action &&
-    !!session.ruleId &&
-    service.ruleIds.includes(session.ruleId)
-    ? { service, action, ruleId: session.ruleId ?? undefined }
+    (session.ruleId
+      ? service.ruleIds.includes(session.ruleId)
+      : service.hostIds?.includes(session.hostId))
+    ? { service, action, ruleId: session.ruleId ?? `host:${session.hostId}` }
     : undefined;
 }

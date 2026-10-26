@@ -378,5 +378,8 @@
   "activeCount": "{{count}} 條轉發執行中",
   "connectionCount": "{{count}} 個活動連線",
   "emojiCategory": "表情符號",
-  "copyName": "{{name}}（副本）"
+  "copyName": "{{name}}（副本）",
+  "openProxyBrowser": "開啟代理瀏覽器",
+  "servicePortLinked": "連接埠跟隨所選服務，請在服務設定中修改",
+  "servicePort": "請先在服務設定中填寫連接埠"
 }

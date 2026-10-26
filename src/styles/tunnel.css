@@ -1054,6 +1054,100 @@ body,
   display: grid;
   gap: 4px;
 }
+.service-icon-strip {
+  /* Keep the icon strip out of the card's max-content width calculation. */
+  contain: inline-size;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.host-card-services {
+  border-top: 1px solid var(--oria-color-border);
+  margin-top: 12px;
+  padding-top: 8px;
+}
+.host-service-scroll {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.host-service-viewport {
+  height: 32px;
+  --service-fade-start: 0px;
+  --service-fade-end: 0px;
+}
+.host-service-viewport[data-overflow-x-start] {
+  --service-fade-start: 16px;
+}
+.host-service-viewport[data-overflow-x-end] {
+  --service-fade-end: 16px;
+}
+.host-service-viewport[data-has-overflow-x] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--service-fade-start), #000 calc(100% - var(--service-fade-end)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--service-fade-start), #000 calc(100% - var(--service-fade-end)), transparent);
+}
+.service-icon-strip [data-slot="scroll-area-scrollbar"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease-out;
+}
+.service-icon-strip:hover [data-slot="scroll-area-scrollbar"],
+.service-icon-strip:focus-within [data-slot="scroll-area-scrollbar"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .service-icon-strip [data-slot="scroll-area-scrollbar"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .service-icon-strip [data-slot="scroll-area-scrollbar"] {
+    transition: none;
+  }
+}
+.host-service-content {
+  width: max-content;
+  padding-bottom: 4px;
+}
+.host-service-content > .service-command-icons {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+.service-icon-strip .service-command-icons > .service-open-action {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+.host-service-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+}
+.host-service-tools:empty {
+  display: none;
+}
+.service-icon-strip.is-expanded .host-service-viewport {
+  height: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.service-icon-strip.is-expanded .host-service-content {
+  width: 100%;
+}
+.service-icon-strip.is-expanded .service-command-icons {
+  display: flex;
+  flex-wrap: wrap;
+}
+@media (forced-colors: active) {
+  .host-service-viewport {
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+  }
+}
 .host-card-heading-row {
   display: flex;
   align-items: center;
@@ -1078,6 +1172,12 @@ body,
 }
 .host-card-rules {
   margin: 12px -12px -12px;
+}
+.host-card-services + .host-card-rules {
+  margin-top: 4px;
+}
+.proxy-service-strip {
+  margin-top: 4px;
 }
 .host-card-rule {
   position: relative;
@@ -1187,6 +1287,14 @@ body,
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
+}
+.rule-row-actions {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 .rule-row strong {
   font-size: 13px;

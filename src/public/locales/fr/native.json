@@ -201,5 +201,9 @@
   "iconWindowsUpdate": "Impossible de mettre à jour l’icône de l’application Windows : {{error}}",
   "windowAppearanceInvalid": "Les paramètres d’apparence de la fenêtre sont invalides",
   "externalLinkInvalid": "Le lien externe est invalide",
-  "iconPersist": "Impossible d’enregistrer l’icône de l’application. Vérifiez que son emplacement est accessible en écriture, puis réessayez."
+  "iconPersist": "Impossible d’enregistrer l’icône de l’application. Vérifiez que son emplacement est accessible en écriture, puis réessayez.",
+  "proxyBrowserDynamic": "Sélectionnez une redirection D en écoute",
+  "proxyBrowserMissing": "{{browser}} est introuvable. Installez d’abord le navigateur",
+  "proxyBrowserFailed": "Impossible de lancer le navigateur proxy. Vérifiez l’accès au dossier de données de l’application",
+  "proxyBrowserPlatform": "Le navigateur proxy est actuellement pris en charge sous Windows et macOS"
 }

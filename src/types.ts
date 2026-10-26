@@ -190,6 +190,8 @@ export interface PresetAction {
   timeoutSecs: number; successCodes: number[]; confirm: boolean;
 }
 export interface RemoteService {
+  hostIds?: string[];
+  port?: number | null;
   category?: string | null;
   color?: string | null; icon?: RuleIcon | null;
   id: string; name: string; executionHostId?: string; ruleIds: string[];
@@ -228,7 +230,7 @@ export interface ServiceControl {
   startActionId:string|null;checkAfterActions:boolean;ttlSecs:number;
 }
 export interface ServiceFact {value:string;checkedAt:number|null;validUntil:number|null;sourceRunId:string|null;expired:boolean}
-export interface ServiceObservation {ruleId?:string|null;serviceId:string;serviceRevision:string;hostIdentity:string;status:ServiceFact;health:ServiceFact;revision:number}
+export interface ServiceObservation {hostId?:string|null;ruleId?:string|null;serviceId:string;serviceRevision:string;hostIdentity:string;status:ServiceFact;health:ServiceFact;revision:number}
 export interface ServiceStep {kind:string;phase:string;attempt:number;exitCode:number|null;error:string|null;startedAt:number;finishedAt:number|null}
 export type ServiceOperation = "action"|"checkStatus"|"checkHealth"|"connect";
 export interface StartServiceRequest {serviceId:string;revision:string;requestId:string;operation:ServiceOperation;actionId?:string;ruleId?:string;confirmed:boolean;secrets:Record<string,string>;rememberHostIds:string[]}

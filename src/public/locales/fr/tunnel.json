@@ -423,5 +423,8 @@
   "connectionCount_other": "{{count}} connexions actives",
   "connectionCount_many": "{{count}} connexions actives",
   "emojiCategory": "Émojis",
-  "copyName": "{{name}} (copie)"
+  "copyName": "{{name}} (copie)",
+  "openProxyBrowser": "Ouvrir le navigateur proxy",
+  "servicePortLinked": "Le port suit le service sélectionné. Modifiez-le dans ses paramètres",
+  "servicePort": "Définissez d’abord le port dans les paramètres du service"
 }

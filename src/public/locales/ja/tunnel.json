@@ -378,5 +378,8 @@
   "activeCount": "{{count}} 件の転送が実行中",
   "connectionCount": "{{count}} 件の接続",
   "emojiCategory": "絵文字",
-  "copyName": "{{name}}（コピー）"
+  "copyName": "{{name}}（コピー）",
+  "openProxyBrowser": "プロキシブラウザーを開く",
+  "servicePortLinked": "ポートは選択したサービスに従います。サービス設定で変更してください",
+  "servicePort": "先にサービス設定でポートを指定してください"
 }
