@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { releaseVersion, platforms, matrix, root } from './config.mjs';
-import { assertDraftSource, selectRelease, validateAssets } from './publish.mjs';
+import { assertDraftSource, selectRelease, validateAssets, readReleaseNotes } from './publish.mjs';
 import { sha256 } from './collect.mjs';
 const commit = 'a'.repeat(40);
 function fixture() {
@@ -20,6 +20,18 @@ function fixture() {
   return directory;
 }
 const options = { version: '0.1.0', commit, verify: false };
+test('curated release notes preserve the supplied text and reject empty or unsafe versions', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'oria-release-notes-'));
+  try {
+    assert.equal(readReleaseNotes('0.1.1', directory), undefined);
+    const content = '## 更新日志\n\n- 新增 D 转发打开代理浏览器和直接访问远程服务的入口；\n';
+    fs.writeFileSync(path.join(directory, 'v0.1.1.md'), content);
+    assert.equal(readReleaseNotes('0.1.1', directory), content.trim());
+    fs.writeFileSync(path.join(directory, 'v0.1.1.md'), ' \n');
+    assert.throws(() => readReleaseNotes('0.1.1', directory), /empty/);
+    assert.throws(() => readReleaseNotes('../outside', directory), /Invalid/);
+  } finally { fs.rmSync(directory, { recursive: true }); }
+});
 test('one manifest covers every architecture with immutable tag-specific URLs', () => {
   const directory = fixture();
   try {

@@ -15,7 +15,7 @@ OriaTunnel is a desktop tool for managing SSH tunnels and remote services on Win
 
 Save hosts and forwarding rules once, then start, stop, and open services through the interface. If you are unfamiliar with SSH commands, you can import a configuration prepared by an administrator or colleague and supply your own authentication details.
 
-Current version: **v0.1.0** · [Version history](#version-history)
+Current version: **v0.1.1** · [Version history](#version-history)
 
 **[Full user guide (Simplified Chinese)](../USAGE.md)** · [Quick start](#quick-start) · [Choose a forwarding mode](#choose-a-forwarding-mode)
 
@@ -34,17 +34,17 @@ Current version: **v0.1.0** · [Version history](#version-history)
 
 ## Download and install
 
-Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.0) and choose the package for your operating system and device architecture.
+Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1) and choose the package for your operating system and device architecture.
 
 - **Windows:** download the `.exe` installer and follow the installation wizard.
 - **macOS:** download and open the `.dmg`, then drag `OriaTunnel.app` into **Applications**. If you download a `.zip`, extract the `.dmg` inside it first.
 
 | Platform | Download |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
 
 Check for updates under **About → Version update**, then download and install when ready. Startup checks can be disabled. Installation disconnects SSH sessions; save terminal work first. Use the installers above for a first installation or an older development build. See [application updates (Chinese)](../USAGE.md#应用更新).
 
@@ -57,7 +57,7 @@ For initial setup, have the SSH address, port, username, authentication method, 
 1. Open OriaTunnel and choose **Add host**. Select a host discovered from SSH configuration, or enter its details manually. Discovery only reads configuration; it does not connect automatically.
 2. Choose **New forward**, select the host and L / R / D, then fill in the listening endpoint. L / R also require a target address and port.
 3. Choose **Save and start**, authenticate when prompted, and verify the server fingerprint on the first connection.
-4. Wait for **Listening**, then use the forwarding endpoint in your browser or service client. For D, configure the client to use SOCKS5 first.
+4. Wait for **Listening**, then use the forwarding endpoint in your browser or service client. For D, use the proxy-browser menu; associated services can open their remote web pages directly.
 
 For example, to reach a web app on your SSH server, choose **L**, listen on `127.0.0.1:13000`, and target `127.0.0.1:3000`. Once started, open `http://127.0.0.1:13000` on this computer. The target `127.0.0.1` means **the SSH server itself**; this example assumes the web app is running on port 3000 there.
 
@@ -75,7 +75,7 @@ To operate a remote service, create or import a template on the services page, c
 | --- | --- | --- |
 | **L · Local forwarding** | Access a server's web app, database, or VNC service from this computer | Connect to a local listening port, which reaches the remote service over SSH |
 | **R · Remote forwarding** | Let a server access a development service running on this computer | Connect to a listening port on the server, which reaches the local service over SSH |
-| **D · Dynamic forwarding** | Reach multiple internal addresses through an SSH host | Configure your browser or other client to use a local SOCKS5 proxy |
+| **D · Dynamic forwarding** | Reach multiple internal addresses through an SSH host | Open an isolated proxy browser from the menu, or configure another client to use local SOCKS5 |
 
 A server with a shared IP and only one assigned SSH port can still provide access to multiple services through that port. See the [shared IP example (Chinese)](../USAGE.md#场景四共享-ip只分配一个-ssh-端口).
 
@@ -106,6 +106,12 @@ The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, 
 
 ## Version history
 
+### v0.1.1 · 2026-10-27
+
+- Added D-forward actions to open a proxy browser and access remote services directly.
+- Improved service associations, management, and the remote-service access experience.
+- Improved connection-map rendering performance and fixed card rendering issues.
+
 ### v0.1.0 · Initial version · 2026-10-25
 
 - Visual SSH host and L / R / D tunnel management, multi-hop authentication, and connection diagnostics.
@@ -115,7 +121,7 @@ The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, 
 
 ## Things to know
 
-L / R / D forward TCP traffic. D listens only on loopback addresses and supports SOCKS5 CONNECT, without UDP or automatic system/browser proxy setup. Access to R from other computers depends on the server's SSH policy, firewall, and network configuration.
+L / R / D forward TCP traffic. D listens only on loopback addresses and supports SOCKS5 CONNECT without UDP. It can open isolated Chrome, Edge, or Firefox proxy windows without changing system proxies or everyday browser settings. Safari is not supported. Access to R from other computers depends on the server's SSH policy, firewall, and network configuration.
 
 Closing the window keeps forwards running in the tray or menu bar by default. **Quit OriaTunnel** stops all connections. Automatic connection is a separate opt-in setting, requires trusted hosts on every hop and private-key or Agent authentication, and does not use saved passwords.
 

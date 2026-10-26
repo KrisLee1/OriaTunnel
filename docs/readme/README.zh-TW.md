@@ -15,7 +15,7 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 儲存主機和轉送規則後，日常透過點選即可啟動、停止和開啟服務。不熟悉 SSH 指令的使用者，也可以匯入管理員或同事準備好的設定，補齊自己的驗證資訊後使用。
 
-目前版本：**v0.1.0** · [版本記錄](#版本記錄)
+目前版本：**v0.1.1** · [版本記錄](#版本記錄)
 
 **[完整使用指南（簡體中文）](../USAGE.md)** · [快速上手](#快速上手) · [選擇轉送方式](#選擇轉送方式)
 
@@ -34,17 +34,17 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 ## 下載與安裝
 
-前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.0)，選擇適合你的作業系統與裝置架構的套件。
+前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1)，選擇適合你的作業系統與裝置架構的套件。
 
 - **Windows：**下載 `.exe` 安裝程式，依安裝精靈的指示完成安裝。
 - **macOS：**下載並開啟 `.dmg`，將 `OriaTunnel.app` 拖入「**應用程式（Applications）**」。若下載的是 `.zip`，請先解壓縮其中的 `.dmg`。
 
 | 平台 | 下載 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
 
 在「關於」的「版本更新」中檢查新版本，依提示下載並安裝；可關閉「啟動時檢查更新」。安裝會中斷目前的 SSH 連線，請先儲存終端中的工作。首次安裝或較早的開發版本請使用上方安裝套件。詳見[應用程式更新（簡體中文）](../USAGE.md#应用更新)。
 
@@ -57,7 +57,7 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 1. 開啟 OriaTunnel，選擇「新增主機」，從 SSH 設定中找到的主機中選取，或手動填寫連線資訊。尋找主機只會讀取設定，不會自動連線。
 2. 選擇「新增轉送」，選擇主機與 L / R / D，再填寫監聽位址及連接埠；L / R 還需填寫目標位址與連接埠。
 3. 選擇「儲存並啟動」，依提示完成驗證，並在首次連線時核對伺服器指紋。
-4. 等待規則顯示「監聽中」，再於瀏覽器或服務用戶端中使用轉送入口。D 需要先在用戶端設定 SOCKS5 代理。
+4. 等待規則顯示「監聽中」，再於瀏覽器或服務用戶端中使用轉送入口。D 可從選單開啟獨立代理瀏覽器，關聯服務後可直接開啟對應網頁。
 
 例如，要存取 SSH 伺服器上的網站服務，可選擇 **L**，將本機監聽設為 `127.0.0.1:13000`，目標設為 `127.0.0.1:3000`。啟動後，在這部電腦開啟 `http://127.0.0.1:13000`。此處目標的 `127.0.0.1` 指的是 **SSH 伺服器本身**；範例假設網站服務在伺服器的 3000 連接埠執行。
 
@@ -75,7 +75,7 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 | --- | --- | --- |
 | **L · 本機轉送** | 在這部電腦存取伺服器上的網站、資料庫或 VNC | 存取本機監聽連接埠，透過 SSH 連線至遠端服務 |
 | **R · 遠端轉送** | 讓伺服器存取這部電腦上的開發服務 | 在伺服器端存取監聽連接埠，透過 SSH 連線至本機服務 |
-| **D · 動態代理** | 透過 SSH 主機存取多個內部網路位址 | 將瀏覽器或其他用戶端設定為使用本機 SOCKS5 代理 |
+| **D · 動態代理** | 透過 SSH 主機存取多個內部網路位址 | 從選單開啟獨立代理瀏覽器，或為其他用戶端設定本機 SOCKS5 代理 |
 
 如果伺服器使用共用 IP，僅分配了一個 SSH 連接埠，仍可透過該連接埠存取伺服器上的多個服務。請參閱[共用 IP 範例（簡體中文）](../USAGE.md#场景四共享-ip只分配一个-ssh-端口)。
 
@@ -106,6 +106,12 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 ## 版本記錄
 
+### v0.1.1 · 2026-10-27
+
+- 新增 D 轉發開啟代理瀏覽器與直接存取遠端服務的入口。
+- 最佳化服務關聯與管理邏輯，以及存取遠端服務的體驗。
+- 最佳化連線圖繪製效能，修正卡片繪製問題。
+
 ### v0.1.0 · 首個版本 · 2026-10-25
 
 - 視覺化 SSH 主機與 L / R / D 通道管理、多跳驗證及連線診斷。
@@ -115,7 +121,7 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 ## 使用須知
 
-L / R / D 均轉送 TCP 流量。D 僅監聽本機迴路位址，支援 SOCKS5 CONNECT，不支援 UDP，也不會自動修改系統或瀏覽器的代理設定。能否從其他電腦存取 R，取決於伺服器的 SSH 原則、防火牆與網路設定。
+L / R / D 均轉送 TCP 流量。D 僅監聽本機迴路位址，支援 SOCKS5 CONNECT，不支援 UDP。可開啟獨立 Chrome、Edge 或 Firefox 代理視窗，不修改系統代理或日常瀏覽器設定；不支援 Safari。能否從其他電腦存取 R，取決於伺服器的 SSH 原則、防火牆與網路設定。
 
 預設關閉視窗後，轉送會繼續在系統匣或選單列執行；選擇「結束 OriaTunnel」會停止全部連線。自動連線是獨立的選用設定，要求每一跳的主機都已受信任，且可透過私密金鑰或系統 SSH 代理程式驗證；不會使用已儲存密碼。
 

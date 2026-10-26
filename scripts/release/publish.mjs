@@ -7,6 +7,17 @@ import { buildVerifier, run, signingEnvironment } from '../check-update-secrets.
 const owner = 'KrisLee1';
 const repo = 'OriaTunnel';
 const safeName = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
+export function readReleaseNotes(version, directory = path.join(root, 'docs/releases')) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release notes version.');
+  try {
+    const notes = fs.readFileSync(path.join(directory, `v${version}.md`), 'utf8').trim();
+    if (!notes) throw new Error('Release notes must not be empty.');
+    return notes;
+  } catch (error) {
+    if (error.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
 export function validateAssets(directory, { version, commit, verifier, verify = true }) {
   if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('Release source must be a full commit SHA.');
   const files = [];
@@ -94,9 +105,9 @@ export async function createDraft({ github, context, core }) {
   await assertTagSource(github, `v${version}`, commit);
   let release = await releaseForTag(github, `v${version}`);
   await assertDraftSource(github, release, commit, process.env.REPLACE_DRAFT_COMMIT);
-  const notes = await github.rest.repos.generateReleaseNotes({ owner, repo, tag_name: `v${version}`, target_commitish: commit });
-  manifest.notes = notes.data.body;
-  const body = `${notes.data.body}\n\n<!-- oria-release-commit:${commit} -->\n\nWindows: download the matching NSIS installer. macOS: download the matching DMG or DMG ZIP.\nThe app downloads its architecture-specific signed updater automatically.\n`;
+  const notes = readReleaseNotes(version) ?? (await github.rest.repos.generateReleaseNotes({ owner, repo, tag_name: `v${version}`, target_commitish: commit })).data.body;
+  manifest.notes = notes;
+  const body = `${notes}\n\n<!-- oria-release-commit:${commit} -->\n\nWindows: download the matching NSIS installer. macOS: download the matching DMG or DMG ZIP.\nThe app downloads its architecture-specific signed updater automatically.\n`;
   if (!release) release = (await github.rest.repos.createRelease({ owner, repo, tag_name: `v${version}`, target_commitish: commit, name: `OriaTunnel ${version}`, body, draft: true, prerelease: false, make_latest: 'false' })).data;
   else release = (await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body, target_commitish: commit })).data;
   const oldAssets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });

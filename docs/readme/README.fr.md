@@ -15,7 +15,7 @@ OriaTunnel est un outil de bureau de gestion des tunnels SSH et des services dis
 
 Enregistrez vos hôtes et règles de redirection, puis démarrez, arrêtez et ouvrez vos services depuis l’interface. Sans connaître les commandes SSH, vous pouvez aussi importer une configuration préparée par un administrateur ou un collègue et renseigner vos propres informations d’authentification.
 
-Version actuelle : **v0.1.0** · [Historique des versions](#historique-des-versions)
+Version actuelle : **v0.1.1** · [Historique des versions](#historique-des-versions)
 
 **[Guide utilisateur complet (chinois simplifié)](../USAGE.md)** · [Prise en main](#prise-en-main) · [Choisir un mode de redirection](#choisir-un-mode-de-redirection)
 
@@ -34,17 +34,17 @@ Version actuelle : **v0.1.0** · [Historique des versions](#historique-des-versi
 
 ## Télécharger et installer
 
-Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
+Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
 
 - **Windows :** téléchargez le programme d’installation `.exe` et suivez l’assistant d’installation.
 - **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
 
 | Plateforme | Téléchargement |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
 
 Vérifiez les mises à jour dans **À propos → Mise à jour**, puis téléchargez et installez la nouvelle version. La vérification au démarrage peut être désactivée. L’installation interrompt les connexions SSH ; enregistrez d’abord votre travail dans le terminal. Pour une première installation ou une ancienne version de développement, utilisez les programmes ci-dessus. Voir les [mises à jour de l’application (chinois)](../USAGE.md#应用更新).
 
@@ -57,7 +57,7 @@ Pour la première configuration, préparez l’adresse SSH, le port, le nom d’
 1. Ouvrez OriaTunnel et choisissez **Ajouter un hôte**. Sélectionnez un hôte détecté dans la configuration SSH ou saisissez ses informations manuellement. La détection lit uniquement la configuration ; elle ne se connecte pas automatiquement.
 2. Choisissez **Nouvelle redirection**, sélectionnez l’hôte et L / R / D, puis renseignez l’adresse et le port d’écoute. L / R nécessitent aussi une adresse et un port cibles.
 3. Choisissez **Enregistrer et démarrer**, authentifiez-vous lorsque l’application le demande et vérifiez l’empreinte du serveur lors de la première connexion.
-4. Attendez l’état **En écoute**, puis utilisez le point d’accès de la redirection dans votre navigateur ou votre client. Pour D, configurez d’abord le client pour utiliser SOCKS5.
+4. Attendez l’état **En écoute**, puis utilisez le point d’accès de la redirection dans votre navigateur ou votre client. Pour D, utilisez le menu du navigateur proxy ; les services associés peuvent être ouverts directement.
 
 Par exemple, pour accéder à une application web sur votre serveur SSH, choisissez **L**, écoutez sur `127.0.0.1:13000` et définissez `127.0.0.1:3000` comme cible. Une fois la redirection démarrée, ouvrez `http://127.0.0.1:13000` sur cet ordinateur. L’adresse cible `127.0.0.1` désigne **le serveur SSH lui-même** ; cet exemple suppose que l’application web y fonctionne sur le port 3000.
 
@@ -75,7 +75,7 @@ Pour agir sur un service distant, créez ou importez un modèle sur la page des 
 | --- | --- | --- |
 | **L · Redirection locale** | Accéder depuis cet ordinateur à une application web, une base de données ou un service VNC du serveur | Se connecter à un port d’écoute local qui mène au service distant via SSH |
 | **R · Redirection distante** | Permettre à un serveur d’accéder à un service de développement exécuté sur cet ordinateur | Se connecter à un port d’écoute sur le serveur qui mène au service local via SSH |
-| **D · Redirection dynamique** | Atteindre plusieurs adresses internes via un hôte SSH | Configurer le navigateur ou un autre client pour utiliser un proxy SOCKS5 local |
+| **D · Redirection dynamique** | Atteindre plusieurs adresses internes via un hôte SSH | Ouvrir un navigateur proxy distinct depuis le menu, ou configurer un autre client pour SOCKS5 local |
 
 Un serveur avec une adresse IP partagée et un seul port SSH attribué peut tout de même donner accès à plusieurs services via ce port. Consultez l’[exemple d’adresse IP partagée (chinois)](../USAGE.md#场景四共享-ip只分配一个-ssh-端口).
 
@@ -106,6 +106,12 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 
 ## Historique des versions
 
+### v0.1.1 · 2026-10-27
+
+- Ajout d’actions aux transferts D pour ouvrir un navigateur proxy et accéder directement aux services distants.
+- Amélioration des associations et de la gestion des services, ainsi que de l’accès aux services distants.
+- Amélioration des performances de rendu de la carte des connexions et correction de l’affichage des cartes.
+
 ### v0.1.0 · Première version · 2026-10-25
 
 - Gestion visuelle des hôtes SSH et des tunnels L / R / D, authentification à plusieurs relais et diagnostic des connexions.
@@ -115,7 +121,7 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 
 ## À savoir
 
-L / R / D redirigent le trafic TCP. D écoute uniquement sur des adresses de boucle locale et prend en charge SOCKS5 CONNECT, sans UDP ni configuration automatique du proxy du système ou du navigateur. L’accès à R depuis d’autres ordinateurs dépend de la politique SSH du serveur, du pare-feu et de la configuration réseau.
+L / R / D redirigent le trafic TCP. D écoute uniquement sur des adresses de boucle locale et prend en charge SOCKS5 CONNECT sans UDP. Il peut ouvrir des fenêtres proxy Chrome, Edge ou Firefox distinctes sans modifier le proxy système ni les réglages habituels du navigateur. Safari n’est pas pris en charge. L’accès à R depuis d’autres ordinateurs dépend de la politique SSH du serveur, du pare-feu et de la configuration réseau.
 
 Par défaut, la fermeture de la fenêtre laisse les redirections fonctionner dans la zone de notification ou la barre des menus. **Quitter OriaTunnel** arrête toutes les connexions. La connexion automatique est un réglage distinct à activer explicitement ; elle nécessite des hôtes approuvés à chaque relais et une authentification par clé privée ou agent, et n’utilise pas les mots de passe enregistrés.
 

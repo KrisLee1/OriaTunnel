@@ -15,7 +15,7 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 
 호스트와 포워딩 규칙을 저장하면 평소에는 화면에서 시작, 중지, 서비스 열기를 선택하면 됩니다. SSH 명령에 익숙하지 않은 사용자도 관리자나 동료가 준비한 설정을 가져와 자신의 인증 정보를 입력한 뒤 사용할 수 있습니다.
 
-현재 버전: **v0.1.0** · [버전 기록](#버전-기록)
+현재 버전: **v0.1.1** · [버전 기록](#버전-기록)
 
 **[전체 사용자 가이드(중국어 간체)](../USAGE.md)** · [빠른 시작](#빠른-시작) · [포워딩 방식 선택](#포워딩-방식-선택)
 
@@ -34,17 +34,17 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 
 ## 다운로드 및 설치
 
-[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.0)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
+[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
 
 - **Windows:** `.exe` 설치 프로그램을 다운로드하고 설치 마법사의 안내를 따르세요.
 - **macOS:** `.dmg`를 다운로드하여 연 다음 `OriaTunnel.app`을 **응용 프로그램** 폴더로 드래그하세요. `.zip`을 다운로드했다면 먼저 안에 있는 `.dmg`를 추출하세요.
 
 | 플랫폼 | 다운로드 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.0/OriaTunnel_0.1.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
 
 정보 창의 버전 업데이트에서 새 버전을 확인하고 다운로드 및 설치할 수 있습니다. 시작 시 확인은 끌 수 있습니다. 설치하면 SSH 연결이 끊어지므로 터미널 작업을 먼저 저장하세요. 처음 설치하거나 이전 개발 빌드를 사용 중이면 위 설치 프로그램을 사용하세요. [앱 업데이트(중국어)](../USAGE.md#应用更新)를 참고하세요.
 
@@ -57,7 +57,7 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 1. OriaTunnel을 열고 **호스트 추가**를 선택합니다. SSH 설정에서 발견한 호스트를 선택하거나 연결 정보를 직접 입력하세요. 호스트 탐색은 설정만 읽으며 자동으로 연결하지 않습니다.
 2. **새 포워딩**을 선택하고 호스트와 L / R / D를 지정한 다음 수신 주소와 포트를 입력합니다. L / R에는 대상 주소와 포트도 필요합니다.
 3. **저장 후 시작**을 선택하고 안내에 따라 인증합니다. 처음 연결할 때는 서버 지문을 확인하세요.
-4. **수신 대기 중**이 될 때까지 기다린 후 브라우저나 서비스 클라이언트에서 포워딩 주소를 사용합니다. D는 먼저 클라이언트에 SOCKS5를 설정해야 합니다.
+4. **수신 대기 중**이 될 때까지 기다린 후 브라우저나 서비스 클라이언트에서 포워딩 주소를 사용합니다. D는 프록시 브라우저 메뉴를 사용할 수 있으며 연결된 원격 서비스를 바로 열 수 있습니다.
 
 예를 들어 SSH 서버의 웹 앱에 접근하려면 **L**을 선택하고 수신 주소를 `127.0.0.1:13000`, 대상을 `127.0.0.1:3000`으로 설정합니다. 시작한 후 이 컴퓨터에서 `http://127.0.0.1:13000`을 여세요. 여기서 대상의 `127.0.0.1`은 **SSH 서버 자체**를 뜻합니다. 이 예시는 서버의 3000번 포트에서 웹 앱이 실행 중이라고 가정합니다.
 
@@ -75,7 +75,7 @@ OriaTunnel 설정 파일이 있다면 포워딩 페이지에서 가져온 뒤 �
 | --- | --- | --- |
 | **L · 로컬 포워딩** | 이 컴퓨터에서 서버의 웹 앱, 데이터베이스, VNC 서비스에 접근 | 로컬 수신 포트에 연결하면 SSH를 통해 원격 서비스에 접근합니다 |
 | **R · 원격 포워딩** | 서버에서 이 컴퓨터의 개발 서비스에 접근 | 서버의 수신 포트에 연결하면 SSH를 통해 로컬 서비스에 접근합니다 |
-| **D · 동적 포워딩** | SSH 호스트를 통해 여러 내부 주소에 접근 | 브라우저나 다른 클라이언트가 로컬 SOCKS5 프록시를 사용하도록 설정합니다 |
+| **D · 동적 포워딩** | SSH 호스트를 통해 여러 내부 주소에 접근 | 메뉴에서 독립 프록시 브라우저를 열거나 다른 클라이언트에 로컬 SOCKS5를 설정합니다 |
 
 공유 IP를 사용하고 SSH 포트가 하나만 할당된 서버에서도 해당 포트를 통해 여러 서비스에 접근할 수 있습니다. [공유 IP 예시(중국어)](../USAGE.md#场景四共享-ip只分配一个-ssh-端口)를 참고하세요.
 
@@ -106,6 +106,12 @@ OriaTunnel 설정 파일이 있다면 포워딩 페이지에서 가져온 뒤 �
 
 ## 버전 기록
 
+### v0.1.1 · 2026-10-27
+
+- D 포워딩에서 프록시 브라우저를 열고 원격 서비스에 바로 접근하는 기능을 추가했습니다.
+- 서비스 연결 및 관리 로직과 원격 서비스 접근 환경을 개선했습니다.
+- 연결 맵 렌더링 성능을 개선하고 카드 렌더링 문제를 수정했습니다.
+
 ### v0.1.0 · 첫 버전 · 2026-10-25
 
 - 시각적인 SSH 호스트 및 L / R / D 터널 관리, 다단계 인증, 연결 진단.
@@ -115,7 +121,7 @@ OriaTunnel 설정 파일이 있다면 포워딩 페이지에서 가져온 뒤 �
 
 ## 알아둘 사항
 
-L / R / D는 TCP 트래픽을 포워딩합니다. D는 루프백 주소에서만 수신하며 SOCKS5 CONNECT를 지원합니다. UDP는 지원하지 않고 시스템이나 브라우저의 프록시 설정도 자동으로 변경하지 않습니다. 다른 컴퓨터에서 R에 접근할 수 있는지는 서버의 SSH 정책, 방화벽, 네트워크 설정에 달려 있습니다.
+L / R / D는 TCP 트래픽을 포워딩합니다. D는 루프백 주소에서만 수신하며 SOCKS5 CONNECT를 지원합니다. UDP는 지원하지 않습니다. 독립 Chrome, Edge, Firefox 프록시 창을 열 수 있으며 시스템 프록시나 평소 브라우저 설정을 변경하지 않습니다. Safari는 지원하지 않습니다. 다른 컴퓨터에서 R에 접근할 수 있는지는 서버의 SSH 정책, 방화벽, 네트워크 설정에 달려 있습니다.
 
 기본적으로 창을 닫아도 포워딩은 트레이나 메뉴 막대에서 계속 실행됩니다. **OriaTunnel 종료**를 선택하면 모든 연결이 중지됩니다. 자동 연결은 별도로 켜야 하는 선택 설정입니다. 모든 경유 호스트가 신뢰된 상태이고 개인 키 또는 SSH 에이전트로 인증할 수 있어야 하며, 저장된 비밀번호는 사용하지 않습니다.
 
