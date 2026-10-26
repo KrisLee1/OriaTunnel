@@ -1,9 +1,13 @@
 # OriaTunnel 项目状态
 
-当前状态：A/B/C/D 已完成 Windows 当前范围的实现与验收；v0.1.0 已于 2026-10-25 正式发布为 Latest。
+当前状态：A/B/C/D 已完成 Windows 当前范围的实现与验收；v0.1.1 已于 2026-10-27 正式发布为 Latest。
 
-## 0.1.1 发布准备（2026-10-27）
+## 0.1.1 正式发布（2026-10-27）
 
+- [v0.1.1](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1) 已公开并设为 Latest，标签与四架构产物源提交均为 `30fad2290121b70432e48dd3d2a99ba3ea6c3846`。17 个上传资源包含 Windows x64/ARM64、macOS Apple Silicon/Intel 安装/更新包、签名、收据及完整 `latest.json`；Release 与应用内更新清单均使用用户提供的三条更新日志。
+- 同源 [Quality gates](https://github.com/KrisLee1/OriaTunnel/actions/runs/40364433373) 和 [更新签名预检](https://github.com/KrisLee1/OriaTunnel/actions/runs/40364433543) 成功。[Build release draft #11](https://github.com/KrisLee1/OriaTunnel/actions/runs/40364716883) 第一次 Intel 产物收集因 Apple 票据服务连接中断（stapler 68）耗尽三次重试；仅重跑 Intel 及草稿汇总后，第二次全部成功，未放宽签名、公证或票据校验。[Publish verified release #3](https://github.com/KrisLee1/OriaTunnel/actions/runs/40370968797) 重新下载并复验全部草稿资产后公开。
+- 发布后重新下载 17 个公开资源，核对四架构收据、源提交、大小、SHA-256、许可证摘要及版本/文件名绑定签名；稳定更新入口确认返回 `0.1.1`，三条更新日志与 Release 页面逐字一致。已获取并核对远程 `v0.1.1` 标签，不移动任何已有版本标签。验证记录保存在忽略目录 `outputs/release-0.1.1`。
+- 用户发布前检查使用独立标识的 0.1.1 开发版，3 台 `.example.invalid` 示例主机、6 条停止规则、8 个未启用服务，自动连接关闭、SSH 来源隔离；用户确认界面后继续发布。没有以用户真实 SSH 主机或正式配置测试更新安装，完整安装替换/重启仍沿用此前隔离升级演练边界。
 - 按用户要求撤回 Safari 入口、系统代理与恢复管理、八语言文案及图标，移除未采用的方案文件；D 保留 Chrome/Edge/Firefox 独立代理窗口和关联服务直接访问，不读写系统网络代理。此前 Mac 验证使用真实回环 SSH 启动 D，并由独立 Chrome 产生 Rust 字节统计；系统代理前后摘要一致，未连接真实主机。
 - 应用四处版本源统一为 `0.1.1`；八语言 README 同步当前版本、下载链接、三项更新日志及 D 访问方式，使用指南明确服务关联/独立端口与 Safari 不支持。
 - 发布器优先从 `docs/releases/vX.Y.Z.md` 读取人工日志，同一正文用于 Release 与应用内更新清单；缺失沿用自动生成，空内容拒绝生成草稿。0.1.1 采用用户给定的三条更新日志。
