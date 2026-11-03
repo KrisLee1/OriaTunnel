@@ -40,8 +40,8 @@ const itemVariants = cva(
     variants: {
       variant: {
         default: "border-transparent",
-        outline: "border-border",
-        muted: "border-transparent bg-muted/50",
+        outline: "oria-control-surface border-border",
+        muted: "oria-control-surface border-border bg-muted/50",
       },
       size: {
         default: "gap-2.5 px-3 py-2.5",

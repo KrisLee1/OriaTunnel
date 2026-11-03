@@ -7,8 +7,8 @@ import {
   workspaceBounds,
   workspaceSizeLimit,
   workspaceChromeBottom,
-  terminalTabScrollEdges,
-} from "./workspace-layout";
+} from "@/components/ui/workspace-layout";
+import { terminalTabScrollEdges } from "./workspace-layout";
 
 describe("terminal workspace docking", () => {
   it("fades only overflowing tab edges and tolerates subpixel scrolling and elastic overscroll", () => {

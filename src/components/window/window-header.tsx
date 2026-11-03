@@ -83,6 +83,7 @@ export function WindowHeader({
       style={resolvedStyle}
       onClose={onClose}
       mode={controlMode}
+      className="relative z-[60]"
     />
   )
   const actionCapsule = (actions: ReactNode, fixedSide?: "left" | "right", mirror = false) => {
@@ -90,7 +91,7 @@ export function WindowHeader({
     return (
       <div
         className={cn(
-          "window-actions overlay flex h-fit w-fit shrink-0 items-center rounded-xl p-0.5",
+          "window-actions overlay relative z-40 flex h-fit w-fit shrink-0 items-center rounded-xl p-0.5",
           mirror && resolvedPosition === "right" && "flex-row-reverse",
         )}
         data-fixed-actions={fixedSide}
@@ -102,13 +103,13 @@ export function WindowHeader({
   }
   const featureActions = actionCapsule(children, undefined, true)
   const leftControls = (
-    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-window-header-side="left">
+    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-tauri-drag-region data-window-header-side="left">
       {resolvedPosition === "left" ? windowControl : featureActions}
       {actionCapsule(fixedLeftActions, "left")}
     </div>
   )
   const rightControls = (
-    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-window-header-side="right">
+    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-tauri-drag-region data-window-header-side="right">
       {actionCapsule(fixedRightActions, "right")}
       {resolvedPosition === "left" ? featureActions : windowControl}
     </div>
@@ -120,13 +121,13 @@ export function WindowHeader({
       data-tauri-drag-region
       onDoubleClick={handleTitlebarDoubleClick}
       className={cn(
-        "app-titlebar fixed inset-x-0 top-0 z-40 flex select-none justify-between rounded-t-(--window-rounded)",
+        "app-titlebar absolute inset-x-0 top-0 flex select-none justify-between rounded-t-(--window-rounded)",
         density === "compact" ? "h-8 px-1" : "h-(--aide-chrome-top) px-1 py-1",
       )}
     >
       {leftControls}
       {centerContent ? <div className="header-center" style={{left:safeInset,right:safeInset}}>{centerContent}</div> : title && (
-        <div className="pointer-events-none absolute inset-x-[32%] inset-y-0 flex items-center justify-center truncate text-xs font-medium text-muted-foreground">
+        <div className="pointer-events-none absolute inset-x-[32%] inset-y-0 z-40 flex items-center justify-center truncate text-xs font-medium text-muted-foreground">
           {title}
         </div>
       )}
@@ -134,6 +135,6 @@ export function WindowHeader({
     </header>
   )
 
-  // Native chrome must sit outside the isolated app surface, above the workspace; modal scrims can shade it without blocking native dragging.
+  // No shared stacking context: only native controls rise above modal scrims.
   return typeof document === "undefined" ? header : createPortal(header, document.body)
 }

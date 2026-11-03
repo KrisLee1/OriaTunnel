@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { formatUiError } from "@/lib/ui-message";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -103,7 +104,7 @@ export function ServiceTemplateDialog({
       >
         <label className="field" htmlFor={`${id}-search`}>
           <span>{t("templates.search")}</span>
-          <Input
+          <SearchInput
             id={`${id}-search`}
             type="search"
             value={search}

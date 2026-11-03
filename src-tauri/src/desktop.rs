@@ -75,13 +75,14 @@ pub(crate) struct TrayServiceActivity {
     pub busy: std::collections::BTreeSet<String>,
     pub terminals: std::collections::BTreeSet<(String, String, String)>,
 }
-const TRAY_PANELS: [(&str, &str, &str); 2] = [
+const TRAY_PANELS: [(&str, &str, &str); 3] = [
     (
         "tray:service-commands",
         "服务命令",
         "tunnel://open-service-commands",
     ),
     ("tray:ssh-terminal", "SSH 终端", "tunnel://open-terminal"),
+    ("tray:files", "文件传输", "tunnel://open-files"),
 ];
 impl TrayMenu {
     #[cfg(test)]
@@ -317,6 +318,13 @@ fn build_tray_menu(app: &tauri::AppHandle, model: &TrayMenu) -> tauri::Result<Me
         None::<&str>,
     )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "tray:files",
+        crate::native_message::text("trayFiles", serde_json::json!({})),
+        true,
+        None::<&str>,
+    )?)?;
     let services = Submenu::new(
         app,
         crate::native_message::text("trayServiceCommands", serde_json::json!({})),

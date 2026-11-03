@@ -205,5 +205,7 @@
   "proxyBrowserDynamic": "请选择正在监听的 D 转发",
   "proxyBrowserMissing": "未找到 {{browser}}，请先安装该浏览器",
   "proxyBrowserFailed": "无法启动代理浏览器，请检查应用数据目录的权限",
-  "proxyBrowserPlatform": "代理浏览器目前支持 Windows 和 macOS"
+  "proxyBrowserPlatform": "代理浏览器目前支持 Windows 和 macOS",
+  "trayFiles": "文件传输",
+  "filesExitConfirm": "文件操作仍在进行。停止传输并退出？选择否以继续后台传输。"
 }

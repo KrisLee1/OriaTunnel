@@ -205,5 +205,7 @@
   "proxyBrowserDynamic": "請選擇正在監聽的 D 轉發",
   "proxyBrowserMissing": "找不到 {{browser}}，請先安裝該瀏覽器",
   "proxyBrowserFailed": "無法啟動代理瀏覽器，請檢查應用程式資料目錄的權限",
-  "proxyBrowserPlatform": "代理瀏覽器目前支援 Windows 和 macOS"
+  "proxyBrowserPlatform": "代理瀏覽器目前支援 Windows 和 macOS",
+  "trayFiles": "檔案傳輸",
+  "filesExitConfirm": "檔案操作仍在進行。停止傳輸並結束？選擇否以繼續背景傳輸。"
 }

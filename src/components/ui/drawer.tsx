@@ -23,7 +23,7 @@ function useDrawer() {
 }
 
 function Drawer({
-  modal = true,
+  modal = "trap-focus",
   showSwipeHandle = false,
   snapPoints,
   swipeDirection = "down",
@@ -108,7 +108,7 @@ function DrawerContent({
 
   return (
     <DrawerPortal data-slot="drawer-portal">
-      {modal === true && (
+      {modal !== false && (
         <DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />
       )}
       <DrawerPrimitive.Viewport

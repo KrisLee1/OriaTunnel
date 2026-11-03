@@ -205,5 +205,7 @@
   "proxyBrowserDynamic": "Select a listening D forward",
   "proxyBrowserMissing": "{{browser}} was not found. Install the browser first",
   "proxyBrowserFailed": "Cannot launch the proxy browser. Check access to the application data directory",
-  "proxyBrowserPlatform": "Proxy browser is currently supported on Windows and macOS"
+  "proxyBrowserPlatform": "Proxy browser is currently supported on Windows and macOS",
+  "trayFiles": "File transfer",
+  "filesExitConfirm": "File operations are running. Stop transfers and quit? Choose No to keep transferring."
 }

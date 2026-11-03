@@ -320,6 +320,18 @@ export function LocalAddForward({
 
   return (
     <div className="local-add-forward" data-visible={shown}>
+      {/* Paint the shadow behind the shared skin, never over its outline. */}
+      <motion.div
+        className="local-add-button-shadow"
+        aria-hidden="true"
+        style={{
+          x: buttonX,
+          y: buttonY,
+          opacity: iconOpacity,
+          width: 40 / zoom,
+          height: 40 / zoom,
+        }}
+      />
       <svg className="local-add-fluid" aria-hidden="true">
         <defs>
           <motion.filter

@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -120,16 +121,13 @@ export function ActivityView({ data }: { data: Snapshot }) {
         </span>
       </header>
       <div className="host-toolbar activity-toolbar">
-        <div className="host-search">
-          <SearchIcon size={16} aria-hidden="true" />
-          <Input
+        <SearchInput containerClassName="host-search"
             type="search"
             aria-label={t("searchLogs")}
             placeholder={t("searchLogs")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-        </div>
         <div className="host-toolbar-controls">
           {picker(
             t("filterLogHost"),

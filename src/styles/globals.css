@@ -9,6 +9,28 @@
 @custom-variant keyboard-focus (&:where([data-keyboard-navigation="true"] *));
 @custom-variant focus-visible (&:where([data-keyboard-navigation="true"] *):focus-visible);
 
+.search-input-control {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.search-input-control > svg {
+  position: absolute;
+  inset-inline-start: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  color: var(--oria-color-muted-fg);
+  pointer-events: none;
+}
+.search-input-control > [data-slot="input"] {
+  height: 28px;
+  padding-inline-start: 32px;
+  font-size: 12px;
+}
+
 /* AuthenticationField supplies the single reveal control in Edge/WebView2. */
 input[type="password"]::-ms-reveal {
   display: none;
@@ -263,7 +285,11 @@ body {
 
 :root::-webkit-scrollbar-thumb:hover,
 :root *::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--oria-color-muted-fg) 52%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-muted-fg) 52%,
+    transparent
+  );
   background-clip: padding-box;
 }
 
@@ -379,19 +405,26 @@ body {
 .modal-surface[data-closed] {
   pointer-events: none;
 }
-body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-titlebar :is(.window-actions, .header-center),
-body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-titlebar :is(.window-actions, .header-center) * {
+body:has([role="dialog"][data-open], [role="alertdialog"][data-open])
+  .app-titlebar
+  :is(.window-actions, .header-center),
+body:has([role="dialog"][data-open], [role="alertdialog"][data-open])
+  .app-titlebar
+  :is(.window-actions, .header-center)
+  * {
   pointer-events: none;
 }
 .app-titlebar:has([data-window-active="false"]) {
   --aide-titlebar-opacity: 0.45;
 }
-.app-titlebar > * {
+.app-titlebar :is([data-window-active], .window-actions, .header-center),
+.app-titlebar > .pointer-events-none {
   opacity: var(--aide-titlebar-opacity);
   transition: opacity var(--oria-duration-fast) var(--oria-ease-standard);
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-titlebar > * {
+  .app-titlebar :is([data-window-active], .window-actions, .header-center),
+  .app-titlebar > .pointer-events-none {
     transition: none;
   }
 }
@@ -428,7 +461,10 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
 
 /* Match action buttons to the capsule's 2px inset and theme border. */
 .app-titlebar .window-actions [data-slot="button"] {
-  border-radius: max(0px, calc(var(--radius-xl) - 2px - var(--oria-border-width-default)));
+  border-radius: max(
+    0px,
+    calc(var(--radius-xl) - 2px - var(--oria-border-width-default))
+  );
 }
 
 .floating-surface,
@@ -462,13 +498,66 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
 }
 
 .modal-surface {
-  border-color: color-mix(
+  /* Dialogs use the theme background; contained controls use the theme surface. */
+  --aide-floating-surface-background: color-mix(
     in srgb,
-    var(--oria-color-border-strong) 20%,
+    var(--oria-color-bg)
+      calc(
+        var(--oria-opacity-overlay) * var(--aide-component-overlay-opacity) *
+          100%
+      ),
+    transparent
+  );
+  border-color: color-mix(in srgb, var(--oria-color-border) 100%, transparent);
+}
+
+.modal-surface [data-slot="item-group"] {
+  border-radius: var(--oria-radius-lg);
+}
+:root {
+  /* The update/settings card is the reference surface for contained controls. */
+  --aide-control-surface-color: var(--oria-color-surface);
+}
+.oria-control-surface,
+.modal-surface textarea {
+  --aide-control-fill: color-mix(
+    in srgb,
+    var(--aide-control-surface-color)
+      calc(var(--aide-component-surface-opacity) * 100%),
+    transparent
+  );
+  --aide-control-border: var(--oria-color-border);
+  background-color: var(--aide-control-fill);
+  border: var(--oria-border-width-default) solid var(--aide-control-border);
+}
+.oria-control-surface:not(:disabled):not([data-disabled]):hover {
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-muted) calc(var(--aide-component-surface-opacity) * 100%),
     transparent
   );
 }
-
+[data-keyboard-navigation="true"]
+  .oria-control-surface:is(:focus-visible, :focus-within) {
+  border-color: var(--oria-color-ring);
+}
+.modal-surface .oria-control-surface {
+  background-color: var(--aide-control-fill);
+  border-color: var(--aide-control-border);
+}
+[data-keyboard-navigation="true"]
+  .modal-surface
+  .oria-control-surface:is(:focus-visible, :focus-within) {
+  border-color: var(--oria-color-ring);
+}
+.modal-surface .settings-section-panel {
+  border-color: var(--oria-color-border);
+}
+.modal-surface .settings-section-panel::before {
+  background:
+    var(--oria-pattern-surface, none), var(--oria-gradient-surface, none),
+    var(--aide-control-surface-color);
+}
 .responsive-modal-surface {
   --modal-header-height: calc(var(--spacing) * 14);
 }
@@ -488,8 +577,12 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
   padding-top: calc(var(--spacing) * 2);
   scroll-padding-block: calc(var(--spacing) * 4);
 }
-.responsive-modal-surface > [data-slot="dialog-close"] { top: calc(var(--spacing) * 3.5); }
-.responsive-modal-header > button { top: calc(var(--spacing) * 3); }
+.responsive-modal-surface > [data-slot="dialog-close"] {
+  top: calc(var(--spacing) * 3.5);
+}
+.responsive-modal-header > button {
+  top: calc(var(--spacing) * 3);
+}
 
 .modal-actions {
   background: linear-gradient(
@@ -637,25 +730,39 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
   height: calc(var(--spacing) * 7);
   min-width: 0;
   padding: 0 10px;
-  border-radius: max(0px, calc(var(--radius-xl) - var(--soft-tabs-inset) - var(--oria-border-width-default)));
+  border-radius: max(
+    0px,
+    calc(
+      var(--radius-xl) - var(--soft-tabs-inset) -
+        var(--oria-border-width-default)
+    )
+  );
   font-size: 0.8rem;
   color: var(--oria-color-muted-fg);
   box-shadow: none;
   transition-property: background-color, color, border-color;
 }
-[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"]::after {
+[data-slot="tabs-list"][data-variant="soft"]
+  > [data-slot="tabs-trigger"]::after {
   display: none;
 }
-[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"]:hover {
-  background-color: color-mix(in srgb, var(--oria-color-muted) 50%, transparent);
+[data-slot="tabs-list"][data-variant="soft"]
+  > [data-slot="tabs-trigger"]:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-muted) 50%,
+    transparent
+  );
   color: var(--oria-color-fg);
 }
-[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"][data-active] {
+[data-slot="tabs-list"][data-variant="soft"]
+  > [data-slot="tabs-trigger"][data-active] {
   background-color: transparent;
   color: var(--oria-color-primary);
   border-color: transparent;
 }
-[data-slot="tabs-list"][data-variant="soft"] > [data-slot="tabs-trigger"][data-active]:hover {
+[data-slot="tabs-list"][data-variant="soft"]
+  > [data-slot="tabs-trigger"][data-active]:hover {
   background-color: transparent;
 }
 .soft-tabs-indicator {
@@ -665,13 +772,29 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
   top: var(--active-tab-top);
   width: var(--active-tab-width);
   height: var(--active-tab-height);
-  border-radius: max(0px, calc(var(--radius-xl) - var(--soft-tabs-inset) - var(--oria-border-width-default)));
-  background-color: color-mix(in srgb, var(--oria-color-primary) var(--soft-tabs-selected-opacity), transparent);
+  border-radius: max(
+    0px,
+    calc(
+      var(--radius-xl) - var(--soft-tabs-inset) -
+        var(--oria-border-width-default)
+    )
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-primary) var(--soft-tabs-selected-opacity),
+    transparent
+  );
 }
-[data-slot="tabs-list"][data-variant="soft"]:has(> [data-active]:hover) > .soft-tabs-indicator {
-  background-color: color-mix(in srgb, var(--oria-color-primary) var(--soft-tabs-selected-hover-opacity), transparent);
+[data-slot="tabs-list"][data-variant="soft"]:has(> [data-active]:hover)
+  > .soft-tabs-indicator {
+  background-color: color-mix(
+    in srgb,
+    var(--oria-color-primary) var(--soft-tabs-selected-hover-opacity),
+    transparent
+  );
 }
-[data-slot="tabs-list"][data-variant="soft"]:has(> [data-active]:disabled) > .soft-tabs-indicator {
+[data-slot="tabs-list"][data-variant="soft"]:has(> [data-active]:disabled)
+  > .soft-tabs-indicator {
   opacity: 0.5;
 }
 .dark [data-slot="tabs-list"][data-variant="soft"] {
@@ -691,7 +814,10 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
 .toast {
   --gap: 12px;
   --height: var(--toast-frontmost-height, var(--toast-height));
-  --offset-y: calc(var(--toast-offset-y) * -1 + var(--toast-index) * var(--gap) * -1 + var(--toast-swipe-movement-y));
+  --offset-y: calc(
+    var(--toast-offset-y) * -1 + var(--toast-index) * var(--gap) * -1 +
+      var(--toast-swipe-movement-y)
+  );
   --peek: 12px;
   --scale: max(0, 1 - var(--toast-index) * 0.1);
   --shrink: calc(1 - var(--scale));
@@ -706,8 +832,18 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
   pointer-events: auto;
   user-select: none;
   transform-origin: bottom;
-  transform: translateX(var(--toast-swipe-movement-x)) translateY(calc(var(--toast-swipe-movement-y) - var(--toast-index) * var(--peek) - var(--shrink) * var(--height))) scale(var(--scale));
-  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms, height 150ms;
+  transform: translateX(var(--toast-swipe-movement-x))
+    translateY(
+      calc(
+        var(--toast-swipe-movement-y) - var(--toast-index) * var(--peek) -
+          var(--shrink) * var(--height)
+      )
+    )
+    scale(var(--scale));
+  transition:
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 500ms,
+    height 150ms;
 }
 .toast::after {
   content: "";
@@ -719,18 +855,31 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
 }
 .toast[data-expanded] {
   height: var(--toast-height);
-  transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--offset-y));
+  transform: translateX(var(--toast-swipe-movement-x))
+    translateY(var(--offset-y));
 }
-.toast[data-limited] { opacity: 0; }
+.toast[data-limited] {
+  opacity: 0;
+}
 .toast[data-starting-style],
 .toast[data-ending-style]:not([data-limited]):not([data-swipe-direction]) {
   transform: translateY(150%);
   opacity: 0;
 }
-.toast[data-ending-style][data-swipe-direction="down"] { transform: translateY(calc(var(--toast-swipe-movement-y) + 150%)); }
-.toast[data-ending-style][data-swipe-direction="up"] { transform: translateY(calc(var(--toast-swipe-movement-y) - 150%)); }
-.toast[data-ending-style][data-swipe-direction="left"] { transform: translateX(calc(var(--toast-swipe-movement-x) - 150%)) translateY(var(--offset-y)); }
-.toast[data-ending-style][data-swipe-direction="right"] { transform: translateX(calc(var(--toast-swipe-movement-x) + 150%)) translateY(var(--offset-y)); }
+.toast[data-ending-style][data-swipe-direction="down"] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) + 150%));
+}
+.toast[data-ending-style][data-swipe-direction="up"] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) - 150%));
+}
+.toast[data-ending-style][data-swipe-direction="left"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) - 150%))
+    translateY(var(--offset-y));
+}
+.toast[data-ending-style][data-swipe-direction="right"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 150%))
+    translateY(var(--offset-y));
+}
 .toast-content {
   display: flex;
   align-items: center;
@@ -742,8 +891,15 @@ body:has([role="dialog"][data-open], [role="alertdialog"][data-open]) .app-title
   padding: 12px;
   transition: opacity 250ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.toast-content[data-behind] { opacity: 0; }
-.toast-content[data-expanded] { opacity: 1; }
+.toast-content[data-behind] {
+  opacity: 0;
+}
+.toast-content[data-expanded] {
+  opacity: 1;
+}
 @media (prefers-reduced-motion: reduce) {
-  .toast, .toast-content { transition: none; }
+  .toast,
+  .toast-content {
+    transition: none;
+  }
 }

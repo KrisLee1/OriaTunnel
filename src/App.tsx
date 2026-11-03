@@ -1,3 +1,7 @@
+import { FileTransferEdge, FileTransferPorts } from "./features/files/transfer-edge";
+import { FileTransferStatus, useFileActivities } from "./features/files/transfer-state";
+import { projectFileEdges } from "./features/files/transfer-graph";
+import { FileWorkspaceProvider, OpenFilesButton } from "./features/files/file-workspace";
 import { NativeLanguageSync } from "@/components/language/native-language-sync";
 import { mergeSnapshot } from "@/lib/snapshot-state";
 import { FirstUsePreferences } from "@/components/settings/first-use-preferences";
@@ -621,7 +625,7 @@ export function App() {
       !["failed", "stopped", "tested", "needs-attention"].includes(r.status),
   ).length;
   return (
-    <TerminalWorkspaceProvider data={data}>
+    <TerminalWorkspaceProvider data={data}><FileWorkspaceProvider data={data}>
       <NativeLanguageSync />
       <FirstUsePreferences ready={data.revision >= 0} />
       <PresetCommandProvider
@@ -699,7 +703,7 @@ export function App() {
               </Tabs>
             }
           >
-            <OpenTerminalButton workspace />
+            <OpenFilesButton/><OpenTerminalButton workspace />
             <Button
               variant="ghost"
               size="icon-sm"
@@ -1810,7 +1814,7 @@ export function App() {
           </AnimatePresence>
         </div>
       </PresetCommandProvider>
-    </TerminalWorkspaceProvider>
+    </FileWorkspaceProvider></TerminalWorkspaceProvider>
   );
 }
 
@@ -2007,7 +2011,7 @@ function Hosts({
                 >
                   <CopyPlusIcon />
                 </Button>
-                <OpenTerminalButton hostId={h.id} />
+                <OpenFilesButton hostId={h.id}/><OpenTerminalButton hostId={h.id} />
                 <Button
                   size="icon-sm"
                   variant="ghost"
@@ -2325,6 +2329,7 @@ const CardContent = memo(function CardContent({
           <MonitorIcon />
           <strong>{d.count || 0}</strong>
         </div>
+        <FileTransferPorts /><FileTransferStatus nodeId="local" className="files-local-status" />
         <span className="local-card-title">{t("local")}</span>
         <LocalAddForward
           card={cardRef}
@@ -2346,6 +2351,7 @@ const CardContent = memo(function CardContent({
         )}
         labels={false}
       />
+      <FileTransferPorts />
       <div className="card-heading">
         <span className="card-icon">
           <ServerIcon size={21} />
@@ -2366,6 +2372,7 @@ const CardContent = memo(function CardContent({
             <span className="source-badge">
               {t("forwardCount", { count: d.rules?.length || 0 })}
             </span>
+            {d.host && <FileTransferStatus nodeId={`host:${d.host.id}`} />}
             {d.host && (
               <>
                 <Button
@@ -2390,7 +2397,7 @@ const CardContent = memo(function CardContent({
                 >
                   <GitPullRequestCreateArrowIcon />
                 </Button>
-                <OpenTerminalButton hostId={d.host.id} />
+                <OpenFilesButton hostId={d.host.id}/><OpenTerminalButton hostId={d.host.id} />
               </>
             )}
           </div>
@@ -2531,7 +2538,7 @@ const CardContent = memo(function CardContent({
   );
 });
 const nodeTypes = { card: Card };
-const edgeTypes = { connection: ConnectionEdge };
+const edgeTypes = { connection: ConnectionEdge, "file-transfer": FileTransferEdge };
 const CanvasFlow = memo(ReactFlow<CardNode>);
 const canvasProOptions = { hideAttribution: true };
 const canvasFitOptions = { padding: 0.3, maxZoom: 1 };
@@ -2614,6 +2621,7 @@ function TunnelCanvas({
   focusRuleId: string;
   onFocusDone: () => void;
 }) {
+  const fileActivities = useFileActivities();
   const { t } = useTranslation("tunnel");
   const flow = useReactFlow<CardNode>();
   const nodesReady = useNodesInitialized();
@@ -2856,13 +2864,11 @@ function TunnelCanvas({
     setNodes((current) => reconcileCanvasNodes(current, liveNodes));
   }, [liveNodes]);
   const previousEdges = useRef<Edge[]>([]);
-  const edges = useMemo(
-    () => projectCanvasEdges(data.rules, runtimeByRule, previousEdges.current),
-    [data.rules, runtimeByRule],
-  );
-  useLayoutEffect(() => {
-    previousEdges.current = edges;
-  }, [edges]);
+  const tunnelEdges = useMemo(() => projectCanvasEdges(data.rules, runtimeByRule, previousEdges.current), [data.rules, runtimeByRule]);
+  const previousFileEdges = useRef<Edge[]>([]);
+  const fileEdges = useMemo(() => projectFileEdges(fileActivities, nodes, previousFileEdges.current), [fileActivities, nodes]);
+  useLayoutEffect(() => { previousEdges.current = tunnelEdges; previousFileEdges.current = fileEdges; }, [tunnelEdges, fileEdges]);
+  const edges = useMemo(() => [...tunnelEdges, ...fileEdges], [tunnelEdges, fileEdges]);
   const onMoveEnd = useCallback((_: unknown, viewport: Viewport) => {
     try {
       localStorage.setItem("oria-tunnel-viewport", JSON.stringify(viewport));

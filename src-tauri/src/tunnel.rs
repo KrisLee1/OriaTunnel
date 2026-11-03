@@ -74,6 +74,7 @@ struct Client {
     endpoint: String,
     trust_wait: watch::Sender<bool>,
     key_rejected: Arc<std::sync::atomic::AtomicBool>,
+    observed_key: Arc<Mutex<Option<String>>>,
 }
 impl client::Handler for Client {
     type Error = russh::Error;
@@ -82,6 +83,7 @@ impl client::Handler for Client {
         key: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
         let fingerprint = key.public_key().fingerprint(HashAlg::Sha256).to_string();
+        *self.observed_key.lock().unwrap() = key.public_key().to_openssh().ok();
         if let Some(expected) = &self.expected {
             self.key_rejected.store(
                 expected != &fingerprint,
@@ -466,10 +468,19 @@ async fn forward(
 
 // Shared transport ownership for forwarding, commands, and future PTY sessions.
 // Drop closes the transport even when a caller's future is cancelled or fails.
+#[derive(Clone)]
+pub(crate) struct ConnectionPeer {
+    pub address: String,
+    pub user: String,
+    pub port: u16,
+    pub public_key: String,
+    pub algorithms: crate::model::AlgorithmOptions,
+}
 pub(crate) struct Connection {
     sessions: Vec<Arc<client::Handle<Client>>>,
     incoming: mpsc::Receiver<Channel<client::Msg>>,
     cancel: CancellationToken,
+    pub peer: Option<ConnectionPeer>,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -512,6 +523,7 @@ pub(crate) async fn connect(
         sessions: Vec::new(),
         incoming: rx,
         cancel: CancellationToken::new(),
+        peer: None,
     };
     for (index, mut hop) in hops.into_iter().enumerate() {
         let host = hop.host;
@@ -531,6 +543,7 @@ pub(crate) async fn connect(
         };
         let final_hop = index + 1 == hop_count;
         let (trust_tx, trust_rx) = watch::channel(false);
+        let observed_key = Arc::new(Mutex::new(None));
         let handler = Client {
             expected: hop.expected,
             prompt: prompt.clone(),
@@ -539,6 +552,7 @@ pub(crate) async fn connect(
             incoming: tx.clone(),
             trust_wait: trust_tx.clone(),
             key_rejected: Arc::new(false.into()),
+            observed_key: observed_key.clone(),
         };
         let config = Arc::new(client::Config {
             preferred,
@@ -584,6 +598,18 @@ pub(crate) async fn connect(
             Ok(Some(method)) => {
                 if final_hop {
                     runtime.lock().unwrap().auth_method_used = Some(method);
+                    connection.peer =
+                        observed_key
+                            .lock()
+                            .unwrap()
+                            .clone()
+                            .map(|public_key| ConnectionPeer {
+                                address: host.address.clone(),
+                                user: host.user.clone(),
+                                port: host.port,
+                                public_key,
+                                algorithms: host.algorithms.clone(),
+                            });
                 }
             }
             Ok(None) => return Ok(None),

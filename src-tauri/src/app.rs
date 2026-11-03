@@ -1,5 +1,7 @@
 #[path = "app_commands.rs"]
 pub mod command_api;
+#[path = "app_files.rs"]
+pub mod file_api;
 #[path = "app_service.rs"]
 pub mod service_api;
 #[path = "app_sessions.rs"]
@@ -50,6 +52,7 @@ struct LoginCredentials {
     remember: std::collections::BTreeSet<String>,
 }
 pub struct AppState {
+    files: Arc<crate::files::Manager>,
     commands: Arc<crate::commands::Manager>,
     observations: Arc<crate::service_control::Observations>,
     terminals: Arc<crate::terminal::Manager>,
@@ -133,6 +136,9 @@ impl AppState {
             }
         }
         let state = Self {
+            files: Arc::new(crate::files::Manager::new(
+                path.with_file_name("transfers.json"),
+            )),
             commands: Arc::new(Default::default()),
             observations: Arc::new(Default::default()),
             terminals: Arc::new(Default::default()),
@@ -524,16 +530,23 @@ impl AppState {
         }
         activity
     }
+    pub fn has_file_work(&self) -> bool {
+        !self.files.active_ids().is_empty()
+    }
     pub async fn shutdown(&self) {
         self.shutting_down
             .store(true, std::sync::atomic::Ordering::SeqCst);
         self.stop_all().await;
+        self.files.shutdown().await;
     }
     pub fn update_installing(&self) -> bool {
         self.update_installing
             .load(std::sync::atomic::Ordering::SeqCst)
     }
     pub fn finish_update_attempt(&self) {
+        self.files
+            .closing
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         self.update_installing
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
@@ -562,6 +575,7 @@ impl AppState {
                 .filter(|(_, job)| !job.is_finished())
                 .map(|(id, _)| id.clone()),
         );
+        ids.extend(self.files.active_ids());
         ids
     }
     pub async fn prepare_update(&self, expected: &[String]) -> Result<(), String> {
@@ -571,6 +585,10 @@ impl AppState {
         let actual: BTreeSet<_> = self.active_work_ids().await.into_iter().collect();
         if actual != expected {
             return Err("activityChanged".into());
+        }
+        self.files.shutdown().await;
+        if self.files.unresolved_direct() {
+            return Err("cleanupFailed".into());
         }
         self.stop_all_checked().await
     }
@@ -748,6 +766,9 @@ impl AppState {
         Ok(())
     }
     fn remove_host(&self, id: &str, expected_rule_ids: &[String]) -> Result<Vec<String>, String> {
+        if self.files.busy_host(id) {
+            return Err("hostUsedByFiles".into());
+        }
         if self
             .commands
             .list()

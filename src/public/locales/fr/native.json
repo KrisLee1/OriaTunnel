@@ -205,5 +205,7 @@
   "proxyBrowserDynamic": "Sélectionnez une redirection D en écoute",
   "proxyBrowserMissing": "{{browser}} est introuvable. Installez d’abord le navigateur",
   "proxyBrowserFailed": "Impossible de lancer le navigateur proxy. Vérifiez l’accès au dossier de données de l’application",
-  "proxyBrowserPlatform": "Le navigateur proxy est actuellement pris en charge sous Windows et macOS"
+  "proxyBrowserPlatform": "Le navigateur proxy est actuellement pris en charge sous Windows et macOS",
+  "trayFiles": "Transfert de fichiers",
+  "filesExitConfirm": "Des opérations sont en cours. Arrêter les transferts et quitter ? Non pour continuer."
 }

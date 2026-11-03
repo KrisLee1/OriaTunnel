@@ -81,7 +81,7 @@ function ComboboxChips({
   ...props
 }: React.ComponentProps<typeof Primitive.Chips>) {
   return (
-    <Primitive.Chips className={cn("combobox-chips", className)} {...props} />
+    <Primitive.Chips className={cn("combobox-chips oria-control-surface", className)} {...props} />
   );
 }
 function ComboboxChipsInput({ className, ...props }: Primitive.Input.Props) {

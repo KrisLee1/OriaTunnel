@@ -205,5 +205,7 @@
   "proxyBrowserDynamic": "待ち受け中の D 転送を選択してください",
   "proxyBrowserMissing": "{{browser}} が見つかりません。先にインストールしてください",
   "proxyBrowserFailed": "プロキシブラウザーを起動できません。アプリのデータディレクトリの権限を確認してください",
-  "proxyBrowserPlatform": "プロキシブラウザーは現在 Windows と macOS に対応しています"
+  "proxyBrowserPlatform": "プロキシブラウザーは現在 Windows と macOS に対応しています",
+  "trayFiles": "ファイル転送",
+  "filesExitConfirm": "ファイル操作中です。転送を停止して終了しますか？「いいえ」で転送を続けます。"
 }

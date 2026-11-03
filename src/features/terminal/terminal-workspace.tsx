@@ -14,29 +14,16 @@ import {
   type ReactNode,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   TerminalIcon,
   SquarePlusIcon,
   SquareTerminalIcon,
   XIcon,
-  ChevronFirstIcon,
-  ChevronLastIcon,
-  PanelBottomIcon,
-  PanelLeftIcon,
-  PanelRightIcon,
   RotateCwIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { interactionSpring } from "@/components/ui/motion";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Modal, ModalActions } from "@/components/tunnel-form";
 import { HostPicker } from "@/features/hosts/host-picker";
@@ -61,26 +48,10 @@ import {
   terminalStateTone,
   serviceForegroundSession,
 } from "./terminal-model";
-import {
-  workspaceDocks,
-  workspaceLayoutKey,
-  workspaceMinimum,
-  isWorkspaceDock,
-  parseWorkspaceLayout,
-  clampWorkspaceSize,
-  resizeWorkspace,
-  workspaceKeyboardSize,
-  workspaceBounds,
-  workspaceGap,
-  workspaceSizeLimit,
-  workspaceChromeBottom,
-  terminalTabScrollEdges,
-} from "./workspace-layout";
-const dockIcons = {
-  bottom: PanelBottomIcon,
-  left: PanelLeftIcon,
-  right: PanelRightIcon,
-};
+import { terminalTabScrollEdges } from "./workspace-layout";
+import { workspaceLayoutKey } from "@/components/ui/workspace-layout";
+import { useWorkspacePanel } from "@/components/ui/use-workspace-panel";
+import { WorkspacePanel } from "@/components/ui/workspace-panel";
 const TerminalView = lazy(() => import("./terminal-view"));
 interface WorkspaceApi {
   openHost: (hostId?: string) => void;
@@ -149,52 +120,14 @@ export function TerminalWorkspaceProvider({
     [commands, setCommands] = useState<CommandRun[]>([]);
   const [commandTabs, setCommandTabs] = useState<string[]>([]);
   const [selected, setSelected] = useState("");
-  const [expanded, setExpanded] = useState(false),
-    [maximized, setMaximized] = useState(false);
-  const [layout, setLayout] = useState(() => {
-    try {
-      return parseWorkspaceLayout(localStorage.getItem(workspaceLayoutKey));
-    } catch {
-      return parseWorkspaceLayout(null);
-    }
+  const [expanded, setExpanded] = useState(false);
+  const panel = useWorkspacePanel({
+    open: expanded,
+    storageKey: workspaceLayoutKey,
   });
-  const { dock } = layout;
-  const sideDock = dock !== "bottom";
-  const workspaceRef = useRef<HTMLElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
   const [tabEdges, setTabEdges] = useState({ left: false, right: false });
-  const reducedMotion = useReducedMotion();
-  const [present, setPresent] = useState(false);
-  const [viewport, setViewport] = useState(() => ({
-    width: typeof window === "undefined" ? 1180 : window.innerWidth,
-    height: typeof window === "undefined" ? 780 : window.innerHeight,
-    headerBottom: 38,
-    gap: workspaceGap,
-  }));
-  const sizeLimit = workspaceSizeLimit(dock, viewport);
-  const [resizing, setResizing] = useState(false);
   const [error, setError] = useState("");
-  const size = clampWorkspaceSize(dock, layout.sizes[dock], sizeLimit);
-  const bounds = workspaceBounds(dock, size, maximized, viewport);
-  useEffect(() => {
-    if (expanded) setPresent(true);
-  }, [expanded]);
-  const setSize = (value: number) =>
-    setLayout((previous) => ({
-      ...previous,
-      sizes: {
-        ...previous.sizes,
-        [dock]: clampWorkspaceSize(dock, value, sizeLimit),
-      },
-    }));
-  useEffect(() => {
-    if (resizing) return;
-    try {
-      localStorage.setItem(workspaceLayoutKey, JSON.stringify(layout));
-    } catch {
-      /* Keep the current layout when local preferences are unavailable. */
-    }
-  }, [layout, resizing]);
   const [draft, setDraft] = useState<{
     hostId: string;
     noEnvironment: boolean;
@@ -207,45 +140,6 @@ export function TerminalWorkspaceProvider({
     [remember, setRemember] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState<TerminalSession | null>(null),
     [busy, setBusy] = useState(false);
-  useLayoutEffect(() => {
-    const header = document.querySelector<HTMLElement>(".app-titlebar");
-    const resized = () => {
-      // The header's transparent bottom padding is not part of its visible capsules.
-      const styles = header ? getComputedStyle(header) : undefined;
-      const gap = header ? parseFloat(styles!.paddingLeft) : workspaceGap;
-      const headerBottom = header
-        ? workspaceChromeBottom(
-            header.getBoundingClientRect().bottom,
-            parseFloat(styles!.paddingBottom) || 0,
-            Array.from(
-              header.querySelectorAll(
-                "[data-window-header-side], .header-center > *",
-              ),
-              (child) => child.getBoundingClientRect(),
-            )
-              .filter((rect) => rect.width > 0 && rect.height > 0)
-              .map((rect) => rect.bottom),
-          )
-        : 38;
-      setViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
-        headerBottom,
-        gap: Number.isFinite(gap) ? gap : workspaceGap,
-      });
-    };
-    const observer = new ResizeObserver(resized);
-    if (header) {
-      observer.observe(header);
-      Array.from(header.children).forEach((child) => observer.observe(child));
-    }
-    resized();
-    window.addEventListener("resize", resized);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", resized);
-    };
-  }, [expanded]);
   const submitting = useRef(false),
     requests = useRef(new Map<string, string>()),
     dismissed = useRef(new Set<string>());
@@ -549,16 +443,6 @@ export function TerminalWorkspaceProvider({
       list.removeEventListener("scroll", update);
     };
   }, [tabSignature, expanded]);
-  const resizeStart = useRef<{
-    pointer: number;
-    size: number;
-    previousSize: number;
-    maximized: boolean;
-  } | null>(null);
-  const DockIcon = dockIcons[dock];
-  const ExpandIcon = (dock === "left" ? !maximized : maximized)
-    ? ChevronLastIcon
-    : ChevronFirstIcon;
   const latestActions = useRef({ openHost, openPreset, showCommand, close });
   useLayoutEffect(() => {
     latestActions.current = { openHost, openPreset, showCommand, close };
@@ -603,201 +487,33 @@ export function TerminalWorkspaceProvider({
   return (
     <Context.Provider value={workspaceApi}>
       {children}
-      <motion.aside
-        ref={workspaceRef}
-        className={`terminal-workspace floating-surface ${maximized ? "terminal-maximized" : ""}`}
-        data-dock={dock}
-        data-open={expanded}
-        initial={false}
-        animate={{
-          ...bounds,
-          opacity: expanded ? 1 : 0,
-          x:
-            expanded || reducedMotion
-              ? 0
-              : dock === "left"
-                ? -bounds.width - viewport.gap
-                : dock === "right"
-                  ? bounds.width + viewport.gap
-                  : 0,
-          y:
-            expanded || reducedMotion || sideDock
-              ? 0
-              : bounds.height + viewport.gap,
-        }}
-        transition={
-          resizing
-            ? { duration: 0 }
-            : reducedMotion
-              ? { duration: 0, opacity: { duration: 0.08 } }
-              : { ...interactionSpring, opacity: { duration: 0.16 } }
+      <WorkspacePanel
+        panel={panel}
+        title={t("workspace")}
+        onClose={() => setExpanded(false)}
+        className="terminal-workspace"
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("new")}
+            title={t("new")}
+            onClick={() => {
+              setDraft({
+                hostId:
+                  selectedSession?.hostId || addedHosts(data)[0]?.id || "",
+                noEnvironment: true,
+                fallback: false,
+              });
+              setSecrets({});
+              setRemember({});
+            }}
+          >
+            <SquarePlusIcon aria-hidden="true" />
+          </Button>
         }
-        onAnimationComplete={() => {
-          if (!expanded) setPresent(false);
-        }}
-        style={{ visibility: expanded || present ? "visible" : "hidden" }}
-        inert={!expanded}
-        aria-hidden={!expanded}
-        aria-label={t("workspace")}
       >
-        <div
-          className="terminal-resize-handle"
-          role="separator"
-          aria-label={t(sideDock ? "resizeWidth" : "resize")}
-          title={t(sideDock ? "resizeWidth" : "resize")}
-          aria-orientation={sideDock ? "vertical" : "horizontal"}
-          aria-valuemin={Math.min(workspaceMinimum(dock), sizeLimit)}
-          aria-valuemax={sizeLimit}
-          aria-valuenow={maximized ? sizeLimit : size}
-          tabIndex={0}
-          onPointerDown={(e) => {
-            if (e.button !== 0 || resizeStart.current) return;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            e.currentTarget.focus();
-            const rect = workspaceRef.current?.getBoundingClientRect();
-            const currentSize = (sideDock ? rect?.width : rect?.height) || size;
-            resizeStart.current = {
-              pointer: sideDock ? e.clientX : e.clientY,
-              size: currentSize,
-              previousSize: layout.sizes[dock],
-              maximized,
-            };
-            setResizing(true);
-            setSize(currentSize);
-            setMaximized(false);
-            e.preventDefault();
-          }}
-          onPointerMove={(e) => {
-            const start = resizeStart.current;
-            if (start && e.currentTarget.hasPointerCapture(e.pointerId))
-              setSize(
-                resizeWorkspace(
-                  dock,
-                  start.size,
-                  (sideDock ? e.clientX : e.clientY) - start.pointer,
-                  sizeLimit,
-                ),
-              );
-          }}
-          onPointerUp={(e) => {
-            resizeStart.current = null;
-            setResizing(false);
-            if (e.currentTarget.hasPointerCapture(e.pointerId))
-              e.currentTarget.releasePointerCapture(e.pointerId);
-          }}
-          onPointerCancel={() => {
-            const start = resizeStart.current;
-            if (start) {
-              setLayout((previous) => ({
-                ...previous,
-                sizes: { ...previous.sizes, [dock]: start.previousSize },
-              }));
-              setMaximized(start.maximized);
-            }
-            resizeStart.current = null;
-            setResizing(false);
-          }}
-          onLostPointerCapture={() => {
-            resizeStart.current = null;
-            setResizing(false);
-          }}
-          onKeyDown={(e) => {
-            const next = workspaceKeyboardSize(
-              dock,
-              e.key,
-              maximized ? sizeLimit : size,
-              sizeLimit,
-            );
-            if (next !== undefined) {
-              e.preventDefault();
-              setMaximized(false);
-              setSize(next);
-            }
-          }}
-        />
-        <header className="terminal-workspace-header">
-          <strong>{t("workspace")}</strong>
-          <div className="terminal-workspace-actions">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t(maximized ? "restore" : "maximize")}
-              title={t(maximized ? "restore" : "maximize")}
-              onClick={() => setMaximized((v) => !v)}
-            >
-              <ExpandIcon
-                aria-hidden="true"
-                className={sideDock ? undefined : "rotate-90"}
-              />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("position")}
-                    title={t("position")}
-                  />
-                }
-              >
-                <DockIcon aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup
-                  value={dock}
-                  onValueChange={(value) => {
-                    if (!isWorkspaceDock(value)) return;
-                    setMaximized(false);
-                    setLayout((previous) => ({ ...previous, dock: value }));
-                  }}
-                >
-                  {workspaceDocks.map((position) => {
-                    const Icon = dockIcons[position];
-                    return (
-                      <DropdownMenuRadioItem key={position} value={position}>
-                        <Icon aria-hidden="true" />
-                        {t(`dock.${position}`)}
-                      </DropdownMenuRadioItem>
-                    );
-                  })}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("new")}
-              title={t("new")}
-              onClick={() => {
-                setDraft({
-                  hostId:
-                    selectedSession?.hostId || addedHosts(data)[0]?.id || "",
-                  noEnvironment: true,
-                  fallback: false,
-                });
-                setSecrets({});
-                setRemember({});
-              }}
-            >
-              <SquarePlusIcon aria-hidden="true" />
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("collapse")}
-              title={t("collapse")}
-              onClick={() => setExpanded(false)}
-            >
-              <XIcon aria-hidden="true" />
-            </Button>
-          </div>
-        </header>
         {error && (
           <p className="terminal-error" role="alert">
             {formatUiError(error, t)}
@@ -1018,7 +734,7 @@ export function TerminalWorkspaceProvider({
         ) : (
           <p className="terminal-empty">{t("empty")}</p>
         )}
-      </motion.aside>
+      </WorkspacePanel>
       <AnimatePresence
         onExitComplete={() => {
           if (

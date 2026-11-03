@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { useId, useState, type CSSProperties } from "react";
 import {
   DatabaseBackupIcon,
@@ -393,7 +394,7 @@ export function ConnectionIconPicker({
                         {t("defaultIcon")}
                       </Button>
                     </div>
-                    <Input
+                    <SearchInput
                       aria-label={t("searchIcons")}
                       placeholder={t("searchIcons")}
                       value={query}

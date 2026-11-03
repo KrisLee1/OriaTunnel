@@ -49,6 +49,7 @@ describe("eight-language resources", () => {
       "commands",
       "terminal",
       "native",
+      "files",
     ];
     for (const language of supportedLanguages) {
       expect(Object.keys(resources[language]).sort(), language).toEqual(

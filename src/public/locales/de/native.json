@@ -205,5 +205,7 @@
   "proxyBrowserDynamic": "Wählen Sie eine lauschende D-Weiterleitung",
   "proxyBrowserMissing": "{{browser}} wurde nicht gefunden. Installieren Sie zuerst den Browser",
   "proxyBrowserFailed": "Proxy-Browser kann nicht gestartet werden. Prüfen Sie den Zugriff auf das Anwendungsdatenverzeichnis",
-  "proxyBrowserPlatform": "Der Proxy-Browser wird derzeit unter Windows und macOS unterstützt"
+  "proxyBrowserPlatform": "Der Proxy-Browser wird derzeit unter Windows und macOS unterstützt",
+  "trayFiles": "Dateiübertragung",
+  "filesExitConfirm": "Dateioperationen laufen. Übertragungen stoppen und beenden? Nein setzt die Übertragungen fort."
 }

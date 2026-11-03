@@ -7,6 +7,7 @@ mod config_export;
 mod config_import;
 mod credentials;
 mod desktop;
+pub mod files;
 mod jump_endpoint;
 mod long_running;
 #[cfg(target_os = "macos")]
@@ -123,6 +124,19 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app::snapshot,
+            app::file_api::file_snapshot,
+            app::file_api::file_clear_history,
+            app::file_api::file_connect,
+            app::file_api::file_list,
+            app::file_api::file_sources,
+            app::file_api::file_submit,
+            app::file_api::file_control,
+            app::file_api::file_disconnect,
+            app::file_api::file_mutate,
+            app::file_api::file_pick,
+            app::file_api::file_reveal,
+            app::file_api::file_open_target,
+            app::file_api::file_preview,
             app::terminal_api::terminal_sessions,
             app::terminal_api::open_terminal,
             app::terminal_api::attach_terminal,
@@ -212,6 +226,28 @@ pub fn run() {
                     {
                         let app = handle.clone();
                         tauri::async_runtime::spawn(async move {
+                            if app::state(&app).has_file_work() {
+                                let choice = tokio::task::spawn_blocking(|| {
+                                    rfd::MessageDialog::new()
+                                        .set_title(crate::native_message::text(
+                                            "trayFiles",
+                                            serde_json::json!({}),
+                                        ))
+                                        .set_description(crate::native_message::text(
+                                            "filesExitConfirm",
+                                            serde_json::json!({}),
+                                        ))
+                                        .set_buttons(rfd::MessageButtons::YesNo)
+                                        .show()
+                                })
+                                .await;
+                                if !matches!(choice, Ok(rfd::MessageDialogResult::Yes)) {
+                                    app.state::<ExitState>()
+                                        .0
+                                        .store(0, std::sync::atomic::Ordering::SeqCst);
+                                    return;
+                                }
+                            }
                             app::state(&app).shutdown().await;
                             app.state::<ExitState>()
                                 .0

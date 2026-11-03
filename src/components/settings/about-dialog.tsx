@@ -21,7 +21,8 @@ import { ApplicationUpdateSetting } from "./application-update-setting";
 import type { useApplicationUpdate } from "@/lib/application-update";
 import type { UpdateSnapshot } from "@/types";
 import packageInfo from "../../../package.json";
-import applicationIcon from "../../../src-tauri/icons/128x128.png";
+import applicationIcon from "../../../src-tauri/icons/runtime-icon-light.png";
+import applicationIconDark from "../../../src-tauri/icons/runtime-icon-dark.png";
 import applicationLogo from "@/assets/oria-tunnel-logo.svg";
 import githubBlack from "@/assets/github-black.svg";
 import githubWhite from "@/assets/github-white.svg";
@@ -147,8 +148,9 @@ export function AboutDialog({
           width={72}
           height={72}
           alt={t("about.icon")}
-          className="size-18 shrink-0"
+          className="size-18 shrink-0 dark:hidden"
         />
+        <img src={applicationIconDark} width={72} height={72} alt={t("about.icon")} className="hidden size-18 shrink-0 dark:block" />
         <div className="grid min-w-0 gap-2">
           <h3 className="m-0! text-2xl! leading-tight font-semibold tracking-tight">
             OriaTunnel

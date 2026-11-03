@@ -4,6 +4,15 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 ## 可复用能力
 
+- 搜索统一使用 `src/components/ui/search-input.tsx` 的 SearchInput（组合共享 Input 和内置 Lucide Search），图标位置、28px 高度和文字内边距集中在 globals.css；业务类如 host-search 只决定宽度/布局，不能重复设置图标位移。图标不拦截指针，输入保留可访问名称与原生搜索语义。
+- Base UI 的 DropdownMenuLabel 必须包含在 DropdownMenuGroup / RadioGroup 内，不能直接放在 Popup 下。菜单验证需实际渲染展开后的内容，静态关闭态 Portal 不会暴露上下文错误。文件两侧选项复用同一 FileOptionsMenu 内容。
+- Dialog / 模态 Drawer 默认使用 Base UI `modal="trap-focus"`，焦点仍受约束，由共享可见 scrim 阻挡正文指针；避免 Base UI 内部全窗口指针挡板遮住原生顶栏拖动区。Drawer 在 modal 不为 false 时保留可见遮罩。原生拖动区和窗口控件不参与业务动作禁用。
+- 弹窗底色使用 `--oria-color-bg`，内部控件/卡片使用 `--oria-color-surface`，边框直接使用 `--oria-color-border`；只调整透明度，不额外混入前景色调深/调浅。`oria-control-surface` 供 Input、Select、ComboboxChips、描边 Button/Item 统一背景与边框；启动/停止等彩色动作保持原变体无边框。共享弹窗 header 不加下边框，焦点环和焦点边框只在 Tab 进入键盘导航后显示；关于页按界面深浅色使用对应 runtime 应用图标。
+- `src/components/ui/workspace-panel.tsx` / `use-workspace-panel.ts` / `workspace-layout.ts` 是文件与终端共用的非模态悬浮面板：顶栏、停靠菜单、尺寸/边界、Pointer Capture、展开/收起、Motion 与 Tab 焦点共用，位置和三方向尺寸各自持久化；点击/聚焦的面板为 35 层，另一面板 34 层，仍低于原生顶栏和模态框。关闭不卸载业务内容，保持目录/选区/SSH 会话。
+- 文件传输在 `src/features/files/`：`FileWorkspaceProvider` 管理入口、认证与只读 Rust 快照；两端文件浏览和传输列表为三张主题卡片，内外留白与分栏统一 8px，工具栏控件统一 28px，使用共享 Resizable；底部停靠左右布局，两侧停靠上下布局。两端复用同一主机选择/连接标题组件，左侧可选此电脑或 SSH，右侧选另一 SSH。传输区是 collapsible Panel，可直接拖动展开/收起，标题也可切换，不用固定 maxSize 锁死拖动。目录使用 Breadcrumb，完整路径另行编辑；本机「此电脑」列出 OS 盘符并使用 HardDrive，Windows 内部扩展路径前缀不展示。两栏列表/图标共用窗口化条目，跨栏 Pointer Events 和原生文件拖入共用 Rust 提交；传输项为两行，方向紧跟文件名，本机目标路径可直接打开所在文件夹，顶栏右侧 BrushCleaning 仅清空已结束且无残留临时文件的记录。任务收起/切页/前端重载不停止 Rust 队列，运行数据不能由前端补造。
+
+- 顶栏不建立整体层叠上下文：仅窗口控件为 60 层，业务胶囊、导航和标题为 40 层，弹窗及蒙层为 50 层；失焦透明度应用在各胶囊而非左右容器，避免把业务操作一并抬到蒙层之上。
+
 - 顶栏功能区只在 Base UI 弹窗带 `data-open` 时锁定；退场节点不继续禁用顶栏，关闭态遮罩及弹窗不拦截指针，终端焦点恢复也只判断已打开弹窗。窗口关闭/最小化/最大化与拖动保持原有独立行为。
 - 顶栏中部与两侧胶囊统一使用 `--oria-shadow-sm`，弱于弹窗的 `--oria-shadow-md`；导航外层允许阴影溢出，只在内部 TabsList 约束内容，防止裁掉外阴影。终端顶部安全边界不得小于顶栏自身下沿扣除透明底部 padding，并在展开前同步重新测量。
 
@@ -15,12 +24,12 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 - 原生托盘在 desktop.rs 中按显示窗口、服务/终端、转发启停、退出以分割线分组。「服务命令」先按服务名称展开，再以分割线区分关联转发/主机的动作；未绑定服务禁用。命令 ID 携带当前服务修订和精确转发/动作引用，点击时 Rust 重验最新可用状态，前端 service-target.resolveTrayServiceRequest 从最新保存配置解析，再经现有 execute/确认/认证或前台终端停止。服务生命周期只在忙碌/服务终端引用集合变化时刷新托盘，输出与尺寸变化不重建。SSH 子菜单仅打开面板与已添加主机，不设新建菜单项；隐藏/未添加不列出，诊断阻塞禁用。Provider 的 layout ref 始终读取最新入口，卸载释放事件，打开面板自身不执行/连接。
 - SSH 终端由 App 根部 `TerminalWorkspaceProvider` 管理，`OpenTerminalButton` 供顶栏、主机与转发入口复用；主导航依次为连接图、转发、服务、主机、活动。复用 Base UI Tabs（终端 keepMounted）、Modal/AnimatePresence、HostPicker、AuthenticationField 和 ORIA Token。折叠/切页不卸载终端；窗口重载取消旧会话；活动标签关闭需确认，关闭普通命令输出不取消任务。
-- 工作面板支持靠下/靠左/靠右，通过共享 DropdownMenu RadioGroup 选择；底部调整高度，左右在朝向内容的一侧调整宽度。窗口左右/底部与顶栏胶囊读取同一间距（默认 4px），顶部从可见胶囊下沿再留同一间距，不重复计入顶栏透明底部内边距；默认不因窄窗口自动最大化。可见手柄使用 Pointer Capture，鼠标与对应轴方向键及 Home/End 共用边界，最大化时仍可拉回自定义尺寸。`workspace-layout.ts` 校验位置和三方向独立尺寸，保存在 `oria-tunnel.terminal-layout.v1`；拖动结束才写入，视口缩小只限制呈现、不覆盖原尺寸，切换位置不卸载终端或重新连接。
+- 工作面板支持靠下/靠左/靠右，通过共享 DropdownMenu RadioGroup 选择；底部调整高度，左右在朝向内容的一侧调整宽度。窗口左右/底部与顶栏胶囊读取同一间距（默认 4px），顶部从可见胶囊下沿再留同一间距，不重复计入顶栏透明底部内边距；默认不因窄窗口自动最大化。可见手柄使用 Pointer Capture，鼠标与对应轴方向键及 Home/End 共用边界，最大化时仍可拉回自定义尺寸。共享 `ui/workspace-layout.ts` 校验位置和三方向独立尺寸；终端保存在 `oria-tunnel.terminal-layout.v1`，文件保存在 `oria-tunnel.files-workspace.v1`；拖动结束才写入，视口缩小只限制呈现、不覆盖原尺寸，切换位置不卸载终端或重新连接。
 - 终端内部统一由 --terminal-content-inset: 8px 管理水平内边距，供标题、标签栏、地址行、搜索、xterm 屏幕、命令输出、错误及空状态共用；顶栏顶部与标签栏底部各留 4px，两行交界处不再叠加上下 padding，标签栏最小高度 32px；屏幕右侧为滚动条单独留 4px，手柄宽/高为 8px，地址行仍固定 28px。
 - 工作面板新建使用 SquarePlus，主机/转发入口打开对应主机使用 SquareTerminal；顶栏恢复工作面板保留 Terminal 图标，入口位于设置/关于所在外侧胶囊，随窗口控件位置镜像；固定右侧胶囊只放全部启停。面板收起与标签关闭均使用 X，展开/还原使用 ChevronFirst/Last 并随方向旋转。面板顶栏操作顺序为展开/还原、面板位置、新建终端、收起，DOM 与键盘焦点顺序一致。普通 Shell 固定请求 `noLocalEnvironment=true`，仅检测到 `SendEnv` 时显示忽略说明；专用预设继续使用已保存的服务策略。
 - terminal 启动服务的运行时停止复用 TerminalWorkspaceProvider 的 foregroundSession/stopService 与现有关闭/忘记流程；terminal-model.ts 只按当前 client、服务、转发、启动动作及 Rust 活动状态匹配。服务菜单/命令面板保留可用停止，其余动作沿用互斥；活动前台会话存在时替代原生停止，无会话则恢复原操作。关闭失败保留标签并展开错误，不产生远端已停止的假状态。此入口是运行时控制，不写成命令模板或导出脚本。
 - 明确 hostId 的终端入口直接调用 Rust，以空凭据尝试已有认证配置/已保存密码，不先显示主机选择。仅未提交 Shell/服务命令的认证失败且路线含非纯代理主机时弹出锁定主机的补充认证；服务终端仅处理当前 client 的明确请求，并重验请求时的服务修订、执行许可和关联转发。提示按请求与会话去重，取消不重复自动打开；指纹仍独立核对，网络/配置错误不触发密码提示。重连以 requestId 绑定原结束会话，标签保留 React key 和位置；新 SSH 代次拥有独立 session ID 与新 xterm，旧记录退订/忘记且迟到事件不恢复旧标签。
-- 面板使用现有 Motion 与 interactionSpring 对数值化位置/尺寸、沿停靠侧的滑入/滑出和透明度做可中断过渡；不从 auto 尺寸硬切。关闭立即 inert/aria-hidden，动画完成才隐藏，终端保持挂载；拖动时过渡为 0，减少动态效果时位置/尺寸立即切换、仅短淡入淡出。几何由 workspace-layout.ts 统一计算，基于顶栏两侧可见控件组/中部胶囊下缘的最大值，以及顶栏胶囊实际窗口内边距；无可测控件时使用顶栏下缘扣除透明底部内边距。
+- 面板使用现有 Motion 与 interactionSpring 对数值化位置/尺寸、沿停靠侧的滑入/滑出和透明度做可中断过渡；不从 auto 尺寸硬切。关闭立即 inert/aria-hidden，动画完成才隐藏，终端保持挂载；拖动时过渡为 0，减少动态效果时位置/尺寸立即切换、仅短淡入淡出。几何由共享 ui/workspace-layout.ts 统一计算，基于顶栏两侧可见控件组/中部胶囊下缘的最大值，以及顶栏胶囊实际窗口内边距；无可测控件时使用顶栏下缘扣除透明底部内边距。
 - 终端移除常驻四按钮工具栏；复制/粘贴/查找/清屏使用共享 Base UI ContextMenu（复用 Menu Item 样式），清屏使用 BroomSparkles。菜单支持指针/长按、键盘菜单键/Shift+F10、方向键/Enter/Escape、快捷键提示和关闭后的焦点恢复；无选区禁用复制、非 running 禁用粘贴。查找栏仅主动打开时显示。Ctrl+C/D/Z/U/L/K 保留远端语义；本地清屏 Cmd+K/Ctrl+Shift+K，粘贴继续经过现有审核，不解锁 OSC52。
 - 标签栏在确有横向溢出的一侧显示 16px 遮罩渐隐；被动 scroll 监听及 ResizeObserver 检测列表/标签尺寸，新增/关闭标签与展开后重新测量，完整可见/抵达边界时取消对应侧渐隐。使用标准及 -webkit-mask-image，强制颜色模式关闭遮罩；不改变原标签/关闭按钮的指针与键盘交互，卸载时清理监听/观察。
 - 标签以 1px 竖分割线隔开，线两侧各留 4px，gap 与伪元素偏移共用 --terminal-tab-separator-space，避免右侧少 1px；未选中项无背景/边框，选中项使用中性背景和加粗标题，不使用描边或底部横线；样式读取 Base UI 的 data-active，保留原键盘焦点与 ARIA，强制颜色模式使用系统选中背景。标签状态使用标题前彩色圆点，颜色仅由 Rust phase/finishedAt 决定；title 保留端点和文字状态，aria-label/读屏状态保留文字。地址行固定 28px 高、上下内边距各 2px，重连使用 24px 的 icon-xs 按钮，显示/隐藏不改变行高；去掉重复状态、重连改为命名图标，远端未知状态只显示短提示（完整信息在 title），不再渲染 WebView 重载说明。
@@ -150,3 +159,5 @@ ServiceIconStrip 内的代理服务按钮不继承 IP 路径行的自动边距�
 服务选择器位于转发方式及示例说明下方；选择范围和 L/R/D 端口约束保持原逻辑。
 
 服务前台终端按服务 ID 与已解析主机共享识别：主机入口及该主机已关联转发使用同一活动启动终端与停止入口，保留当前 clientId 所有权、动作和结束状态检查，不跨主机复用。D 服务图标通过 service-running-context.ts 读取同一运行证据；代理监听状态独立控制浏览器启动可用性。
+
+文件连接图状态在 `src/features/files/transfer-state.tsx` / `transfer-graph.ts` / `transfer-edge.tsx`：从 Rust Task 的两端、phase 和 transport 投影独立文件连线，区分直传与经本机中转；暂停/冲突/远端结果不明为静态，完成移除。节点有专用不可交互文件 Handle 和传输状态；不能借用 TCP 转发端口或修改转发状态。投影排除 bytes/speed/eta，字节更新复用图表引用；SVG 文件图标和连线动画遵循实际 transferring 及减少动态效果。

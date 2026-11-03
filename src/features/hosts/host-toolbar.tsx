@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { SearchIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -53,16 +54,13 @@ export function HostToolbar({
   ];
   return (
     <div className="host-toolbar">
-      <div className="host-search">
-        <SearchIcon size={16} aria-hidden="true" />
-        <Input
+      <SearchInput containerClassName="host-search"
           type="search"
           aria-label={t("search")}
           placeholder={t("search")}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
         />
-      </div>
       <div className="host-toolbar-controls">
         <Select
           items={statuses}

@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { formatNativeMessage } from "@/lib/native-message";
 import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
@@ -61,7 +62,7 @@ export function HostDiscovery({
       close={close}
     >
       {!!discoveredHosts(hosts, "").length && (
-        <Input
+        <SearchInput
           type="search"
           aria-label={t("search")}
           placeholder={t("search")}

@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { formatUiError } from "@/lib/ui-message";
 import {
   serviceRules,
@@ -1033,16 +1034,13 @@ export function PresetCommandProvider({
       <>
         {page && !filter ? (
           <div className="host-toolbar service-toolbar">
-            <div className="host-search">
-              <SearchIcon size={16} aria-hidden="true" />
-              <Input
+            <SearchInput containerClassName="host-search"
                 type="search"
                 aria-label={t("searchServices")}
                 placeholder={t("searchServices")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-            </div>
             <div className="host-toolbar-controls">
               <Select
                 items={categoryOptions}

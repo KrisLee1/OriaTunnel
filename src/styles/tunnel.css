@@ -18,6 +18,7 @@ body,
 }
 .header-center {
   position: absolute;
+  z-index: 40;
   top: 4px;
   bottom: 4px;
   display: flex;
@@ -114,10 +115,10 @@ body,
   gap: 6px;
   padding: 24px 56px;
   border: 0;
-  box-shadow: none;
 }
 .local-card::before {
-  content: none;
+  /* The fluid SVG supplies the base color; retain the shared theme texture. */
+  background: var(--oria-pattern-surface, none), var(--oria-gradient-surface, none);
 }
 .card-heading {
   display: flex;
@@ -178,7 +179,7 @@ body,
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: -1;
+  z-index: -2;
 }
 .local-add-fluid {
   position: absolute;
@@ -192,10 +193,16 @@ body,
     var(--oria-color-bg)
   );
   /* Apply translucency after the alpha threshold, only to the small fluid layer. */
-  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.12));
 }
 .local-add-fluid > g {
   opacity: var(--aide-component-surface-opacity);
+}
+.local-add-button-shadow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  box-shadow: var(--oria-shadow-md);
 }
 .local-add-button-frame {
   display: flex;
@@ -1432,19 +1439,6 @@ body,
   max-width: 320px;
   min-width: 0;
 }
-.host-search > svg {
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--oria-color-muted-fg);
-  pointer-events: none;
-}
-.host-search > input {
-  height: 28px;
-  padding-left: 32px;
-  font-size: 12px;
-}
 .host-toolbar-controls,
 .host-filters {
   display: flex;
@@ -1678,20 +1672,10 @@ body,
 .preset-service-heading h3 { margin-top: 0; }
 
 /* Persistent terminal work area. Hidden tabs keep their parser and SSH subscription alive. */
-.terminal-workspace { --terminal-content-inset: 8px; position: fixed; z-index: 35; display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--oria-color-border); border-radius: var(--oria-radius-xl); overflow: hidden; color: var(--oria-color-fg); }
+.terminal-workspace { --terminal-content-inset: 8px; }
 .terminal-workspace[data-open="false"] { pointer-events: none; }
 .terminal-session-panel[hidden], .terminal-session-panel[data-hidden] { display: none; }
-.terminal-workspace-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px var(--terminal-content-inset) 0; flex: none; font-size: 12px; }
-.terminal-workspace-actions, .terminal-search-bar { display: flex; align-items: center; gap: 4px; }
-.terminal-workspace-actions { position: relative; z-index: 3; }
-.terminal-resize-handle { position: absolute; top: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; touch-action: none; -webkit-user-select: none; user-select: none; z-index: 2; }
-.terminal-resize-handle::after { content: ""; position: absolute; top: 3px; left: calc(50% - 20px); width: 40px; height: 3px; border-radius: 999px; background: var(--oria-color-muted-fg); opacity: .45; }
-.terminal-workspace[data-dock="left"] > .terminal-resize-handle, .terminal-workspace[data-dock="right"] > .terminal-resize-handle { top: 0; bottom: 0; width: 8px; height: auto; cursor: ew-resize; }
-.terminal-workspace[data-dock="left"] > .terminal-resize-handle { left: auto; right: 0; }
-.terminal-workspace[data-dock="right"] > .terminal-resize-handle { left: 0; right: auto; }
-.terminal-workspace[data-dock="left"] > .terminal-resize-handle::after, .terminal-workspace[data-dock="right"] > .terminal-resize-handle::after { top: calc(50% - 20px); left: 3px; width: 3px; height: 40px; }
-.terminal-resize-handle:hover::after, .terminal-resize-handle:focus-visible::after { opacity: 1; }
-.terminal-resize-handle:focus-visible { outline: 2px solid var(--oria-color-primary); outline-offset: -2px; }
+.terminal-search-bar { display:flex;align-items:center;gap:4px; }
 .terminal-tabs { flex: 1; min-height: 0; gap: 0; }
 .terminal-tab-list { --terminal-tab-separator-space: 4px; display: flex; justify-content: flex-start; gap: calc(var(--terminal-tab-separator-space) * 2 + 1px); max-width: 100%; width: 100%; height: auto; min-height: 32px; overflow-x: auto; overflow-y: hidden; padding: 0 var(--terminal-content-inset) 4px; flex: none; border-bottom: 1px solid var(--oria-color-border); }
 .terminal-tab-list { --terminal-tab-fade-left: 0px; --terminal-tab-fade-right: 0px; }

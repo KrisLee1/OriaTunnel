@@ -1,3 +1,4 @@
+import { SearchInput } from "@/components/ui/search-input";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { Terminal } from "@xterm/xterm";
@@ -437,7 +438,7 @@ export default function TerminalView({
           role="search"
           aria-label={t("find")}
         >
-          <Input
+          <SearchInput
             ref={searchInput}
             type="search"
             className="terminal-search"

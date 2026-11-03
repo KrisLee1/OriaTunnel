@@ -15,7 +15,13 @@ pub(crate) fn local(window: &tauri::WebviewWindow) -> Result<(), String> {
         || (cfg!(debug_assertions)
             && url.scheme() == "http"
             && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
-            && url.port() == Some(1420));
+            && window
+                .app_handle()
+                .config()
+                .build
+                .dev_url
+                .as_ref()
+                .is_some_and(|dev| dev.origin() == url.origin()));
     if !allowed {
         return Err("unauthorizedWindow".into());
     }
