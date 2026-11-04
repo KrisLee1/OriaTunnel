@@ -175,6 +175,29 @@ fn executable(browser: Browser) -> Option<PathBuf> {
 }
 
 #[cfg(any(windows, target_os = "macos"))]
+fn launch_command(executable: &Path) -> std::process::Command {
+    #[cfg(target_os = "macos")]
+    {
+        // LaunchServices supplies the browser's own application identity. A bare
+        // Firefox executable inherits the caller's privacy restrictions on macOS 27.
+        let bundle = executable
+            .ancestors()
+            .nth(3)
+            .expect("fixed browser bundle path");
+        let mut command = std::process::Command::new("/usr/bin/open");
+        command.args([
+            std::ffi::OsStr::new("-n"),
+            std::ffi::OsStr::new("-a"),
+            bundle.as_os_str(),
+            std::ffi::OsStr::new("--args"),
+        ]);
+        command
+    }
+    #[cfg(windows)]
+    std::process::Command::new(executable)
+}
+
+#[cfg(any(windows, target_os = "macos"))]
 pub fn launch(
     directory: &Path,
     runtime: &Runtime,
@@ -182,7 +205,7 @@ pub fn launch(
     browser: Browser,
     url: Option<&str>,
 ) -> Result<(), String> {
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     let executable = executable(browser).ok_or_else(|| {
         crate::native_message::message(
             "proxyBrowserMissing",
@@ -190,7 +213,7 @@ pub fn launch(
         )
     })?;
     let profile = prepare_profile(directory, runtime, proxy, browser)?;
-    let mut command = Command::new(executable);
+    let mut command = launch_command(&executable);
     let mut args = arguments(&profile, proxy, browser);
     if let Some(url) = url {
         *args.last_mut().unwrap() = url.into();
@@ -231,6 +254,31 @@ pub fn launch(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_launches_the_bundle_with_literal_arguments_through_launch_services() {
+        let executable = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+        let mut command = launch_command(executable);
+        let arguments = arguments(
+            Path::new("/tmp/QA profile"),
+            "socks5://127.0.0.1:15432",
+            Browser::Chrome,
+        );
+        command.args(&arguments);
+        assert_eq!(command.get_program(), "/usr/bin/open");
+        let actual: Vec<_> = command.get_args().collect();
+        assert_eq!(
+            &actual[..4],
+            &["-n", "-a", "/Applications/Google Chrome.app", "--args"]
+        );
+        assert_eq!(
+            &actual[4..],
+            arguments
+                .iter()
+                .map(|arg| arg.as_os_str())
+                .collect::<Vec<_>>()
+        );
+    }
     fn fixture() -> (Rule, Runtime) {
         let rule = Rule {
             id: "proxy".into(),

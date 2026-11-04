@@ -2,6 +2,24 @@
 
 从仓库根目录操作。应用版本当前由 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock` 和 `src-tauri/tauri.conf.json` 共同确定；发布标签必须为对应的 `vX.Y.Z` 正式版本。CI 使用 Node 24.19.0、pnpm 11.24.0、Rust 1.98.0，依赖按锁文件安装，Actions 固定到提交 SHA。
 
+## 版本准备与本地预检
+
+0.2.0 的更新正文位于 [v0.2.0.md](releases/v0.2.0.md)。先同步四个应用版本文件，再运行下面的本地检查；`tools/update-verifier` 是独立验证工具，不随应用升版。签名测试中的历史版本与公开签名夹具保持绑定，不应批量替换为当前版本。
+
+```sh
+pnpm test
+pnpm build
+node --test scripts/check-update-secrets.node-test.mjs scripts/release/release.node-test.mjs
+node scripts/release/config.mjs
+cargo test --locked --manifest-path tools/update-verifier/Cargo.toml
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib -- --skip credentials::tests::
+cargo test --locked --manifest-path src-tauri/Cargo.toml --test local_forward --test commands_exec --test terminal_pty --test supervision --test service_controller
+cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
+cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+```
+
+本地 Mac 检查只能证明对应本机范围，四个发布目标仍须通过工作流。实际打标签和构建草稿前，核对工作区已按授权提交、源码版本与标签一致，并将该源提交用于全部产物；未提交改动不能归属于已有 HEAD 的发布收据。仅更新版本号和文档不会触发发布。发布候选的 README 可提前同步新版本下载入口；在对应版本公开前，新入口暂不可用。
+
 ## 工作流
 
 | 工作流 | 入口 | 结果 |
@@ -42,8 +60,8 @@ macOS 工作流创建临时钥匙串和 notarytool 配置，结束后删除证�
 
 ```sh
 # 先完成各版本文件更新并提交；示例标签须替换为实际源码版本。
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 不要移动已有正式版本标签，也不要覆盖已公开的同版本资产。失败的同源提交草稿允许重新构建并替换资产。修复代码后重建尚未公开的草稿时，在手动 `draft` 模式填写 `replaceDraftCommit` 为草稿原来的完整 40 位 SHA；元数据必须匹配，且新提交须为原提交的后继。已有版本标签仍须指向当前源码，不移动标签。四平台新产物全部通过验证后才替换草稿资产；已公开版本只能通过更高版本修复。构建与正式发布共用并发锁，避免汇总时发布不完整草稿。

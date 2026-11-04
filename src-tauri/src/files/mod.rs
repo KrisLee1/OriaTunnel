@@ -1640,6 +1640,15 @@ impl Manager {
                     if entry.session.is_none() {
                         let path = entry.path.clone();
                         return tokio::task::spawn_blocking(move || {
+                            #[cfg(target_os = "macos")]
+                            {
+                                use trash::macos::{DeleteMethod, TrashContextExtMacos};
+                                let mut context = trash::TrashContext::default();
+                                // Native Trash needs no Finder automation permission.
+                                context.set_delete_method(DeleteMethod::NsFileManager);
+                                context.delete(path).map_err(err)
+                            }
+                            #[cfg(not(target_os = "macos"))]
                             trash::delete(path).map_err(err)
                         })
                         .await

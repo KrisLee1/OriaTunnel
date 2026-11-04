@@ -688,6 +688,7 @@
   white-space: nowrap;
 }
 .files-transfer-time {
+  display: none;
   flex-shrink: 0;
 }
 .files-batch-content {
@@ -794,6 +795,7 @@
   color: var(--oria-color-danger);
 }
 .files-transfer-row {
+  container: file-transfer / inline-size;
   position: relative;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
@@ -844,7 +846,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 1 8ch;
   min-width: 0;
 }
 .files-transfer-name > strong {
@@ -886,6 +888,7 @@
   color: var(--oria-color-success);
 }
 .files-transfer-mode {
+  display: none;
   flex-shrink: 0;
   font-size: 10px;
   color: var(--oria-color-muted-fg);
@@ -894,12 +897,19 @@
   color: var(--oria-color-danger);
 }
 .files-transfer-size {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--oria-color-muted-fg);
   font-size: 11px;
   white-space: nowrap;
   cursor: help;
   font-variant-numeric: tabular-nums;
+}
+.files-transfer-size-full {
+  display: none;
 }
 .files-transfer-info {
   display: block;
@@ -928,6 +938,7 @@
   white-space: normal;
 }
 .files-transfer-subline {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -959,13 +970,16 @@
   color: var(--oria-color-danger);
   font-size: 11px;
 }
-.files-transfer-row > .files-transfer-progress {
+.files-transfer-subline > .files-transfer-progress {
   position: absolute;
-  left: 50px;
-  right: 10px;
-  top: 56px;
+  left: 0;
+  right: 0;
+  bottom: -4px;
   width: auto;
   height: 2px;
+}
+.files-transfer-progress [data-slot="progress-track"] {
+  height: 100%;
 }
 .files-conflict-target {
   display: grid;
@@ -1128,13 +1142,27 @@
     grid-row: 2;
   }
 }
-@container (max-width: 680px) {
+@container file-transfer (min-width: 680px) {
   .files-transfer-time {
+    display: block;
+  }
+}
+@container file-transfer (min-width: 520px) {
+  .files-transfer-mode {
+    display: block;
+  }
+}
+@container file-transfer (min-width: 480px) {
+  .files-transfer-size-full {
+    display: inline;
+  }
+  .files-transfer-size-compact {
     display: none;
   }
 }
-@container (max-width: 520px) {
-  .files-transfer-mode {
-    display: none;
+@container file-transfer (max-width: 320px) {
+  .files-transfer-heading,
+  .files-transfer-name {
+    gap: 4px;
   }
 }

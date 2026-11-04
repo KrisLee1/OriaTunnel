@@ -15,16 +15,17 @@ OriaTunnel ist ein Desktop-Werkzeug zur Verwaltung von SSH-Tunneln und entfernte
 
 Speichern Sie Hosts und Weiterleitungsregeln und nutzen Sie die Oberfläche zum Starten, Stoppen und Öffnen von Diensten. Auch ohne SSH-Befehlskenntnisse können Sie eine vorbereitete Konfiguration importieren und Ihre eigenen Authentifizierungsdaten ergänzen.
 
-Aktuelle Version: **v0.1.1** · [Versionsverlauf](#versionsverlauf)
+Aktuelle Version: **v0.2.0** · [Versionsverlauf](#versionsverlauf)
 
-**[Vollständiges Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md)** · [Schnellstart](#schnellstart) · [Weiterleitungsart wählen](#weiterleitungsart-wählen)
+**[📥 Herunterladen und installieren](#herunterladen-und-installieren)** · [🚀 Schnellstart](#schnellstart) · [📖 Vollständiges Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) · [🧭 Weiterleitungsart wählen](#weiterleitungsart-wählen)
 
 ## Funktionen
 
-- **Mehrere Tunnel verwalten:** Verbindungen nach Host anzeigen und Regeln einzeln oder gemeinsam starten und stoppen.
+- 📁 **Dateien durchsuchen und übertragen (0.2.0):** lokale und SSH-Dateien durchsuchen, hoch- und herunterladen, zwischen Hosts übertragen, Hintergrundaufgaben verwalten, Vorschauen öffnen und Text bearbeiten.
+- 🔗 **Mehrere Tunnel verwalten:** Verbindungen nach Host anzeigen und Regeln einzeln oder gemeinsam starten und stoppen.
+- 💻 **SSH-Terminal öffnen:** mehrere interaktive Terminal-Tabs nutzen oder interaktive und dauerhaft im Vordergrund laufende Befehle in eigenen Terminals ausführen.
 - **Dienstbefehle als Schaltflächen speichern:** Start, Stopp, Neustart, Status und Protokolle über eine verknüpfte Weiterleitung ausführen; integrierte Vorlagen erleichtern die Einrichtung.
 - **Dienste prüfen und verbinden:** Status- und Zustandsprüfungen konfigurieren oder einen unterstützten nichtinteraktiven Start mit der Weiterleitung verbinden und die einzelnen Ergebnisse verfolgen.
-- **SSH-Terminal öffnen:** mehrere interaktive Terminal-Tabs nutzen oder interaktive und dauerhaft im Vordergrund laufende Befehle in eigenen Terminals ausführen.
 - **Vertraute SSH-Weiterleitungsarten nutzen:** lokale Weiterleitung (L), entfernte Weiterleitung (R) und dynamische SOCKS5-Weiterleitung (D), mit geordneten ProxyJump-Routen über mehrere Zwischenstationen.
 - **Hosteinstellungen wiederverwenden:** Kandidaten aus der SSH-Konfiguration suchen oder Hosts manuell hinzufügen; Authentifizierung mit Passwort, privatem Schlüssel oder dem SSH-Agent des Systems.
 - **Den Betrieb verfolgen:** Verbindungsstatus, Listen-Adressen und -Ports, Datenverkehr, aktive Verbindungen, Wiederverbindungsfortschritt und filterbare Ereignisprotokolle prüfen.
@@ -34,17 +35,18 @@ Aktuelle Version: **v0.1.1** · [Versionsverlauf](#versionsverlauf)
 
 ## Herunterladen und installieren
 
-Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
+
+Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
 
 - **Windows:** Laden Sie das `.exe`-Installationsprogramm herunter und folgen Sie dem Installationsassistenten.
 - **macOS:** Laden Sie die `.dmg`-Datei herunter, öffnen Sie sie und ziehen Sie `OriaTunnel.app` in den Ordner **Programme (Applications)**. Wenn Sie eine `.zip`-Datei herunterladen, entpacken Sie zuerst die darin enthaltene `.dmg`-Datei.
 
 | Plattform | Download |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
 
 Unter **Über → Versionsaktualisierung** können Sie Updates prüfen, herunterladen und installieren. Die Prüfung beim Start ist abschaltbar. Die Installation trennt SSH-Verbindungen; speichern Sie vorher Ihre Terminalarbeit. Für die Erstinstallation oder ältere Entwicklungsbuilds verwenden Sie die obigen Installationspakete. Siehe [App-Updates (Chinesisch)](../USAGE.md#应用更新).
 
@@ -103,8 +105,16 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 - [Konfigurationen importieren und exportieren (Chinesisch)](../USAGE.md#配置导入与导出)
 - [Hintergrundbetrieb, Wiederverbindungen und Start (Chinesisch)](../USAGE.md#后台运行重连与自动启动)
 - [Status und Fehlerbehebung (Chinesisch)](../USAGE.md#查看状态与排查问题)
+- [Dateiübertragung, Vorschau und Bearbeitung (0.2.0)](../USAGE.md#文件传输)
 
 ## Versionsverlauf
+
+### v0.2.0
+
+- Lokale/SSH-Dateiverwaltung sowie Uploads, Downloads und Host-zu-Host-Übertragungen hinzugefügt, mit andockbaren Bereichen, automatischen/manuellen Layouts, Suche, Mehrfachauswahl und Drag-and-drop.
+- Hintergrundwarteschlangen, tatsächlichen Fortschritt, Pause/Fortsetzen/Abbrechen, Konfliktbehandlung, Stapeldetails und Status in der Verbindungsübersicht hinzugefügt.
+- Vorschauen für Code, Bilder, SVG und Markdown sowie Textbearbeitung hinzugefügt; beim Speichern werden externe Änderungen geprüft und Kodierung sowie Zeilenenden erhalten.
+- macOS-Volumes, versteckte Dateien, Berechtigungen, Papierkorb und Tastenkürzel verbessert; Proxy-Browser-Start, Doppelklick auf ganze Zeilen und schmale Übertragungseinträge korrigiert.
 
 ### v0.1.1 · 2026-10-27
 

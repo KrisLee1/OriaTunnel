@@ -15,16 +15,17 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 
 如果你需要通过 SSH 使用多台服务器上的多个服务，可以把主机和转发规则保存下来，日常通过点击启动、停止和打开服务。不熟悉 SSH 命令的使用者，也可以导入他人准备好的配置，补全自己的认证信息后使用。
 
-当前版本：**v0.1.1** · [版本记录](#版本记录)
+当前版本：**v0.2.0** · [版本记录](#版本记录)
 
-**[下载与安装](#下载与安装)** · [快速上手](#快速上手) · [完整使用指南](docs/USAGE.md)
+**[📥 下载与安装](#下载与安装)** · [🚀 快速上手](#快速上手) · [📖 完整使用指南](docs/USAGE.md)
 
 ## 能做什么
 
-- **管理多条隧道**：按主机查看连接图和转发列表，独立或批量启动、停止规则。
+- 📁 **浏览与传输文件（0.2.0）**：浏览本机和 SSH 主机，上传、下载及主机间传输，管理后台队列，预览文件并编辑文本。
+- 🔗 **管理多条隧道**：按主机查看连接图和转发列表，独立或批量启动、停止规则。
+- 💻 **随时打开 SSH 终端**：通过已添加的主机打开多标签交互终端，也可在专用终端运行需要交互或持续前台运行的服务命令。
 - **把常用服务操作变成按钮**：保存启动、停止、重启、状态和日志等命令，从关联转发执行；可从内置模板开始配置。
 - **按需检查并连接服务**：配置状态与健康检查，在支持的非交互启动流程中执行「启动并连接」，查看每一步的实际结果。
-- **随时打开 SSH 终端**：通过已添加的主机打开多标签交互终端，也可在专用终端运行需要交互或持续前台运行的服务命令。
 - **覆盖常见 SSH 转发场景**：本地转发 L、远程转发 R、动态 SOCKS5 代理 D，支持有序多跳 ProxyJump。
 - **复用已有主机配置**：从 SSH 配置中发现候选主机，或手动添加；支持密码、私钥和系统 SSH Agent。
 - **查看实际运行情况**：连接状态、监听路径、流量、活动连接、重连进度和可筛选的事件日志。
@@ -34,17 +35,18 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 
 ## 下载与安装
 
-前往 [Releases 下载页面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1)，选择适合操作系统和设备架构的安装包。
+
+前往 [Releases 下载页面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0)，选择适合操作系统和设备架构的安装包。
 
 - **Windows**：下载 `.exe` 安装程序，双击后按向导完成安装。
 - **macOS**：下载 `.dmg`，打开后将 `OriaTunnel.app` 拖入「应用程序」文件夹。如果下载的是 `.zip`，先解压出其中的 `.dmg` 再打开。
 
 | 平台 | 下载 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
 
 在「关于」的「版本更新」中检查新版本，按提示下载并安装；可关闭「启动时检查更新」。安装会中断当前 SSH 连接，请先保存终端中的工作。首次安装或较早开发构建请使用上方安装包。详见[应用更新](docs/USAGE.md#应用更新)。
 
@@ -81,12 +83,23 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 
 ## 界面预览
 
-连接图、转发、服务、主机、日志和 SSH 终端的浅色／深色界面预览。画面使用独立示例数据，不包含真实服务器或凭据。
+连接图、转发、服务、主机、日志和 SSH 终端的浅色／深色演示图，来自官网交互演示，使用独立示例数据，不包含真实服务器或凭据。
+
+**[前往 OriaTunnel 官网查看动态预览](https://oriamade.com/zh-CN/oria-tunnel#workspace)**
 
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/connection-map-dark.png"><img src="docs/assets/screenshots/connection-map-light.png" alt="连接图"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/terminal-dark.png"><img src="docs/assets/screenshots/terminal-light.png" alt="SSH 终端"></picture> |
 | :---: | :---: |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/forwards-dark.png"><img src="docs/assets/screenshots/forwards-light.png" alt="转发列表"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/services-dark.png"><img src="docs/assets/screenshots/services-light.png" alt="服务列表"></picture> |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/hosts-dark.png"><img src="docs/assets/screenshots/hosts-light.png" alt="SSH 主机"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/logs-dark.png"><img src="docs/assets/screenshots/logs-light.png" alt="日志"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/files-dark.png"><img src="docs/assets/screenshots/files-light.png" alt="文件传输"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/logs-dark.png"><img src="docs/assets/screenshots/logs-light.png" alt="日志"></picture> |
+
+### 文件传输
+
+本机与 SSH 主机的文件工作区、后台传输队列和布局预览。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/files-dark.png">
+  <img src="docs/assets/screenshots/files-light.png" alt="文件传输工作区与后台队列">
+</picture>
 
 ## 使用文档
 
@@ -101,8 +114,16 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 - [SSH 交互终端](docs/USAGE.md#ssh-交互终端)
 - [后台运行、重连与自动启动](docs/USAGE.md#后台运行重连与自动启动)
 - [状态与排错](docs/USAGE.md#查看状态与排查问题)
+- [文件传输、预览与编辑（0.2.0）](docs/USAGE.md#文件传输)
 
 ## 版本记录
+
+### v0.2.0
+
+- 新增本机/SSH 文件浏览与上传、下载、主机间传输，支持停靠面板、自动/手动布局、搜索、多选和拖放。
+- 新增后台传输队列、真实进度、暂停/继续/取消、冲突处理、批次明细和连接图状态。
+- 新增代码、图片、SVG、Markdown 等预览及文本编辑，保存时检测外部修改并保留编码和换行。
+- 完善 macOS 挂载卷、隐藏文件、权限、废纸篓和快捷键，修复代理浏览器启动、整行双击与窄屏传输项布局。
 
 ### v0.1.1 · 2026-10-27
 

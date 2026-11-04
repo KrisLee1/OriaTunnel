@@ -180,7 +180,12 @@ export function TransferItem({
               />
             }
           >
-            {running ? `${size(task.bytes)} / ${totalText}` : totalText}
+            <span className="files-transfer-size-full">
+              {running ? `${size(task.bytes)} / ${totalText}` : totalText}
+            </span>
+            <span className="files-transfer-size-compact" aria-hidden="true">
+              {totalText}
+            </span>
           </TooltipTrigger>
           <TooltipContent className="files-transfer-info" role="tooltip">
             <dl>
@@ -278,18 +283,18 @@ export function TransferItem({
             {error}
           </span>
         )}
+        {running && (
+          <Progress
+            className="files-transfer-progress"
+            aria-label={t("progress")}
+            value={
+              task.total > 0
+                ? Math.min(100, (task.bytes / task.total) * 100)
+                : null
+            }
+          />
+        )}
       </div>
-      {running && (
-        <Progress
-          className="files-transfer-progress"
-          aria-label={t("progress")}
-          value={
-            task.total > 0
-              ? Math.min(100, (task.bytes / task.total) * 100)
-              : null
-          }
-        />
-      )}
       {batch && (
         <CollapsibleContent className="files-batch-content h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-aide-fast data-starting-style:h-0 data-ending-style:h-0 motion-reduce:transition-none">
           <TransferBatchDetails

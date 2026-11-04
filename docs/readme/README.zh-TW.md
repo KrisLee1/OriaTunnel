@@ -15,16 +15,17 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 儲存主機和轉送規則後，日常透過點選即可啟動、停止和開啟服務。不熟悉 SSH 指令的使用者，也可以匯入管理員或同事準備好的設定，補齊自己的驗證資訊後使用。
 
-目前版本：**v0.1.1** · [版本記錄](#版本記錄)
+目前版本：**v0.2.0** · [版本記錄](#版本記錄)
 
-**[完整使用指南（簡體中文）](../USAGE.md)** · [快速上手](#快速上手) · [選擇轉送方式](#選擇轉送方式)
+**[📥 下載與安裝](#下載與安裝)** · [🚀 快速上手](#快速上手) · [📖 完整使用指南（簡體中文）](../USAGE.md) · [🧭 選擇轉送方式](#選擇轉送方式)
 
 ## 功能特色
 
-- **管理多條通道**：依主機查看連線圖與轉送清單，個別或批次啟動、停止規則。
+- 📁 **瀏覽與傳輸檔案（0.2.0）**：瀏覽本機與 SSH 主機、上傳、下載及主機間傳輸，管理背景佇列、預覽檔案並編輯文字。
+- 🔗 **管理多條通道**：依主機查看連線圖與轉送清單，個別或批次啟動、停止規則。
+- 💻 **內建 SSH 終端機**：開啟多分頁互動終端機，或在專用終端機執行需要互動或持續在前景執行的指令。
 - **將服務操作儲存為按鈕**：設定啟動、停止、重新啟動、狀態及日誌等指令，從關聯的轉送執行；也可從內建範本開始。
 - **按需檢查並連線**：設定狀態與健康檢查，在支援的非互動啟動流程中啟動服務並連線轉送，查看各步驟的實際結果。
-- **內建 SSH 終端機**：開啟多分頁互動終端機，或在專用終端機執行需要互動或持續在前景執行的指令。
 - **支援常見 SSH 轉送情境**：本機轉送 L、遠端轉送 R、動態 SOCKS5 代理 D，支援依序經過多個跳板的 ProxyJump 路線。
 - **沿用既有主機設定**：從 SSH 設定中尋找候選主機，或手動新增；支援密碼、私密金鑰與系統 SSH 代理程式驗證。
 - **查看實際執行情況**：連線狀態、監聽路徑、流量、作用中的連線、重新連線進度，以及可篩選的事件記錄。
@@ -34,17 +35,18 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 ## 下載與安裝
 
-前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1)，選擇適合你的作業系統與裝置架構的套件。
+
+前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0)，選擇適合你的作業系統與裝置架構的套件。
 
 - **Windows：**下載 `.exe` 安裝程式，依安裝精靈的指示完成安裝。
 - **macOS：**下載並開啟 `.dmg`，將 `OriaTunnel.app` 拖入「**應用程式（Applications）**」。若下載的是 `.zip`，請先解壓縮其中的 `.dmg`。
 
 | 平台 | 下載 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
 
 在「關於」的「版本更新」中檢查新版本，依提示下載並安裝；可關閉「啟動時檢查更新」。安裝會中斷目前的 SSH 連線，請先儲存終端中的工作。首次安裝或較早的開發版本請使用上方安裝套件。詳見[應用程式更新（簡體中文）](../USAGE.md#应用更新)。
 
@@ -103,8 +105,16 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 - [設定匯入與匯出（簡體中文）](../USAGE.md#配置导入与导出)
 - [背景執行、重新連線與自動啟動（簡體中文）](../USAGE.md#后台运行重连与自动启动)
 - [狀態與疑難排解（簡體中文）](../USAGE.md#查看状态与排查问题)
+- [檔案傳輸、預覽與編輯（0.2.0）](../USAGE.md#文件传输)
 
 ## 版本記錄
+
+### v0.2.0
+
+- 新增本機／SSH 檔案瀏覽、上傳、下載與主機間傳輸，支援停靠面板、自動／手動配置、搜尋、多選與拖放。
+- 新增背景傳輸佇列、實際進度、暫停／繼續／取消、衝突處理、批次明細及連線圖狀態。
+- 新增程式碼、圖片、SVG、Markdown 等預覽與文字編輯，儲存時檢查外部修改並保留編碼及換行。
+- 完善 macOS 掛載卷、隱藏檔案、權限、垃圾桶與快捷鍵，修正代理瀏覽器啟動、整列雙擊與窄面板傳輸項目配置。
 
 ### v0.1.1 · 2026-10-27
 

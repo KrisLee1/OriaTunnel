@@ -25,7 +25,29 @@ pub fn roots() -> Vec<String> {
             .map(|i| format!("{}:\\", (b'A' + i) as char))
             .collect()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::{NSFileManager, NSVolumeEnumerationOptions};
+        objc2::rc::autoreleasepool(|_| {
+            let mut paths = vec!["/".to_owned()];
+            if let Some(volumes) = NSFileManager::defaultManager()
+                .mountedVolumeURLsIncludingResourceValuesForKeys_options(
+                    None,
+                    NSVolumeEnumerationOptions::SkipHiddenVolumes,
+                )
+            {
+                paths.extend(
+                    volumes
+                        .iter()
+                        .filter_map(|url| url.path().map(|p| p.to_string())),
+                );
+            }
+            paths.sort();
+            paths.dedup();
+            paths
+        })
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         vec!["/".into()]
     }
@@ -124,7 +146,12 @@ impl Fs {
                                 use std::os::windows::fs::MetadataExt;
                                 m.file_attributes() & (0x2 | 0x4) != 0
                             }
-                            #[cfg(not(windows))]
+                            #[cfg(target_os = "macos")]
+                            {
+                                use std::os::macos::fs::MetadataExt;
+                                m.st_flags() & libc::UF_HIDDEN != 0
+                            }
+                            #[cfg(not(any(windows, target_os = "macos")))]
                             {
                                 false
                             }
@@ -146,7 +173,17 @@ impl Fs {
                             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                             .map(|t| t.as_millis() as u64)
                             .unwrap_or(0),
-                        permissions: None,
+                        permissions: {
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::fs::PermissionsExt;
+                                Some(m.permissions().mode() & 0o7777)
+                            }
+                            #[cfg(not(unix))]
+                            {
+                                None
+                            }
+                        },
                     }))
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -285,6 +322,8 @@ impl Fs {
                 options.read(true);
                 #[cfg(windows)]
                 options.custom_flags(0x00200000); // Open the reparse point itself; never follow it.
+                #[cfg(target_os = "macos")]
+                options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
                 let f = options.open(p).await.map_err(err)?;
                 let metadata = f.metadata().await.map_err(err)?;
                 #[cfg(windows)]
@@ -432,6 +471,69 @@ impl Writer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn macos_hidden_flags_permissions_and_links_use_native_metadata() {
+        use std::os::{
+            fd::AsRawFd,
+            unix::fs::{symlink, PermissionsExt},
+        };
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("ordinary-name.txt");
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_permissions(std::fs::Permissions::from_mode(0o640))
+            .unwrap();
+        assert_eq!(
+            unsafe { libc::fchflags(file.as_raw_fd(), libc::UF_HIDDEN) },
+            0
+        );
+        std::fs::write(root.path().join("visible.txt"), b"visible").unwrap();
+        symlink(&path, root.path().join("link.txt")).unwrap();
+        let entries = Fs::Local.list(root.path().to_str().unwrap()).await.unwrap();
+        let hidden = &entries
+            .iter()
+            .find(|(name, _)| name == "ordinary-name.txt")
+            .unwrap()
+            .1;
+        assert!(hidden.hidden);
+        assert_eq!(hidden.permissions, Some(0o640));
+        assert!(
+            !entries
+                .iter()
+                .find(|(name, _)| name == "visible.txt")
+                .unwrap()
+                .1
+                .hidden
+        );
+        assert_eq!(
+            entries
+                .iter()
+                .find(|(name, _)| name == "link.txt")
+                .unwrap()
+                .1
+                .kind,
+            "link"
+        );
+        assert!(Fs::Local
+            .reader(root.path().join("link.txt").to_str().unwrap())
+            .await
+            .is_err());
+        assert_eq!(serde_json::to_value(hidden).unwrap()["hidden"], true);
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_roots_include_the_current_mounted_volume_without_duplicates() {
+        use std::os::unix::fs::MetadataExt;
+        let paths = roots();
+        assert_eq!(paths.first().map(String::as_str), Some("/"));
+        assert!(paths.windows(2).all(|pair| pair[0] < pair[1]));
+        let device = std::fs::metadata(std::env::current_dir().unwrap())
+            .unwrap()
+            .dev();
+        assert!(paths
+            .iter()
+            .any(|path| std::fs::metadata(path).is_ok_and(|meta| meta.dev() == device)));
+    }
     #[cfg(windows)]
     #[tokio::test]
     async fn windows_hidden_and_system_attributes_are_exposed_without_name_heuristics() {

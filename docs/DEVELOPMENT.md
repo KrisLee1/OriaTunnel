@@ -257,9 +257,26 @@ cargo test --manifest-path src-tauri/Cargo.toml --test service_controller
 pnpm test src/features/commands
 ```
 
-`service_controller` 目前为 Unix 真实回环集成测试，依赖系统 `/bin/sh` 与 PATH 中的 `curl`，验证实际 HTTP 503→200、一次启动、多次只读检查、另一 SSH 主机上的真实字节转发、已连接复用、失败/取消保留与严格解析；不连接用户主机。`cargo run --manifest-path src-tauri/Cargo.toml --example service_fixture` 启动对应隔离手动夹具，打印随机 SSH/HTTP 端口。只执行固定 `fixture-*` 测试脚本，HOME/工作目录为临时目录，结束用 Ctrl+C；需配合独立应用标识、空 SSH 来源和测试数据目录。Windows 原生仍需设备验证。
+`service_controller` 使用真实回环夹具；Unix 使用 `/bin/sh`，Windows 使用 Git for Windows 的 `sh.exe`，HTTP 检查调用隔离的系统 curl，验证实际 HTTP 503→200、一次启动、多次只读检查、另一 SSH 主机上的真实字节转发、已连接复用、失败/取消保留与严格解析；不连接用户主机。`cargo run --manifest-path src-tauri/Cargo.toml --example service_fixture` 启动对应隔离手动夹具，打印随机 SSH/HTTP 端口。只执行固定 `fixture-*` 测试脚本，HOME/工作目录为临时目录，结束用 Ctrl+C；需配合独立应用标识、空 SSH 来源和测试数据目录。Windows 原生仍需设备验证。
 
 新服务配置缺省 `control` 为禁用探针；写入前为已有 E1/E2 配置保留 `connections.pre-service-checks.json`，不覆盖已有备份。迁移与失败路径要验证原命令保留、不自动连接、不执行探针；v1 配置包继续排除服务配置与运行观测。
+
+## 文件传输开发
+
+0.2.0 的原生入口为 `src-tauri/src/app_files.rs`，队列、SFTP、本机文件系统、直传与文本保存分别位于 `src-tauri/src/files/`；前端在 `src/features/files/`，通过该目录的 `api.ts` 调用专用 IPC，并订阅 `files://snapshot`。任务状态、字节进度和提交结果均来自 Rust，不能用前端定时器模拟成功。
+
+文件与终端共用 `src/components/ui/workspace-panel.tsx`、`use-workspace-panel.ts` 及 `workspace-layout.ts`；停靠、尺寸、顶栏避让和焦点逻辑复用，业务内容保持挂载。文件面板的三栏布局、分组和视图偏好独立保存；参见 [UI 开发入口](ui-development.md)。
+
+针对性检查：
+
+```sh
+pnpm test src/features/files
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib files::
+```
+
+Rust 文件测试使用临时目录和回环 SFTP 服务，不访问用户真实 SSH 主机。自动测试不应直接连接保存的主机或对真实文件执行删除、覆盖及编辑。验证原生文件选择、拖入、废纸篓、浏览器启动或 WebView 偏好时，使用独立应用标识、专用数据目录和空 SSH 来源；调试隔离变量的范围见上文。
+
+macOS 通过 NSFileManager 枚举可见挂载卷及使用废纸篓，读取 UF_HIDDEN 和 POSIX 权限；文本原子保存保留原文件的元数据。Windows 读取 Hidden/System 属性，原子保存保留 ACL。跨平台行为需在对应原生目标验证。文件队列参与退出和更新清理，主机间直传结果不明时保留待核对状态；配置包不包含任务记录、文件内容或认证秘密。
 
 ## 源码入口与同步范围
 

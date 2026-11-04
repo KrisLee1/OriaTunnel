@@ -15,16 +15,17 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 
 호스트와 포워딩 규칙을 저장하면 평소에는 화면에서 시작, 중지, 서비스 열기를 선택하면 됩니다. SSH 명령에 익숙하지 않은 사용자도 관리자나 동료가 준비한 설정을 가져와 자신의 인증 정보를 입력한 뒤 사용할 수 있습니다.
 
-현재 버전: **v0.1.1** · [버전 기록](#버전-기록)
+현재 버전: **v0.2.0** · [버전 기록](#버전-기록)
 
-**[전체 사용자 가이드(중국어 간체)](../USAGE.md)** · [빠른 시작](#빠른-시작) · [포워딩 방식 선택](#포워딩-방식-선택)
+**[📥 다운로드 및 설치](#다운로드-및-설치)** · [🚀 빠른 시작](#빠른-시작) · [📖 전체 사용자 가이드(중국어 간체)](../USAGE.md) · [🧭 포워딩 방식 선택](#포워딩-방식-선택)
 
 ## 주요 기능
 
-- **여러 터널 관리:** 호스트별로 연결을 확인하고 규칙을 개별 또는 일괄 시작·중지할 수 있습니다.
+- 📁 **파일 탐색 및 전송 (0.2.0):** 로컬과 SSH 파일을 탐색하고 업로드, 다운로드, 호스트 간 전송, 백그라운드 대기열, 미리 보기 및 텍스트 편집을 이용할 수 있습니다.
+- 🔗 **여러 터널 관리:** 호스트별로 연결을 확인하고 규칙을 개별 또는 일괄 시작·중지할 수 있습니다.
+- 💻 **내장 SSH 터미널:** 여러 대화형 터미널 탭을 사용하거나, 입력 또는 지속적인 포그라운드 실행이 필요한 명령을 전용 터미널에서 실행하세요.
 - **서비스 작업을 버튼으로 저장:** 시작, 중지, 재시작, 상태, 로그 명령을 저장하고 연결된 포워딩에서 실행하세요. 내장 템플릿으로 설정을 시작할 수 있습니다.
 - **필요할 때 확인하고 연결:** 상태 및 상태 점검 명령을 설정하고, 지원되는 비대화형 시작 작업에서는 서비스 시작과 포워딩 연결을 함께 실행하며 단계별 결과를 확인하세요.
-- **내장 SSH 터미널:** 여러 대화형 터미널 탭을 사용하거나, 입력 또는 지속적인 포그라운드 실행이 필요한 명령을 전용 터미널에서 실행하세요.
 - **익숙한 SSH 포워딩 방식:** 로컬 포워딩(L), 원격 포워딩(R), 동적 SOCKS5 포워딩(D)을 제공하며, 순서가 있는 다단계 ProxyJump를 지원합니다.
 - **호스트 설정 재사용:** SSH 설정에서 후보를 찾거나 호스트를 직접 추가할 수 있습니다. 비밀번호, 개인 키, 시스템 SSH 에이전트로 인증합니다.
 - **실행 상황 확인:** 연결 상태, 수신 경로, 트래픽, 활성 연결, 재연결 진행 상황, 필터링 가능한 이벤트 로그를 확인할 수 있습니다.
@@ -34,17 +35,18 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 
 ## 다운로드 및 설치
 
-[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
+
+[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
 
 - **Windows:** `.exe` 설치 프로그램을 다운로드하고 설치 마법사의 안내를 따르세요.
 - **macOS:** `.dmg`를 다운로드하여 연 다음 `OriaTunnel.app`을 **응용 프로그램** 폴더로 드래그하세요. `.zip`을 다운로드했다면 먼저 안에 있는 `.dmg`를 추출하세요.
 
 | 플랫폼 | 다운로드 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
 
 정보 창의 버전 업데이트에서 새 버전을 확인하고 다운로드 및 설치할 수 있습니다. 시작 시 확인은 끌 수 있습니다. 설치하면 SSH 연결이 끊어지므로 터미널 작업을 먼저 저장하세요. 처음 설치하거나 이전 개발 빌드를 사용 중이면 위 설치 프로그램을 사용하세요. [앱 업데이트(중국어)](../USAGE.md#应用更新)를 참고하세요.
 
@@ -90,7 +92,7 @@ OriaTunnel 설정 파일이 있다면 포워딩 페이지에서 가져온 뒤 �
 
 ## 사용자 문서
 
-[전체 사용자 가이드(중국어 간체)](../USAGE.md)에서 호스트 관리, 인증, 포워딩 사용 예시, 백그라운드 실행, 자주 발생하는 문제를 설명합니다..
+[전체 사용자 가이드(중국어 간체)](../USAGE.md)에서 호스트 관리, 인증, 포워딩 사용 예시, 백그라운드 실행, 자주 발생하는 문제를 설명합니다.
 
 - [첫 연결과 일상적인 사용](../USAGE.md#第一次连接远程服务)
 - [기존 설정 사용](../USAGE.md#使用现成配置)
@@ -103,8 +105,16 @@ OriaTunnel 설정 파일이 있다면 포워딩 페이지에서 가져온 뒤 �
 - [설정 가져오기 및 내보내기(중국어)](../USAGE.md#配置导入与导出)
 - [백그라운드 실행, 재연결, 자동 시작(중국어)](../USAGE.md#后台运行重连与自动启动)
 - [상태 확인 및 문제 해결(중국어)](../USAGE.md#查看状态与排查问题)
+- [파일 전송, 미리 보기 및 편집 (0.2.0)](../USAGE.md#文件传输)
 
 ## 버전 기록
+
+### v0.2.0
+
+- 로컬/SSH 파일 탐색, 업로드, 다운로드 및 호스트 간 전송을 추가했습니다. 도킹 패널, 자동/수동 레이아웃, 검색, 다중 선택 및 끌어서 놓기를 지원합니다.
+- 백그라운드 전송 대기열, 실제 진행률, 일시 중지/계속/취소, 충돌 처리, 배치 상세 정보 및 연결 지도 상태를 추가했습니다.
+- 코드, 이미지, SVG, Markdown 미리 보기와 텍스트 편집을 추가했습니다. 저장 시 외부 변경을 확인하고 인코딩과 줄바꿈을 유지합니다.
+- macOS 볼륨, 숨김 파일, 권한, 휴지통 및 단축키를 개선하고, 프록시 브라우저 실행, 행 전체 두 번 클릭 및 좁은 전송 항목 레이아웃을 수정했습니다.
 
 ### v0.1.1 · 2026-10-27
 

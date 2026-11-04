@@ -15,16 +15,17 @@ OriaTunnel is a desktop tool for managing SSH tunnels and remote services on Win
 
 Save hosts and forwarding rules once, then start, stop, and open services through the interface. If you are unfamiliar with SSH commands, you can import a configuration prepared by an administrator or colleague and supply your own authentication details.
 
-Current version: **v0.1.1** · [Version history](#version-history)
+Current version: **v0.2.0** · [Version history](#version-history)
 
-**[Full user guide (Simplified Chinese)](../USAGE.md)** · [Quick start](#quick-start) · [Choose a forwarding mode](#choose-a-forwarding-mode)
+**[📥 Download and install](#download-and-install)** · [🚀 Quick start](#quick-start) · [📖 Full user guide (Simplified Chinese)](../USAGE.md) · [🧭 Choose a forwarding mode](#choose-a-forwarding-mode)
 
 ## What you can do
 
-- **Manage multiple tunnels:** view connections by host and start or stop rules individually or in batches.
+- 📁 **Browse and transfer files (0.2.0):** browse local and SSH files, upload, download, transfer between hosts, manage background tasks, preview files, and edit text.
+- 🔗 **Manage multiple tunnels:** view connections by host and start or stop rules individually or in batches.
+- 💻 **Open an SSH terminal:** use multiple interactive terminal tabs, or run interactive and long-running foreground commands in dedicated terminals.
 - **Turn service commands into buttons:** save start, stop, restart, status, and log actions, then run them from a linked forward. Built-in templates help you get started.
 - **Check and connect services:** configure status and health probes, or use a supported non-interactive start action to start a service and connect its forward, with results for each step.
-- **Open an SSH terminal:** use multiple interactive terminal tabs, or run interactive and long-running foreground commands in dedicated terminals.
 - **Use familiar SSH forwarding modes:** local forwarding (L), remote forwarding (R), and dynamic SOCKS5 forwarding (D), with ordered multi-hop ProxyJump support.
 - **Reuse host settings:** discover candidates from SSH configuration or add hosts manually; authenticate with a password, private key, or system SSH Agent.
 - **See what is happening:** inspect connection status, listening paths, traffic, active connections, reconnect progress, and filterable event logs.
@@ -34,17 +35,18 @@ Current version: **v0.1.1** · [Version history](#version-history)
 
 ## Download and install
 
-Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1) and choose the package for your operating system and device architecture.
+
+Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) and choose the package for your operating system and device architecture.
 
 - **Windows:** download the `.exe` installer and follow the installation wizard.
 - **macOS:** download and open the `.dmg`, then drag `OriaTunnel.app` into **Applications**. If you download a `.zip`, extract the `.dmg` inside it first.
 
 | Platform | Download |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
 
 Check for updates under **About → Version update**, then download and install when ready. Startup checks can be disabled. Installation disconnects SSH sessions; save terminal work first. Use the installers above for a first installation or an older development build. See [application updates (Chinese)](../USAGE.md#应用更新).
 
@@ -103,8 +105,16 @@ The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, 
 - [Import and export configurations](../USAGE.md#配置导入与导出)
 - [Background operation, reconnects, and startup](../USAGE.md#后台运行重连与自动启动)
 - [Status and troubleshooting](../USAGE.md#查看状态与排查问题)
+- [File transfers, previews, and editing (0.2.0)](../USAGE.md#文件传输)
 
 ## Version history
+
+### v0.2.0
+
+- Added local/SSH file browsing, uploads, downloads, and host-to-host transfers with dockable panels, automatic/manual layouts, search, selection, and drag and drop.
+- Added background transfer queues, real progress, pause/resume/cancel, conflict handling, batch details, and connection-map status.
+- Added code, image, SVG, and Markdown previews and text editing, with external-change checks and encoding/line-ending preservation.
+- Improved macOS volumes, hidden files, permissions, Trash, and shortcuts; fixed proxy-browser startup, full-row double-clicks, and narrow transfer-item layouts.
 
 ### v0.1.1 · 2026-10-27
 

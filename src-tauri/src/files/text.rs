@@ -159,6 +159,8 @@ async fn preflight(entry: &Entry) -> Result<()> {
             options.write(true);
             #[cfg(windows)]
             options.custom_flags(0x00200000);
+            #[cfg(target_os = "macos")]
+            options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
             let file = options.open(&entry.path).await.map_err(err)?;
             let metadata = file.metadata().await.map_err(err)?;
             if !metadata.is_file() || metadata.permissions().readonly() {
@@ -194,18 +196,63 @@ async fn preflight(entry: &Entry) -> Result<()> {
 async fn permissions(entry: &Entry, temporary: &str) -> Result<()> {
     match &entry.fs {
         Fs::Local => {
-            let meta = tokio::fs::symlink_metadata(&entry.path)
-                .await
-                .map_err(err)?;
-            #[cfg(unix)]
+            #[cfg(target_os = "macos")]
             {
-                use std::os::unix::fs::MetadataExt;
-                std::os::unix::fs::chown(temporary, Some(meta.uid()), Some(meta.gid()))
-                    .map_err(err)?;
-            }
-            tokio::fs::set_permissions(temporary, meta.permissions())
+                let source = entry.path.clone();
+                let temporary = temporary.to_owned();
+                tokio::task::spawn_blocking(move || {
+                    use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+                    let source = std::fs::OpenOptions::new()
+                        .read(true)
+                        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+                        .open(source)
+                        .map_err(err)?;
+                    let target = std::fs::OpenOptions::new()
+                        .write(true)
+                        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+                        .open(temporary)
+                        .map_err(err)?;
+                    if !source.metadata().map_err(err)?.is_file()
+                        || !target.metadata().map_err(err)?.is_file()
+                    {
+                        return Err("editUnsupported".into());
+                    }
+                    // Preserve Finder tags, flags, resource forks and ACLs on the
+                    // replacement inode without copying the original file content.
+                    let copied = unsafe {
+                        libc::fcopyfile(
+                            source.as_raw_fd(),
+                            target.as_raw_fd(),
+                            std::ptr::null_mut(),
+                            libc::COPYFILE_METADATA,
+                        )
+                    };
+                    if copied != 0 {
+                        return Err(err(std::io::Error::last_os_error()));
+                    }
+                    target
+                        .set_modified(std::time::SystemTime::now())
+                        .map_err(err)?;
+                    target.sync_all().map_err(err)
+                })
                 .await
-                .map_err(err)
+                .map_err(err)?
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let meta = tokio::fs::symlink_metadata(&entry.path)
+                    .await
+                    .map_err(err)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    std::os::unix::fs::chown(temporary, Some(meta.uid()), Some(meta.gid()))
+                        .map_err(err)?;
+                }
+                tokio::fs::set_permissions(temporary, meta.permissions())
+                    .await
+                    .map_err(err)
+            }
         }
         Fs::Remote(remote) => {
             let original = remote.raw.lstat(&entry.path).await.map_err(err)?.attrs;
@@ -426,6 +473,77 @@ impl Manager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn macos_atomic_save_preserves_xattrs_resource_fork_acl_mode_and_hidden_flag() {
+        use std::os::{fd::AsRawFd, macos::fs::MetadataExt, unix::fs::PermissionsExt};
+        let root = tempfile::tempdir().unwrap();
+        let (manager, id, path) = file(root.path(), b"original").await;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+        let original = std::fs::File::open(&path).unwrap();
+        assert_eq!(
+            unsafe { libc::fchflags(original.as_raw_fd(), libc::UF_HIDDEN) },
+            0
+        );
+        for (name, value) in [
+            ("com.oriatunnel.qa", "isolated metadata"),
+            ("com.apple.ResourceFork", "isolated resource fork"),
+        ] {
+            assert!(std::process::Command::new("/usr/bin/xattr")
+                .args(["-w", name, value])
+                .arg(&path)
+                .status()
+                .unwrap()
+                .success());
+        }
+        assert!(std::process::Command::new("/bin/chmod")
+            .args([
+                "+a",
+                "everyone allow read,readattr,readextattr,readsecurity"
+            ])
+            .arg(&path)
+            .status()
+            .unwrap()
+            .success());
+        let acl = || {
+            let output = std::process::Command::new("/bin/ls")
+                .arg("-le")
+                .arg(&path)
+                .output()
+                .unwrap();
+            assert!(output.status.success());
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .lines()
+                .skip(1)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        let before_acl = acl();
+        assert!(!before_acl.is_empty());
+        let document = manager.read_text(&id).await.unwrap();
+        manager
+            .write_text(&id, &document.version, "saved on Mac")
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"saved on Mac");
+        let meta = std::fs::metadata(&path).unwrap();
+        assert_eq!(meta.permissions().mode() & 0o7777, 0o640);
+        assert_ne!(meta.st_flags() & libc::UF_HIDDEN, 0);
+        assert_eq!(acl(), before_acl);
+        for (name, value) in [
+            ("com.oriatunnel.qa", "isolated metadata"),
+            ("com.apple.ResourceFork", "isolated resource fork"),
+        ] {
+            let output = std::process::Command::new("/usr/bin/xattr")
+                .args(["-p", name])
+                .arg(&path)
+                .output()
+                .unwrap();
+            assert!(output.status.success());
+            assert_eq!(String::from_utf8(output.stdout).unwrap().trim_end(), value);
+        }
+    }
     async fn file(root: &std::path::Path, bytes: &[u8]) -> (Manager, String, PathBuf) {
         let path = root.join("编辑资料.txt");
         tokio::fs::write(&path, bytes).await.unwrap();

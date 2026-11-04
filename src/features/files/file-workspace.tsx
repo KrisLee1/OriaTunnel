@@ -5,6 +5,7 @@ import {
   type FileActivity,
 } from "./transfer-state";
 import { FileSearchButton } from "./file-search-button";
+import { fileShortcut } from "./file-shortcuts";
 import { motion } from "motion/react";
 import { FilePathNavigation } from "./file-path-navigation";
 import { toast } from "@/components/ui/toast";
@@ -698,7 +699,12 @@ export function FileWorkspaceProvider({
                   autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && void mutate()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      void mutate();
+                    }
+                  }}
                 />
               )}
               <Button
@@ -871,6 +877,9 @@ export function FilePane(p: PaneProps) {
       ids: string[];
     } | null>(null);
   const canRead = !p.remote || !!p.session;
+  const mac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform);
   const load = useCallback(
     async (next: string, record = true) => {
       const g = ++generation.current;
@@ -951,6 +960,10 @@ export function FilePane(p: PaneProps) {
     selected,
     onChange: setSelected,
     onClick: chooseEntry,
+    onActivate: (id) => {
+      const entry = items.find((item) => item.id === id);
+      if (entry) openEntry(entry);
+    },
   });
   const paneError = useRef("");
   useEffect(() => {
@@ -1008,6 +1021,12 @@ export function FilePane(p: PaneProps) {
         remote: p.remote,
         target: inspectTarget(e),
       });
+  };
+  const copyPaths = (entries: Entry[]) => {
+    if (!entries.length) return;
+    void navigator.clipboard
+      .writeText(entries.map((entry) => inspectTarget(entry).path).join("\n"))
+      .catch((error) => p.onError(String(error)));
   };
   const action = (kind: ModalAction["kind"], e?: Entry) => {
     const item = e || items.find((i) => selected.includes(i.id));
@@ -1123,20 +1142,7 @@ export function FilePane(p: PaneProps) {
               const selectedItems = selected.includes(e.id)
                 ? items.filter((item) => selected.includes(item.id))
                 : [e];
-              const sep = dir?.path.includes("\\") ? "\\" : "/";
-              void navigator.clipboard
-                .writeText(
-                  selectedItems
-                    .map((item) =>
-                      dir?.path === ":computer:"
-                        ? item.name
-                        : (dir?.path.replace(/[\\/]$/, "") || "") +
-                          sep +
-                          item.name,
-                    )
-                    .join("\n"),
-                )
-                .catch((error) => p.onError(String(error)));
+              copyPaths(selectedItems);
             }}
           >
             <Copy />
@@ -1213,7 +1219,12 @@ export function FilePane(p: PaneProps) {
     <section
       ref={root}
       onKeyDown={(event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === "l") {
+        if (
+          !event.defaultPrevented &&
+          !event.nativeEvent.isComposing &&
+          (event.ctrlKey || event.metaKey) &&
+          event.key.toLowerCase() === "l"
+        ) {
           event.preventDefault();
           requestPathEdit((n) => n + 1);
         }
@@ -1369,22 +1380,48 @@ export function FilePane(p: PaneProps) {
                 onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
                 onKeyDown={(e) => {
                   if (!e.currentTarget.contains(e.target as Node)) return;
+                  if (
+                    (e.target as HTMLElement).closest(
+                      "input, textarea, select, button, a, [contenteditable=true], [role^=menu]",
+                    )
+                  )
+                    return;
                   if (e.key === "Escape") marquee.cancel();
-                  if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+                  const shortcut = fileShortcut(
+                    { ...e, isComposing: e.nativeEvent.isComposing },
+                    mac,
+                  );
+                  if (shortcut) {
                     e.preventDefault();
-                    setSelected(ordered);
+                    e.stopPropagation();
+                    if (shortcut === "selectAll") setSelected(ordered);
+                    if (shortcut === "copyPath")
+                      copyPaths(
+                        items.filter((item) => selected.includes(item.id)),
+                      );
+                    if (shortcut === "parent" && dir) void load(dir.parent);
+                    if (shortcut === "delete" && dir?.path !== ":computer:")
+                      action("delete");
+                    if (
+                      shortcut === "rename" &&
+                      selected.length === 1 &&
+                      dir?.path !== ":computer:"
+                    )
+                      action("rename");
+                    if (shortcut === "open" && selected.length === 1) {
+                      const entry = items.find((i) => i.id === selected[0]);
+                      if (entry) openEntry(entry);
+                    }
+                    return;
                   }
-                  if (e.key === "Enter" && selected.length === 1) {
-                    const item = items.find((i) => i.id === selected[0]);
-                    if (item) openEntry(item);
-                  }
-                  if (e.key === "Delete") action("delete");
-                  if (e.key === "F2") action("rename");
-                  if (e.key === " " && selected.length === 1) {
-                    e.preventDefault();
-                    const entry = items.find((i) => i.id === selected[0]);
-                    if (entry) openEntry(entry);
-                  }
+                  if (
+                    e.defaultPrevented ||
+                    e.nativeEvent.isComposing ||
+                    e.metaKey ||
+                    e.ctrlKey ||
+                    e.altKey
+                  )
+                    return;
                   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                     e.preventDefault();
                     const index = ordered.indexOf(selected.at(-1) || "");
@@ -1455,6 +1492,7 @@ export function FilePane(p: PaneProps) {
                             if (!chosen) setSelected([e.id]);
                           }}
                           onClick={(event) => {
+                            if (mac && event.ctrlKey) return;
                             setSelected(
                               selection(
                                 selected,
@@ -1467,9 +1505,9 @@ export function FilePane(p: PaneProps) {
                             );
                             anchor.current = e.id;
                           }}
-                          onDoubleClick={() => openEntry(e)}
                           onPointerDown={(event) => {
-                            if (event.button !== 0) return;
+                            if (event.button !== 0 || (mac && event.ctrlKey))
+                              return;
                             pointer.current = {
                               x: event.clientX,
                               y: event.clientY,

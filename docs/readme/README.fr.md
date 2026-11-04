@@ -15,16 +15,17 @@ OriaTunnel est un outil de bureau de gestion des tunnels SSH et des services dis
 
 Enregistrez vos hôtes et règles de redirection, puis démarrez, arrêtez et ouvrez vos services depuis l’interface. Sans connaître les commandes SSH, vous pouvez aussi importer une configuration préparée par un administrateur ou un collègue et renseigner vos propres informations d’authentification.
 
-Version actuelle : **v0.1.1** · [Historique des versions](#historique-des-versions)
+Version actuelle : **v0.2.0** · [Historique des versions](#historique-des-versions)
 
-**[Guide utilisateur complet (chinois simplifié)](../USAGE.md)** · [Prise en main](#prise-en-main) · [Choisir un mode de redirection](#choisir-un-mode-de-redirection)
+**[📥 Télécharger et installer](#télécharger-et-installer)** · [🚀 Prise en main](#prise-en-main) · [📖 Guide utilisateur complet (chinois simplifié)](../USAGE.md) · [🧭 Choisir un mode de redirection](#choisir-un-mode-de-redirection)
 
 ## Fonctionnalités
 
-- **Gérer plusieurs tunnels :** affichez les connexions par hôte et démarrez ou arrêtez les règles individuellement ou par lot.
+- 📁 **Parcourir et transférer des fichiers (0.2.0) :** parcourir les fichiers locaux et SSH, envoyer, télécharger, transférer entre hôtes, gérer la file en arrière-plan, prévisualiser et modifier du texte.
+- 🔗 **Gérer plusieurs tunnels :** affichez les connexions par hôte et démarrez ou arrêtez les règles individuellement ou par lot.
+- 💻 **Ouvrir un terminal SSH :** utilisez plusieurs onglets interactifs ou un terminal dédié aux commandes interactives et aux services fonctionnant au premier plan.
 - **Transformer les commandes de service en boutons :** enregistrez les actions de démarrage, d’arrêt, de redémarrage, d’état et de journaux, puis lancez-les depuis une redirection associée. Des modèles intégrés facilitent la configuration.
 - **Vérifier et connecter les services :** configurez des sondes d’état et de santé, ou combinez un démarrage non interactif pris en charge avec la connexion de la redirection, en consultant chaque résultat.
-- **Ouvrir un terminal SSH :** utilisez plusieurs onglets interactifs ou un terminal dédié aux commandes interactives et aux services fonctionnant au premier plan.
 - **Utiliser les modes de redirection SSH habituels :** redirection locale (L), redirection distante (R) et redirection SOCKS5 dynamique (D), avec prise en charge de routes ProxyJump ordonnées à plusieurs relais.
 - **Réutiliser les réglages des hôtes :** détectez les hôtes disponibles dans la configuration SSH ou ajoutez-les manuellement ; authentifiez-vous avec un mot de passe, une clé privée ou l’agent SSH du système.
 - **Suivre le fonctionnement :** consultez l’état des connexions, les adresses et ports d’écoute, le trafic, les connexions actives, la progression des reconnexions et les journaux d’événements filtrables.
@@ -34,17 +35,18 @@ Version actuelle : **v0.1.1** · [Historique des versions](#historique-des-versi
 
 ## Télécharger et installer
 
-Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.1.1) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
+
+Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
 
 - **Windows :** téléchargez le programme d’installation `.exe` et suivez l’assistant d’installation.
 - **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
 
 | Plateforme | Téléchargement |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.1.1_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.1.1_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.1.1_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.1.1_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.1.1/OriaTunnel_0.1.1_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
 
 Vérifiez les mises à jour dans **À propos → Mise à jour**, puis téléchargez et installez la nouvelle version. La vérification au démarrage peut être désactivée. L’installation interrompt les connexions SSH ; enregistrez d’abord votre travail dans le terminal. Pour une première installation ou une ancienne version de développement, utilisez les programmes ci-dessus. Voir les [mises à jour de l’application (chinois)](../USAGE.md#应用更新).
 
@@ -90,7 +92,7 @@ Vues claires et sombres de la carte, des redirections, services, hôtes, journau
 
 ## Documentation utilisateur
 
-Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la gestion des hôtes, l’authentification, des exemples détaillés de redirection, le fonctionnement en arrière-plan et les problèmes courants .
+Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la gestion des hôtes, l’authentification, des exemples détaillés de redirection, le fonctionnement en arrière-plan et les problèmes courants.
 
 - [Première connexion et utilisation quotidienne](../USAGE.md#第一次连接远程服务)
 - [Utiliser une configuration existante](../USAGE.md#使用现成配置)
@@ -103,8 +105,16 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 - [Importer et exporter les configurations (chinois)](../USAGE.md#配置导入与导出)
 - [Arrière-plan, reconnexions et démarrage (chinois)](../USAGE.md#后台运行重连与自动启动)
 - [État et dépannage (chinois)](../USAGE.md#查看状态与排查问题)
+- [Transfert, aperçu et modification de fichiers (0.2.0)](../USAGE.md#文件传输)
 
 ## Historique des versions
+
+### v0.2.0
+
+- Ajout de la navigation dans les fichiers locaux/SSH, des envois, téléchargements et transferts entre hôtes, avec panneaux ancrables, dispositions automatiques/manuelles, recherche, sélection multiple et glisser-déposer.
+- Ajout des files de transfert en arrière-plan, de la progression réelle, de la pause/reprise/annulation, de la gestion des conflits, des détails par lot et de l’état dans la carte des connexions.
+- Ajout des aperçus de code, images, SVG et Markdown et de la modification de texte, avec vérification des changements externes et conservation de l’encodage et des fins de ligne.
+- Amélioration des volumes, fichiers masqués, permissions, corbeille et raccourcis macOS ; correction du démarrage des navigateurs proxy, du double-clic sur toute une ligne et des transferts dans les panneaux étroits.
 
 ### v0.1.1 · 2026-10-27
 

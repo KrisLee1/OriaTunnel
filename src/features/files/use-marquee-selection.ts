@@ -77,6 +77,7 @@ export function useMarqueeSelection({
   selected,
   onChange,
   onClick,
+  onActivate,
 }: {
   viewport: RefObject<HTMLDivElement | null>;
   ids: string[];
@@ -87,11 +88,13 @@ export function useMarqueeSelection({
   selected: string[];
   onChange: (ids: string[]) => void;
   onClick: (id: string, ctrl: boolean, shift: boolean) => void;
+  onActivate: (id: string) => void;
 }) {
   const [box, setBox] = useState<SelectionRect | null>(null);
   const gesture = useRef<Gesture | null>(null),
     frame = useRef(0),
     suppressClick = useRef(false),
+    suppressActivation = useRef(false),
     last = useRef(selected);
   const latest = useRef({
     ids,
@@ -101,8 +104,18 @@ export function useMarqueeSelection({
     gapY,
     onChange,
     onClick,
+    onActivate,
   });
-  latest.current = { ids, columns, rowHeight, gapX, gapY, onChange, onClick };
+  latest.current = {
+    ids,
+    columns,
+    rowHeight,
+    gapX,
+    gapY,
+    onChange,
+    onClick,
+    onActivate,
+  };
   const paint = () => {
     const g = gesture.current,
       el = viewport.current;
@@ -183,6 +196,7 @@ export function useMarqueeSelection({
       else if (g.mode === "replace") latest.current.onChange([]);
     }
     suppressClick.current = true;
+    suppressActivation.current = cancel || g.active;
   };
   useEffect(
     () => () => {
@@ -197,6 +211,7 @@ export function useMarqueeSelection({
         // Portal menus share the React ancestry, but are outside this viewport.
         if (!event.currentTarget.contains(event.target as Node)) return;
         suppressClick.current = false;
+        suppressActivation.current = false;
         if (
           document.querySelector(
             '[data-slot="context-menu-content"][data-open], [data-slot="dropdown-menu-content"][data-open]',
@@ -204,6 +219,8 @@ export function useMarqueeSelection({
         )
           return;
         if (event.button !== 0 || event.pointerType === "touch") return;
+        // Control-click opens the native context menu on macOS.
+        if (event.ctrlKey && /Mac|iPhone|iPad/.test(navigator.platform)) return;
         const target = event.target as Element;
         if (target.closest("button,input,a,summary")) return;
         const row = target.closest<HTMLElement>("[data-file-entry]");
@@ -283,6 +300,23 @@ export function useMarqueeSelection({
           suppressClick.current = false;
           event.preventDefault();
           event.stopPropagation();
+        }
+      },
+      onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => {
+        if (
+          suppressActivation.current ||
+          !event.currentTarget.contains(event.target as Node)
+        )
+          return;
+        // Pointer capture retargets blank-row clicks to the viewport. Resolve
+        // the actual row under the pointer so its full width can be opened.
+        const row = document
+          .elementFromPoint(event.clientX, event.clientY)
+          ?.closest<HTMLElement>("[data-file-entry]");
+        const id = row?.dataset.fileEntry;
+        if (id && row && event.currentTarget.contains(row)) {
+          event.preventDefault();
+          latest.current.onActivate(id);
         }
       },
     },
