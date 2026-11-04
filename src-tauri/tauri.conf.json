@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; connect-src ipc: http://ipc.localhost"
     }
   },
   "plugins": {
@@ -57,7 +57,8 @@
       "../docs/licenses/FIREFOX_MPL_2_0.txt": "licenses/FIREFOX_MPL_2_0.txt",
       "../docs/licenses/REACT_RESIZABLE_PANELS_MIT.txt": "licenses/REACT_RESIZABLE_PANELS_MIT.txt",
       "../docs/licenses/TRASH_MIT.txt": "licenses/TRASH_MIT.txt",
-      "../docs/licenses/IMAGE_MIT.txt": "licenses/IMAGE_MIT.txt"
+      "../docs/licenses/IMAGE_MIT.txt": "licenses/IMAGE_MIT.txt",
+      "../docs/licenses/MARKDOWN_PREVIEW_LICENSES.txt": "licenses/MARKDOWN_PREVIEW_LICENSES.txt"
     },
     "createUpdaterArtifacts": false,
     "icon": [

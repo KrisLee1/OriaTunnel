@@ -4,11 +4,35 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { FileWorkspaceProvider } from "./file-workspace";
 import { TerminalWorkspaceProvider } from "@/features/terminal/terminal-workspace";
 import type { Snapshot } from "@/types";
+import { FILE_PANEL_LAYOUT_KEY } from "./file-panel-layout-state";
 
 const data = { hosts: [], rules: [], services: [] } as unknown as Snapshot;
 afterEach(() => vi.unstubAllGlobals());
 
 describe("floating file workspace", () => {
+  it.each(["columns", "rows", "split"])(
+    "honors manual %s layout independently of docking",
+    (mode) => {
+      vi.stubGlobal("localStorage", {
+        getItem: (key: string) =>
+          key === FILE_PANEL_LAYOUT_KEY
+            ? JSON.stringify({ mode, ratios: {} })
+            : null,
+      });
+      const html = renderToStaticMarkup(
+        <FileWorkspaceProvider data={data}>
+          <main />
+        </FileWorkspaceProvider>,
+      );
+      expect(html).toContain(`data-file-layout="${mode}"`);
+      expect(html).toContain(`data-file-layout-mode="${mode}"`);
+      expect(html).toContain(
+        `data-file-browser-layout="${mode === "rows" ? "vertical" : "horizontal"}"`,
+      );
+      expect(html).toContain('aria-label="面板布局"');
+      expect(html).not.toContain('role="dialog"');
+    },
+  );
   for (const dock of ["bottom", "left", "right"] as const) {
     it(`uses a nonmodal ${dock} panel with ${dock === "bottom" ? "horizontal" : "vertical"} file panes`, () => {
       vi.stubGlobal("localStorage", {

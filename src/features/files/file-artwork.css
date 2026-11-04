@@ -1,0 +1,150 @@
+.files-artwork {
+  --files-artwork-tint: var(--oria-color-muted-fg);
+  display: inline-block;
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  pointer-events: none;
+  container-type: inline-size;
+}
+.files-artwork-radius-probe {
+  position: absolute;
+  width: min(var(--oria-radius-md), 12cqw);
+  height: 100cqw;
+  visibility: hidden;
+  pointer-events: none;
+}
+.files-artwork[data-category="audio"],
+.files-artwork[data-category="video"] {
+  --files-artwork-tint: var(--oria-color-accent-fg);
+}
+.files-artwork[data-category="folder"],
+.files-artwork[data-category="document"],
+.files-artwork[data-category="batch"] {
+  --files-artwork-tint: var(--oria-color-primary);
+}
+.files-artwork[data-category="code"],
+.files-artwork[data-category="image"] {
+  --files-artwork-tint: var(--oria-color-info, var(--oria-color-primary));
+}
+.files-artwork[data-category="pdf"] {
+  --files-artwork-tint: var(--oria-color-danger);
+}
+.files-artwork[data-category="table"] {
+  --files-artwork-tint: var(--oria-color-success);
+}
+.files-artwork[data-category="slides"],
+.files-artwork[data-category="archive"] {
+  --files-artwork-tint: var(--oria-color-warning);
+}
+.files-artwork-large {
+  width: 56px;
+  height: 56px;
+}
+.files-artwork > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.files-artwork-sheet,
+.files-artwork-folder-front {
+  fill: var(--oria-color-surface-raised, var(--oria-color-surface));
+  stroke: color-mix(in srgb, var(--files-artwork-tint) 70%, transparent);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.files-artwork-folder-back {
+  fill: color-mix(in srgb, var(--files-artwork-tint) 48%, transparent);
+  stroke: color-mix(in srgb, var(--files-artwork-tint) 70%, transparent);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.files-artwork-folder-front {
+  fill: color-mix(in srgb, var(--files-artwork-tint) 80%, transparent);
+}
+.files-artwork-fold {
+  fill: color-mix(in srgb, var(--files-artwork-tint) 32%, transparent);
+  stroke: color-mix(in srgb, var(--files-artwork-tint) 70%, transparent);
+  stroke-width: 1.2;
+}
+.files-artwork .files-artwork-glyph {
+  color: var(--files-artwork-tint);
+}
+.files-artwork-batch-back,
+.files-artwork-batch-middle {
+  fill: var(--files-artwork-tint);
+  fill-opacity: 0.16;
+  stroke: var(--files-artwork-tint);
+  stroke-opacity: 0.6;
+  stroke-width: 1.2;
+}
+.files-artwork-batch-middle {
+  fill-opacity: 0.28;
+}
+.files-artwork-batch-lines {
+  stroke: var(--files-artwork-tint);
+  stroke-opacity: 0.8;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.files-artwork-extension {
+  fill: var(--files-artwork-tint);
+  font-size: 13px;
+  font-weight: 700;
+}
+.files-artwork .files-artwork-drive {
+  color: var(--oria-color-muted-fg);
+}
+.files-artwork-drive-top {
+  fill: var(--oria-color-surface-raised);
+  stroke: var(--oria-color-muted-fg);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.files-artwork-drive-body {
+  fill: var(--oria-color-surface);
+  stroke: var(--oria-color-muted-fg);
+  stroke-width: 1.4;
+}
+.files-artwork-drive-led {
+  fill: var(--oria-color-primary);
+}
+.files-artwork-drive-detail {
+  stroke: var(--oria-color-muted-fg);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.files-artwork .files-artwork-link {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  color: var(--oria-color-fg);
+  background: var(--oria-color-bg);
+  border-radius: var(--oria-radius-xs);
+}
+.files-artwork-large .files-artwork-link {
+  width: 16px;
+  height: 16px;
+}
+@media (forced-colors: active) {
+  .files-artwork {
+    --files-artwork-tint: CanvasText !important;
+  }
+  .files-artwork-sheet,
+  .files-artwork-batch-back,
+  .files-artwork-batch-middle,
+  .files-artwork-folder-front,
+  .files-artwork-folder-back,
+  .files-artwork-fold {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+  .files-artwork-batch-lines {
+    stroke: CanvasText;
+  }
+}

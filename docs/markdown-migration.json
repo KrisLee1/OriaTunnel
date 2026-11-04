@@ -1,0 +1,47 @@
+{
+  "sourceProject": "OriaAide",
+  "date": "2026-11-04",
+  "scope": "Markdown document display only; code source uses the shared shadcn Base UI CodeBlock. No assistant actions, history, terminal execution or document insertion.",
+  "sources": [
+    {
+      "path": "src/components/assistant/markdown-renderer.tsx",
+      "sha256": "9cfbcbc98ad0a43c1fd9c35a0ae0db21ee3025d75720c5124d2888ae80c9a96c"
+    },
+    {
+      "path": "src/components/assistant/markdown-code-block.tsx",
+      "sha256": "51d743090f7e8392ce7a94293642b012405f22ac2aa1f4c6d0666915292b7fb6"
+    },
+    {
+      "path": "src/components/assistant/markdown-callout.tsx",
+      "sha256": "edbc05f1e5f1a2de3d3e24c26d4d4532e239263e4da46524bf387f026ca89a38"
+    },
+    {
+      "path": "src/components/assistant/mermaid-diagram.tsx",
+      "sha256": "870eb84f95b8793026a93aac027fecde0ecefabddfcd130e698bdacec19cecf6"
+    },
+    {
+      "path": "src/lib/remark-inline-extensions.ts",
+      "sha256": "9c32d5d06bba27dc9da723c83b653cd706f7b08bb78d520f3d5cb5ea8b59e215"
+    },
+    {
+      "path": "src/lib/mermaid-theme.ts",
+      "sha256": "767afb0a2481a513d1803fa7f17999e695863b9e6127c3913b9e692fb59225b5"
+    },
+    {
+      "path": "src/lib/data-chart.ts",
+      "sha256": "c1dd442880a961ae51c56d39c467216e1d23a0ab85536dd9a847ef5cfb563c13"
+    },
+    {
+      "path": "src/lib/chart-appearance.ts",
+      "sha256": "47e4d9a91e9d72b7fe24b4e9df0fed743b6a8ecacf96e26f9ed74a7a5d40da1a"
+    },
+    {
+      "path": "src/lib/color-palette.ts",
+      "sha256": "2538736bcad4308d9fb1e78e27ce2bdb276104e233e0460259916faa9b3b8c2f"
+    },
+    {
+      "path": "src/lib/output-artifact-capture.ts",
+      "sha256": "76019a3bcc848b30dfe4cad50f98a57011a9b03ca2cf74b3dfe266bc9828861a"
+    }
+  ]
+}

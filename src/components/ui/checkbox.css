@@ -1,0 +1,5 @@
+[data-keyboard-navigation="true"] [data-slot="checkbox"]:focus-visible {
+  border-color: var(--oria-color-ring);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--oria-color-ring) 50%, transparent);
+}

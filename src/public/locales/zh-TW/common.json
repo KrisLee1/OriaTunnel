@@ -97,5 +97,38 @@
     "description": "依照你的習慣設定外觀，之後也可以在設定中調整。",
     "done": "開始使用",
     "saveFailed": "無法儲存初次設定狀態，下次啟動時會再次顯示。"
+  },
+  "codeBlock": {
+    "copy": "複製程式碼",
+    "copied": "已複製",
+    "copyFailed": "複製失敗",
+    "plainText": "純文字",
+    "wrap": "自動換行"
+  },
+  "markdown": {
+    "expand": "展開全部",
+    "collapse": "收起",
+    "code": "程式碼",
+    "svgPreview": "SVG 預覽",
+    "svgViewSource": "檢視 SVG 原始碼",
+    "svgViewPreview": "預覽 SVG",
+    "svgError": "無法安全預覽這段 SVG，已改為顯示原始碼。",
+    "table": "表格",
+    "tableRows": "{{count}} 行",
+    "fullscreenTable": "全屏檢視錶格",
+    "mermaidDiagram": "Mermaid 圖表",
+    "renderingDiagram": "正在渲染圖表…",
+    "mermaidError": "無法渲染這段 Mermaid 圖表，請檢查語法。",
+    "fullscreenDiagram": "全屏檢視圖表",
+    "dataChart": "資料圖表",
+    "dataChartError": "無法繪製這張資料圖表，請檢查圖表設定與資料。",
+    "fullscreenDataChart": "全螢幕檢視資料圖表",
+    "callout": {
+      "note": "說明",
+      "tip": "提示",
+      "important": "重要",
+      "warning": "警告",
+      "caution": "注意"
+    }
   }
 }

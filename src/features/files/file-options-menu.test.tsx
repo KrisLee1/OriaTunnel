@@ -2,36 +2,38 @@ import "@/i18n";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { FileOptionsMenu } from "./file-options-menu";
+import { ContextMenu } from "@/components/ui/context-menu";
+import {
+  FileSortOptions,
+  FileCreateOptions,
+  FileUploadOptions,
+} from "./file-options-menu";
 
 describe("opened file options menu", () => {
-  for (const remote of [false, true]) {
-    it(`renders ${remote ? "remote" : "local"} popup contents with real Base UI group contexts`, () => {
-      // Render contents directly: server-rendered portals skip their descendants,
-      // which would hide the missing Menu.Group error until the user opens it.
+  for (const Root of [DropdownMenu, ContextMenu]) {
+    it("shares create, sort and upload items with a valid Base UI parent in either menu", () => {
       const html = renderToStaticMarkup(
-        <DropdownMenu defaultOpen>
-          <FileOptionsMenu
-            remote={remote}
-            hidden={false}
-            sort="name"
-            canCreate
-            canUpload
-            onHiddenChange={() => {}}
+        <Root defaultOpen>
+          <FileSortOptions
+            sort="type"
+            descending
             onSortChange={() => {}}
-            onCreate={() => {}}
-            onUpload={() => {}}
+            onDescendingChange={() => {}}
           />
-        </DropdownMenu>,
+          <FileCreateOptions
+            canCreate
+            onCreate={() => {}}
+            onCreateText={() => {}}
+          />
+          <FileUploadOptions canUpload onUpload={() => {}} />
+        </Root>,
       );
-      expect(html.match(/data-slot="dropdown-menu-group"/g)).toHaveLength(3);
-      expect(html.match(/data-slot="dropdown-menu-item"/g)).toHaveLength(
-        remote ? 7 : 5,
-      );
-      expect(html).toContain("lucide-eye");
-      expect(html).toContain("lucide-arrow-down-a-z");
-      expect(html).toContain("lucide-check");
+      expect(html.match(/data-slot="dropdown-menu-item"/g)).toHaveLength(10);
       expect(html).toContain("lucide-folder-plus");
+      expect(html).toContain("lucide-file-plus-2");
+      expect(html).toContain("lucide-folder-up");
+      expect(html).toContain("lucide-file-up");
+      expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
     });
   }
 });

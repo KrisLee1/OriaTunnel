@@ -1,11 +1,13 @@
 mod direct;
+mod text;
+pub use text::{TextDocument, TextSaveError};
 pub mod fs;
 #[cfg(test)]
 mod tests;
 use fs::{err, Fs, Meta, Result};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -60,6 +62,11 @@ pub struct RemoteEndpoint {
     pub route: Vec<String>,
 }
 #[derive(Clone, Serialize, Deserialize)]
+pub struct SourceDetails {
+    pub destination: String,
+    pub size: Option<u64>,
+}
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     pub id: String,
@@ -80,9 +87,15 @@ pub struct Task {
     #[serde(default)]
     pub target_remote: Option<RemoteEndpoint>,
     pub sources: Vec<String>,
+    #[serde(default)]
+    pub source_kinds: Vec<String>,
+    #[serde(default)]
+    pub source_details: BTreeMap<String, SourceDetails>,
     pub target: String,
     #[serde(default)]
     pub destination: Option<String>,
+    #[serde(default)]
+    pub current_source: Option<String>,
     pub phase: String,
     pub bytes: u64,
     #[serde(default)]
@@ -96,6 +109,12 @@ pub struct Task {
     pub revision: u64,
     pub error: Option<String>,
     pub conflict: Option<String>,
+    #[serde(default)]
+    pub conflict_source: Option<String>,
+    #[serde(default)]
+    conflict_choices: Vec<ConflictChoice>,
+    #[serde(default)]
+    skipped_sources: BTreeSet<String>,
     pub policy: String,
     pub temp: Option<String>,
     pub started: u64,
@@ -105,6 +124,15 @@ pub struct Task {
     pub commit_target: Option<String>,
     #[serde(default)]
     pub commit_source: Option<String>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConflictChoice {
+    source: Option<String>,
+    target: String,
+    policy: String,
+    #[serde(default)]
+    kept: Option<String>,
 }
 impl Task {
     pub fn active(&self) -> bool {
@@ -237,6 +265,23 @@ impl Manager {
         if task.direction != "download" {
             return Err("invalidRequest".into());
         }
+        if task.sources.len() > 1 {
+            return Ok(task.target.clone());
+        }
+        if let Some(detail) = task
+            .sources
+            .first()
+            .and_then(|source| task.source_details.get(source))
+        {
+            if task
+                .source_kinds
+                .first()
+                .is_some_and(|kind| kind == "directory")
+            {
+                return Ok(detail.destination.clone());
+            }
+            return local_parent(&detail.destination);
+        }
         Ok(task
             .destination
             .as_deref()
@@ -244,6 +289,33 @@ impl Manager {
             .and_then(|p| p.to_str())
             .unwrap_or(&task.target)
             .to_owned())
+    }
+    pub fn local_transfer_folder(&self, id: &str, source: &str, side: &str) -> Result<String> {
+        let tasks = self.tasks.lock().unwrap();
+        let task = tasks.get(id).ok_or("missing")?;
+        let index = task
+            .sources
+            .iter()
+            .position(|path| path == source)
+            .ok_or("invalidRequest")?;
+        let path = match (side, task.direction.as_str()) {
+            ("source", "upload") => source,
+            ("target", "download") => task
+                .source_details
+                .get(source)
+                .map(|detail| detail.destination.as_str())
+                .ok_or("missing")?,
+            _ => return Err("invalidRequest".into()),
+        };
+        if task
+            .source_kinds
+            .get(index)
+            .is_some_and(|kind| kind == "directory")
+        {
+            Ok(path.into())
+        } else {
+            local_parent(path)
+        }
     }
     pub fn set_changed(&self, c: Changed) {
         *self.changed.lock().unwrap() = Some(c);
@@ -337,6 +409,7 @@ impl Manager {
             for path in fs::roots() {
                 let meta = Meta {
                     kind: "directory".into(),
+                    hidden: false,
                     size: 0,
                     modified: 0,
                     permissions: None,
@@ -639,6 +712,7 @@ impl Manager {
             .clone();
         let session = primary.session_id.clone();
         let mut locked = sources.clone();
+        let mut source_details = BTreeMap::new();
         for source in &sources {
             let name = source
                 .path
@@ -646,8 +720,16 @@ impl Manager {
                 .rsplit(['/', '\\'])
                 .next()
                 .ok_or("invalidPath")?;
+            let destination = target.fs.join(&target.path, name)?;
+            source_details.insert(
+                source.path.clone(),
+                SourceDetails {
+                    destination: destination.clone(),
+                    size: (source.meta.kind == "file").then_some(source.meta.size),
+                },
+            );
             locked.push(Entry {
-                path: target.fs.join(&target.path, name)?,
+                path: destination,
                 ..target.clone()
             });
         }
@@ -673,8 +755,11 @@ impl Manager {
             direct_pid: None,
             direct_pull: false,
             sources: sources.iter().map(|s| s.path.clone()).collect(),
+            source_kinds: sources.iter().map(|s| s.meta.kind.clone()).collect(),
+            source_details,
             target: target.path.clone(),
             destination: None,
+            current_source: None,
             phase: "queued".into(),
             bytes: 0,
             speed: None,
@@ -687,6 +772,9 @@ impl Manager {
             error: None,
             conflict: None,
             policy: "ask".into(),
+            conflict_source: None,
+            conflict_choices: vec![],
+            skipped_sources: BTreeSet::new(),
             temp: None,
             started: crate::model::timestamp(),
             finished: None,
@@ -753,13 +841,71 @@ impl Manager {
         jobs.retain(|j| !j.is_finished());
         jobs.push(job);
     }
+    fn conflict_policy(&self, id: &str, source: &str, target: &str) -> String {
+        let mut tasks = self.tasks.lock().unwrap();
+        let task = tasks.get_mut(id).unwrap();
+        if let Some(choice) = task.conflict_choices.iter_mut().find(|choice| {
+            choice.target == target
+                && (choice.source.is_none() || choice.source.as_deref() == Some(source))
+        }) {
+            // Old journals may know only the destination: bind that choice once.
+            choice.source = Some(source.into());
+            return choice.policy.clone();
+        }
+        task.policy.clone()
+    }
+    fn mark_skipped(&self, id: &str, source: &str) {
+        self.change(id, |task| {
+            if task.skipped_sources.insert(source.into()) {
+                task.skipped += 1;
+            }
+        });
+    }
+    fn record_conflict(&self, id: &str, source: &str, target: &str) {
+        self.change(id, |task| {
+            task.conflict = Some(target.into());
+            task.conflict_source = Some(source.into());
+        });
+    }
+    fn remember_kept_directory(&self, id: &str, source: &str, target: &str, kept: &str) {
+        self.change(id, |task| {
+            if let Some(choice) = task
+                .conflict_choices
+                .iter_mut()
+                .find(|choice| choice.target == target && choice.source.as_deref() == Some(source))
+            {
+                choice.kept = Some(kept.into());
+            } else {
+                task.conflict_choices.push(ConflictChoice {
+                    source: Some(source.into()),
+                    target: target.into(),
+                    policy: "keep".into(),
+                    kept: Some(kept.into()),
+                });
+            }
+        });
+    }
     async fn run(&self, id: &str, sources: Vec<Entry>, target: Entry, c: &Control) -> Result<()> {
+        let mut root_sizes: BTreeMap<_, Option<u64>> = sources
+            .iter()
+            .map(|source| (source.path.clone(), Some(0)))
+            .collect();
         self.change(id, |t| {
             t.phase = "preparing".into();
+            t.source_kinds = sources
+                .iter()
+                .map(|source| source.meta.kind.clone())
+                .collect();
             t.bytes = 0;
             t.total = 0;
             t.count = 0;
             t.error = None;
+            t.conflict = None;
+            t.conflict_source = None;
+            t.current_source = None;
+            if t.skipped_sources.is_empty() {
+                t.skipped = 0;
+            }
             t.speed = None;
             t.eta = None;
         });
@@ -773,38 +919,102 @@ impl Manager {
                     .next()
                     .unwrap_or("")
                     .to_owned();
-                (e, target.path.clone(), name)
+                let root = e.path.clone();
+                (e, target.path.clone(), name, root)
             })
             .collect();
         let mut files = vec![];
         let mut conflicts = false;
+        let mut conflict_reason = "conflict";
         let mut visited = 0;
-        while let Some((source, parent, name)) = pending.pop() {
+        while let Some((source, parent, name, root)) = pending.pop() {
             check(c)?;
+            if source.meta.kind == "file" {
+                if let Some(Some(size)) = root_sizes.get_mut(&root) {
+                    *size = size.saturating_add(source.meta.size);
+                }
+            }
+            if self.tasks.lock().unwrap()[id]
+                .skipped_sources
+                .contains(&source.path)
+            {
+                if source.meta.kind == "directory" {
+                    root_sizes.insert(root, None);
+                }
+                continue;
+            }
             visited += 1;
             if visited > 50_000 {
                 return Err("directoryLimit".into());
             }
             let mut dest = target.fs.join(&parent, &name)?;
+            if source.path == root {
+                self.change(id, |task| {
+                    task.source_details
+                        .entry(root.clone())
+                        .or_insert(SourceDetails {
+                            destination: dest.clone(),
+                            size: (source.meta.kind == "file").then_some(source.meta.size),
+                        });
+                });
+            }
             if source.meta.kind == "directory" {
                 match target.fs.meta(&dest).await? {
                     Some(m) if m.kind == "directory" => {}
                     Some(_) => {
-                        let policy = self.tasks.lock().unwrap()[id].policy.clone();
+                        let policy = self.conflict_policy(id, &source.path, &dest);
                         if policy == "skip" {
-                            self.change(id, |t| t.skipped += 1);
+                            self.mark_skipped(id, &source.path);
+                            root_sizes.insert(root, None);
                             continue;
                         }
                         if policy == "keep" {
-                            dest = available_name(&target.fs, &dest).await?;
-                            target.fs.mkdir(&dest).await?;
+                            let kept = self.tasks.lock().unwrap()[id]
+                                .conflict_choices
+                                .iter()
+                                .find(|choice| {
+                                    choice.source.as_deref() == Some(&source.path)
+                                        && choice.target == dest
+                                })
+                                .and_then(|choice| choice.kept.clone());
+                            if let Some(kept) = kept {
+                                if target
+                                    .fs
+                                    .meta(&kept)
+                                    .await?
+                                    .is_none_or(|meta| meta.kind != "directory")
+                                {
+                                    return Err("targetChanged".into());
+                                }
+                                dest = kept;
+                            } else {
+                                let kept = available_name(&target.fs, &dest, "directory").await?;
+                                target.fs.mkdir(&kept).await?;
+                                self.remember_kept_directory(id, &source.path, &dest, &kept);
+                                dest = kept;
+                            }
                         } else {
-                            self.change(id, |t| t.conflict = Some(dest));
+                            if !conflicts {
+                                self.record_conflict(id, &source.path, &dest);
+                                conflict_reason = if policy == "replace" {
+                                    "replaceUnsupported"
+                                } else {
+                                    "conflict"
+                                };
+                            }
                             conflicts = true;
+                            root_sizes.insert(root, None);
                             continue;
                         }
                     }
                     None => target.fs.mkdir(&dest).await?,
+                }
+                if source.path == root {
+                    self.change(id, |task| {
+                        if let Some(detail) = task.source_details.get_mut(&root) {
+                            detail.destination = dest.clone();
+                        }
+                    });
                 }
                 for (n, meta) in source.fs.list(&source.path).await? {
                     let path = source.fs.join(&source.path, &n)?;
@@ -816,18 +1026,24 @@ impl Manager {
                         },
                         dest.clone(),
                         n,
+                        root.clone(),
                     ));
                 }
             } else if source.meta.kind == "file" {
                 files.push((source, dest));
             } else {
-                self.change(id, |t| t.skipped += 1);
+                self.mark_skipped(id, &source.path);
             }
         }
         let total = files.iter().map(|(s, _)| s.meta.size).sum();
         self.change(id, |t| {
             t.total = total;
             t.count = files.len();
+            for (root, size) in root_sizes {
+                if let (Some(detail), Some(size)) = (t.source_details.get_mut(&root), size) {
+                    detail.size = Some(size);
+                }
+            }
         });
         let direct_paths = files
             .iter()
@@ -837,6 +1053,9 @@ impl Manager {
         for (source, mut dest) in files {
             check(c)?;
             let task = self.tasks.lock().unwrap()[id].clone();
+            if task.skipped_sources.contains(&source.path) {
+                continue;
+            }
             if task.completed.contains(&source.path) {
                 self.change(id, |t| t.bytes += source.meta.size);
                 continue;
@@ -844,16 +1063,24 @@ impl Manager {
             let before = target.fs.meta(&dest).await?;
             let mut replace = false;
             if let Some(meta) = &before {
-                if task.policy == "skip" {
-                    self.change(id, |t| t.skipped += 1);
+                let policy = self.conflict_policy(id, &source.path, &dest);
+                if policy == "skip" {
+                    self.mark_skipped(id, &source.path);
                     continue;
                 }
-                if task.policy == "keep" {
-                    dest = available_name(&target.fs, &dest).await?;
-                } else if task.policy == "replace" && meta.kind == "file" {
+                if policy == "keep" {
+                    dest = available_name(&target.fs, &dest, "file").await?;
+                } else if policy == "replace" && meta.kind == "file" {
                     replace = true;
                 } else {
-                    self.change(id, |t| t.conflict = Some(dest));
+                    if !conflicts {
+                        self.record_conflict(id, &source.path, &dest);
+                        conflict_reason = if policy == "replace" {
+                            "replaceUnsupported"
+                        } else {
+                            "conflict"
+                        };
+                    }
                     conflicts = true;
                     continue;
                 }
@@ -861,6 +1088,7 @@ impl Manager {
             if replace
                 && matches!(&target.fs,Fs::Remote(r) if !r.extensions.contains_key("posix-rename@openssh.com"))
             {
+                self.record_conflict(id, &source.path, &dest);
                 return Err("replaceUnsupported".into());
             }
             let mut host_ids = vec![task.host_id.clone()];
@@ -927,6 +1155,10 @@ impl Manager {
             self.change(id, |t| {
                 t.phase = "transferring".into();
                 t.destination = Some(dest.clone());
+                t.current_source = Some(source.path.clone());
+                if let Some(detail) = t.source_details.get_mut(&source.path) {
+                    detail.destination = dest.clone();
+                }
                 t.temp = Some(temp.clone());
             });
             self.save();
@@ -1051,7 +1283,7 @@ impl Manager {
             self.save();
         }
         if conflicts {
-            return Err("conflict".into());
+            return Err(conflict_reason.into());
         }
         self.change(id, |t| {
             t.phase = if t.skipped > 0 {
@@ -1064,6 +1296,7 @@ impl Manager {
             t.speed = None;
             t.eta = None;
             t.conflict = None;
+            t.conflict_source = None;
         });
         Ok(())
     }
@@ -1081,6 +1314,17 @@ impl Manager {
         action: &str,
         session: Option<String>,
         source_session: Option<String>,
+    ) -> Result<()> {
+        self.control_scoped(id, action, session, source_session, true)
+            .await
+    }
+    pub async fn control_scoped(
+        self: &Arc<Self>,
+        id: &str,
+        action: &str,
+        session: Option<String>,
+        source_session: Option<String>,
+        apply_all: bool,
     ) -> Result<()> {
         if let Some(c) = self.controls.lock().unwrap().get(id) {
             match action {
@@ -1141,6 +1385,9 @@ impl Manager {
             .ok_or("missing")?;
         if task.direct_pending && action != "verify" {
             return Err("directUnknown".into());
+        }
+        if ["skip", "keep", "replace"].contains(&action) && task.phase != "conflict" {
+            return Err("staleEntry".into());
         }
         if task.temp.is_some()
             && !task.direct_pending
@@ -1282,7 +1529,23 @@ impl Manager {
         locked.push(target.clone());
         self.lease(id, &locked)?;
         if ["skip", "keep", "replace"].contains(&action) {
-            task.policy = action.into();
+            let target = task.conflict.clone().ok_or("staleEntry")?;
+            task.policy = if apply_all { action } else { "ask" }.into();
+            if let Some(choice) = task
+                .conflict_choices
+                .iter_mut()
+                .find(|choice| choice.target == target && choice.source == task.conflict_source)
+            {
+                choice.policy = action.into();
+                choice.kept = None;
+            } else {
+                task.conflict_choices.push(ConflictChoice {
+                    source: task.conflict_source.clone(),
+                    target,
+                    policy: action.into(),
+                    kept: None,
+                });
+            }
         }
         task.session_id = task
             .target_remote
@@ -1327,7 +1590,7 @@ impl Manager {
             return Err("cancelled".into());
         }
         let entry = self.entry(id)?;
-        if action != "mkdir" && !entry.mutable {
+        if action != "mkdir" && action != "createText" && !entry.mutable {
             return Err("invalidRequest".into());
         }
         let lease = format!("mutation:{}", uuid::Uuid::new_v4());
@@ -1337,6 +1600,17 @@ impl Manager {
                 return Err("staleEntry".into());
             }
             match action {
+                "createText" => {
+                    if entry.meta.kind != "directory" {
+                        return Err("notDirectory".into());
+                    }
+                    let path = entry.fs.join(&entry.path, name)?;
+                    if entry.fs.meta(&path).await?.is_some() {
+                        return Err("conflict".into());
+                    }
+                    let writer = entry.fs.writer(&path).await?;
+                    writer.close().await
+                }
                 "mkdir" => entry.fs.mkdir(&entry.fs.join(&entry.path, name)?).await,
                 "rename" => {
                     let parent = if entry.session.is_some() {
@@ -1424,6 +1698,14 @@ impl Manager {
         Ok((bytes, truncated))
     }
 }
+fn local_parent(path: &str) -> Result<String> {
+    std::path::Path::new(path)
+        .parent()
+        .and_then(|parent| parent.to_str())
+        .filter(|parent| !parent.is_empty())
+        .map(str::to_owned)
+        .ok_or("invalidPath".into())
+}
 fn check(c: &Control) -> Result<()> {
     if c.cancel.is_cancelled() {
         Err("cancelled".into())
@@ -1455,9 +1737,25 @@ async fn hash(fs: &Fs, path: &str) -> Result<Vec<u8>> {
     closed?;
     Ok(h.finalize().to_vec())
 }
-async fn available_name(fs: &Fs, path: &str) -> Result<String> {
+fn numbered_name(name: &str, n: usize, kind: &str) -> String {
+    let extension = (kind == "file")
+        .then(|| name.rfind('.'))
+        .flatten()
+        .filter(|dot| *dot > 0 && *dot + 1 < name.len());
+    let (stem, suffix) = extension
+        .map(|dot| name.split_at(dot))
+        .unwrap_or((name, ""));
+    format!("{stem} ({n}){suffix}")
+}
+async fn available_name(fs: &Fs, path: &str, kind: &str) -> Result<String> {
+    let start = match fs {
+        Fs::Local => path.rfind(['/', '\\']),
+        Fs::Remote(_) => path.rfind('/'),
+    }
+    .map_or(0, |at| at + 1);
+    let (parent, name) = path.split_at(start);
     for n in 2..10000 {
-        let candidate = format!("{path} ({n})");
+        let candidate = format!("{parent}{}", numbered_name(name, n, kind));
         if fs.meta(&candidate).await?.is_none() {
             return Ok(candidate);
         }

@@ -44,7 +44,7 @@ export function projectFileEdges(
       target = locations.get(group.target)!;
     const dx = target.x - source.x,
       dy = target.y - source.y;
-    const from =
+    const direction =
       Math.abs(dx) >= Math.abs(dy)
         ? dx >= 0
           ? Position.Right
@@ -52,12 +52,16 @@ export function projectFileEdges(
         : dy >= 0
           ? Position.Bottom
           : Position.Top;
+    // Host handles belong to the host heading. Never place file endpoints
+    // in the forwarding-rule area, even when the card is very tall.
+    const horizontal = dx >= 0 ? Position.Right : Position.Left;
+    const from = group.source === "local" ? direction : horizontal;
     const to = {
       left: Position.Right,
       right: Position.Left,
       top: Position.Bottom,
       bottom: Position.Top,
-    }[from];
+    }[group.target === "local" ? direction : horizontal];
     const moving = group.items.some((item) => item.phase === "transferring");
     const phase = moving
       ? "transferring"
@@ -72,6 +76,8 @@ export function projectFileEdges(
       .slice(0, 3)
       .join("\n");
     const relay = group.items.some((item) => item.relay);
+    const taskIds = group.items.map((item) => item.id);
+    const taskKey = JSON.stringify(taskIds);
     const sourceHandle = filePortId("source", from),
       targetHandle = filePortId("target", to);
     const before = saved.get(id);
@@ -82,6 +88,7 @@ export function projectFileEdges(
       before.data?.phase === phase &&
       before.data?.count === group.items.length &&
       before.data?.title === title &&
+      before.data?.taskKey === taskKey &&
       before.data?.relay === relay
     )
       return before;
@@ -95,7 +102,15 @@ export function projectFileEdges(
       sourceHandle,
       targetHandle,
       type: "file-transfer",
-      data: { moving, phase, count: group.items.length, title, relay },
+      data: {
+        moving,
+        phase,
+        count: group.items.length,
+        title,
+        relay,
+        taskIds,
+        taskKey,
+      },
       className: `file-transfer-edge ${moving ? "file-transfer-moving" : ""}`,
       style: { stroke: color, strokeWidth: 1.5 },
       markerEnd: { type: MarkerType.ArrowClosed, color },

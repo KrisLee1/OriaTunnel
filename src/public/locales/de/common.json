@@ -97,5 +97,38 @@
     "description": "Wähle deine Einstellungen. Du kannst sie später in den Einstellungen ändern.",
     "done": "Loslegen",
     "saveFailed": "Der Abschluss konnte nicht gespeichert werden. Dieser Dialog erscheint beim nächsten Start erneut."
+  },
+  "codeBlock": {
+    "copy": "Code kopieren",
+    "copied": "Kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "plainText": "Nur Text",
+    "wrap": "Zeilenumbruch"
+  },
+  "markdown": {
+    "expand": "Alle anzeigen",
+    "collapse": "Einklappen",
+    "code": "Code",
+    "svgPreview": "SVG-Vorschau",
+    "svgViewSource": "SVG-Quelltext anzeigen",
+    "svgViewPreview": "SVG als Vorschau anzeigen",
+    "svgError": "Dieses SVG kann nicht sicher dargestellt werden. Stattdessen wird der Quelltext angezeigt.",
+    "table": "Tabelle",
+    "tableRows": "Das ist{{count}}Zeilen",
+    "fullscreenTable": "Vollbildschirm Anzeige von Tabellen",
+    "mermaidDiagram": "Meerjungfrau-Diagramm",
+    "renderingDiagram": "Das Darstellungsdiagramm...",
+    "mermaidError": "Dieses Meerjungfrau-Diagramm konnte nicht dargestellt werden.",
+    "fullscreenDiagram": "Anzeige des Diagramms auf Vollbildschirm",
+    "dataChart": "Datendiagramm",
+    "dataChartError": "Dieses Datendiagramm konnte nicht dargestellt werden. Prüfen Sie die Diagrammdefinition und die Daten.",
+    "fullscreenDataChart": "Datendiagramm im Vollbild anzeigen",
+    "callout": {
+      "note": "Anmerkung",
+      "tip": "Tipp",
+      "important": "Wichtig",
+      "warning": "Warnung",
+      "caution": "Vorsicht"
+    }
   }
 }

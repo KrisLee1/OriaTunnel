@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   ArrowRightLeft,
   Download,
   Upload,
@@ -7,54 +6,98 @@ import {
   Play,
   X,
   Trash2,
-  HardDrive,
-  Server,
+  BrushCleaning,
+  TriangleAlert,
+  ChevronRight,
 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { active, size, displayPath, type Task } from "./api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  active,
+  size,
+  displayPath,
+  type Task,
+  type TransferFolder,
+} from "./api";
+import { FileArtwork } from "./file-artwork";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  transferHosts,
+  transferTarget,
+  transferTotalSize,
+} from "./transfer-list";
+import { TransferBatchDetails } from "./transfer-batch-details";
+import { TransferPaths } from "./transfer-paths";
 
 export function TransferItem({
   task,
   onAction,
 }: {
   task: Task;
-  onAction: (action: string) => void;
+  onAction: (action: string, folder?: TransferFolder) => void;
 }) {
-  const { t } = useTranslation("files");
+  const { t, i18n } = useTranslation("files");
+  const [batchOpen, setBatchOpen] = useState(false);
+  const batch = task.sources.length > 1;
+  const started = new Date(task.started);
   const running = active(task),
     finished = ["completed", "partial", "cancelled", "failed"].includes(
       task.phase,
     );
   const upload = task.direction === "upload",
     relay = task.direction === "relay";
-  const sourceRemote = !!task.sourceRemote || !upload;
-  const targetRemote = !!task.targetRemote || upload || relay;
+  const endpoints = transferHosts(task);
+  const sourceRemote = endpoints.source.remote;
+  const targetRemote = endpoints.target.remote;
   const sourceName =
-    task.sourceRemote?.hostName || (sourceRemote ? task.hostName : t("local"));
+    endpoints.source.name || t(sourceRemote ? "remote" : "local");
   const targetName =
-    task.targetRemote?.hostName || (targetRemote ? task.hostName : t("local"));
+    endpoints.target.name || t(targetRemote ? "remote" : "local");
   const names = task.sources
     .map((path) => displayPath(path).split(/[\\/]/).pop())
     .join(", ");
-  const filename =
-    task.sources.length === 1
-      ? displayPath(task.sources[0]).split(/[\\/]/).pop()
-      : undefined;
-  const target = displayPath(
-    task.destination ||
-      (filename
-        ? task.target.replace(/[\\/]$/, "") +
-          (task.direction === "download" && task.target.includes("\\")
-            ? "\\"
-            : "/") +
-          filename
-        : task.target),
-  );
-  const address = `${targetName} · ${target}`;
+  const target = displayPath(transferTarget(task));
+  const totalSize =
+    transferTotalSize(task) ??
+    (!batch && (task.total > 0 || task.phase === "completed")
+      ? task.total
+      : null);
+  const totalText = totalSize === null ? t("sizeUnknown") : size(totalSize);
   const route = `${sourceName} → ${targetName}${relay ? ` · ${t(task.transport === "direct" ? "directTransfer" : task.transport === "checking" ? "checkingDirect" : "viaLocal")}` : ""}`;
+  const error =
+    task.error &&
+    ![task.phase, "paused", "cancelled", "interrupted"].includes(task.error)
+      ? t(task.error, { defaultValue: task.error })
+      : null;
+  const metrics = [
+    [t("transferredSize"), size(task.bytes)],
+    [t("totalSize"), totalText],
+    [
+      t("completedItems"),
+      `${task.completed.length}${running ? ` / ${task.count}` : ""}`,
+    ],
+    ...(task.skipped > 0 ? [[t("skippedItems"), `${task.skipped}`]] : []),
+    ...(running && task.speed != null && task.speed > 0
+      ? [[t("transferSpeed"), `${size(task.speed)}/s`]]
+      : []),
+    ...(running && task.eta != null ? [[t("remaining"), `${task.eta}s`]] : []),
+  ];
+  const metricsLabel = metrics
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(" · ");
   const iconAction = (
     action: string,
     icon: React.ReactNode,
@@ -71,27 +114,49 @@ export function TransferItem({
       {icon}
     </Button>
   );
-  return (
-    <article className="files-transfer-row">
-      <div className="files-transfer-heading">
-        <span
-          className="files-transfer-direction"
-          title={t(relay ? "remoteTransfer" : upload ? "upload" : "download")}
+  const content = (
+    <motion.article
+      className="files-transfer-row"
+      data-transfer-task={task.id}
+      initial="rest"
+      animate="rest"
+      whileHover="artwork-hover"
+      whileFocus="artwork-hover"
+    >
+      {batch ? (
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="files-transfer-artwork files-batch-trigger"
+              aria-label={t(batchOpen ? "collapseBatch" : "expandBatch")}
+              title={t(batchOpen ? "collapseBatch" : "expandBatch")}
+            />
+          }
         >
-          {relay ? <ArrowRightLeft /> : upload ? <Upload /> : <Download />}
-        </span>
-        <strong title={task.sources.map(displayPath).join("\n")}>
-          {names}
-        </strong>
-        <div className="files-transfer-route" title={route}>
-          <span>
-            {sourceRemote ? <Server /> : <HardDrive />}
-            {sourceName}
-          </span>
-          <ArrowRight />
-          <span>
-            {targetRemote ? <Server /> : <HardDrive />}
-            {targetName}
+          <FileArtwork name="" kind="batch" />
+          <ChevronRight
+            className={`files-batch-chevron size-3 transition-transform duration-aide-fast motion-reduce:transition-none ${batchOpen ? "rotate-90" : ""}`}
+          />
+        </CollapsibleTrigger>
+      ) : (
+        <FileArtwork
+          name={task.sources[0] || ""}
+          kind={task.sourceKinds?.[0]}
+          className="files-transfer-artwork"
+        />
+      )}
+      <div className="files-transfer-heading">
+        <div className="files-transfer-name">
+          <strong title={task.sources.map(displayPath).join("\n")}>
+            {batch ? t("batchSummary", { count: task.sources.length }) : names}
+          </strong>
+          <span
+            className="files-transfer-direction"
+            title={`${t(relay ? "remoteTransfer" : upload ? "upload" : "download")} · ${route}`}
+          >
+            {relay ? <ArrowRightLeft /> : upload ? <Upload /> : <Download />}
           </span>
         </div>
         {relay && (
@@ -105,9 +170,52 @@ export function TransferItem({
             )}
           </span>
         )}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                tabIndex={0}
+                className="files-transfer-size"
+                aria-label={metricsLabel}
+              />
+            }
+          >
+            {running ? `${size(task.bytes)} / ${totalText}` : totalText}
+          </TooltipTrigger>
+          <TooltipContent className="files-transfer-info" role="tooltip">
+            <dl>
+              {metrics.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            {error && <p className="files-transfer-error">{error}</p>}
+            {task.temp && (
+              <p>
+                {t("temporary")}
+                <code data-selectable="true">{displayPath(task.temp)}</code>
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+        <time
+          className="files-transfer-time"
+          dateTime={started.toISOString()}
+          title={started.toLocaleString(i18n.language)}
+        >
+          {started.toLocaleString(i18n.language, {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </time>
         <Badge
           variant="ghost"
           className={`files-transfer-state files-state-${task.phase}`}
+          title={`${t(task.phase)}${error ? ` · ${error}` : ""}`}
         >
           {t(task.phase)}
         </Badge>
@@ -121,115 +229,82 @@ export function TransferItem({
             <>
               {(!finished || task.phase === "failed") &&
                 iconAction(
-                  task.directPending || task.error === "commitUnknown"
-                    ? "verify"
-                    : "resume",
-                  <Play />,
-                  task.directPending
-                    ? "verifyDirect"
-                    : task.error === "commitUnknown"
-                      ? "verifyCommit"
+                  task.phase === "conflict"
+                    ? "resolveConflict"
+                    : task.directPending || task.error === "commitUnknown"
+                      ? "verify"
                       : "resume",
+                  task.phase === "conflict" ? <TriangleAlert /> : <Play />,
+                  task.phase === "conflict"
+                    ? "resolveConflict"
+                    : task.directPending
+                      ? "verifyDirect"
+                      : task.error === "commitUnknown"
+                        ? "verifyCommit"
+                        : "resume",
                 )}
               {!finished && iconAction("cancel", <X />)}
               {finished && !task.temp && iconAction("clear", <Trash2 />)}
+              {task.temp &&
+                !task.directPending &&
+                task.error !== "commitUnknown" &&
+                iconAction("cleanup", <BrushCleaning />)}
             </>
           )}
         </div>
       </div>
       <div className="files-transfer-subline">
-        {task.direction === "download" ? (
-          <button
-            type="button"
-            className="files-transfer-target"
-            title={`${t("openFolder")} · ${address}`}
-            onClick={() => onAction("openTarget")}
-          >
-            {address}
-          </button>
-        ) : (
-          <code data-selectable="true" title={address}>
-            {address}
-          </code>
-        )}
-        {running && (
-          <Progress
-            aria-label={t("progress")}
-            value={
-              task.total > 0
-                ? Math.min(100, (task.bytes / task.total) * 100)
-                : null
-            }
-          />
-        )}
-        <div className="files-transfer-metrics">
-          <span>
-            {size(task.bytes)}
-            {running && task.total > 0 ? ` / ${size(task.total)}` : ""}
+        <TransferPaths
+          source={{
+            host: endpoints.source,
+            path: batch ? null : task.sources[0],
+            description: t("multipleSources", { count: task.sources.length }),
+            onOpen: batch
+              ? undefined
+              : () =>
+                  onAction("openFolder", {
+                    source: task.sources[0],
+                    side: "source",
+                  }),
+          }}
+          target={{
+            host: endpoints.target,
+            path: target,
+            onOpen: () => onAction("openTarget"),
+          }}
+        />
+        {error && (
+          <span className="files-transfer-error" title={error}>
+            {error}
           </span>
-          {(task.count > 1 || !running) && (
-            <span>
-              {t("completedItems")}: {task.completed.length}
-              {running ? ` / ${task.count}` : ""}
-            </span>
-          )}
-          {task.skipped > 0 && (
-            <span>
-              {t("skippedItems")}: {task.skipped}
-            </span>
-          )}
-          {running && task.speed != null && task.speed > 0 && (
-            <span>{size(task.speed)}/s</span>
-          )}
-          {running && task.eta != null && (
-            <span>
-              {t("remaining")}: {task.eta}s
-            </span>
-          )}
-        </div>
-      </div>
-      {task.error &&
-        ![task.phase, "paused", "cancelled", "interrupted"].includes(
-          task.error,
-        ) && (
-          <p className="files-error">
-            {t(task.error, { defaultValue: task.error })}
-          </p>
         )}
-      {task.conflict && (
-        <p className="files-transfer-notice" data-selectable="true">
-          {displayPath(task.conflict)}
-        </p>
+      </div>
+      {running && (
+        <Progress
+          className="files-transfer-progress"
+          aria-label={t("progress")}
+          value={
+            task.total > 0
+              ? Math.min(100, (task.bytes / task.total) * 100)
+              : null
+          }
+        />
       )}
-      {task.phase === "conflict" && (
-        <div className="files-transfer-resolve">
-          {["skip", "keep", "replace"].map((action) => (
-            <Button
-              key={action}
-              size="sm"
-              variant="outline"
-              onClick={() => onAction(action)}
-            >
-              {t(action)}
-            </Button>
-          ))}
-        </div>
+      {batch && (
+        <CollapsibleContent className="files-batch-content h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-aide-fast data-starting-style:h-0 data-ending-style:h-0 motion-reduce:transition-none">
+          <TransferBatchDetails
+            task={task}
+            onOpenFolder={(folder) => onAction("openFolder", folder)}
+          />
+        </CollapsibleContent>
       )}
-      {task.temp && !running && (
-        <details className="files-transfer-notice">
-          <summary>{t("temporary")}</summary>
-          <code data-selectable="true">{displayPath(task.temp)}</code>
-          {!task.directPending && task.error !== "commitUnknown" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onAction("cleanup")}
-            >
-              {t("cleanup")}
-            </Button>
-          )}
-        </details>
-      )}
-    </article>
+    </motion.article>
+  );
+  return batch ? (
+    <Collapsible open={batchOpen} onOpenChange={setBatchOpen}>
+      {content}
+    </Collapsible>
+  ) : (
+    content
   );
 }

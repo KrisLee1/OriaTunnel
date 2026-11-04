@@ -2351,55 +2351,57 @@ const CardContent = memo(function CardContent({
         )}
         labels={false}
       />
-      <FileTransferPorts />
-      <div className="card-heading">
-        <span className="card-icon">
-          <ServerIcon size={21} />
-        </span>
-        <div className="host-card-heading-content">
-          <div className="host-card-heading-row">
-            <span className="eyebrow">{t("host")}</span>
-            {d.host && (
-              <code title={`${d.host.user}@${d.host.address}:${d.host.port}`}>
-                {d.host.user}@{d.host.address}:{d.host.port}
-              </code>
-            )}
-          </div>
-          <div className="host-card-heading-row">
-            <h2 title={d.host?.name || t("sourceMissing")}>
-              {d.host?.name || t("sourceMissing")}
-            </h2>
-            <span className="source-badge">
-              {t("forwardCount", { count: d.rules?.length || 0 })}
-            </span>
-            {d.host && <FileTransferStatus nodeId={`host:${d.host.id}`} />}
-            {d.host && (
-              <>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="nodrag nopan"
-                  aria-label={`${t("edit")} ${d.host.name}`}
-                  title={t("edit")}
-                  onClick={() => d.onHostEdit(d.host!)}
-                >
-                  <Settings2Icon />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="nodrag nopan"
-                  aria-label={`${t("createForward")} ${d.host.name}`}
-                  title={t("createForward")}
-                  onClick={() => d.onHostAddForward(d.host!.id)}
-                >
-                  <GitPullRequestCreateArrowIcon />
-                </Button>
-                <OpenFilesButton hostId={d.host.id}/><OpenTerminalButton hostId={d.host.id} />
-              </>
-            )}
+      <div className="host-card-file-anchor">
+        <FileTransferPorts host />
+        <div className="card-heading">
+          <span className="card-icon">
+            <ServerIcon size={21} />
+          </span>
+          <div className="host-card-heading-content">
+            <div className="host-card-heading-row">
+              <span className="eyebrow">{t("host")}</span>
+              {d.host && (
+                <code title={`${d.host.user}@${d.host.address}:${d.host.port}`}>
+                  {d.host.user}@{d.host.address}:{d.host.port}
+                </code>
+              )}
+            </div>
+            <div className="host-card-heading-row">
+              <h2 title={d.host?.name || t("sourceMissing")}>
+                {d.host?.name || t("sourceMissing")}
+              </h2>
+              <span className="source-badge">
+                {t("forwardCount", { count: d.rules?.length || 0 })}
+              </span>
+              {d.host && <FileTransferStatus nodeId={`host:${d.host.id}`} />}
+              {d.host && (
+                <>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="nodrag nopan"
+                    aria-label={`${t("edit")} ${d.host.name}`}
+                    title={t("edit")}
+                    onClick={() => d.onHostEdit(d.host!)}
+                  >
+                    <Settings2Icon />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="nodrag nopan"
+                    aria-label={`${t("createForward")} ${d.host.name}`}
+                    title={t("createForward")}
+                    onClick={() => d.onHostAddForward(d.host!.id)}
+                  >
+                    <GitPullRequestCreateArrowIcon />
+                  </Button>
+                  <OpenFilesButton hostId={d.host.id}/><OpenTerminalButton hostId={d.host.id} />
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

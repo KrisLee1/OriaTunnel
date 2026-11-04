@@ -97,5 +97,38 @@
     "description": "Choisissez vos préférences. Vous pourrez les modifier dans les réglages.",
     "done": "Commencer",
     "saveFailed": "Impossible d’enregistrer la fin de la configuration. Cette fenêtre réapparaîtra au prochain démarrage."
+  },
+  "codeBlock": {
+    "copy": "Copier le code",
+    "copied": "Copié",
+    "copyFailed": "Échec de la copie",
+    "plainText": "Texte brut",
+    "wrap": "Retour à la ligne"
+  },
+  "markdown": {
+    "expand": "Tout afficher",
+    "collapse": "Réduire",
+    "code": "Le code",
+    "svgPreview": "Aperçu SVG",
+    "svgViewSource": "Afficher le code source SVG",
+    "svgViewPreview": "Prévisualiser le SVG",
+    "svgError": "Ce SVG ne peut pas être prévisualisé en toute sécurité. Son code source est affiché à la place.",
+    "table": "Tableau",
+    "tableRows": "La réaction{{count}}rangées",
+    "fullscreenTable": "Afficher la table à écran complet",
+    "mermaidDiagram": "Diagramme de sirène",
+    "renderingDiagram": "Le schéma de rendu...",
+    "mermaidError": "Ce diagramme de la sirène n'a pas pu être rendu, vérifiez sa syntaxe.",
+    "fullscreenDiagram": "Afficher le schéma à écran complet",
+    "dataChart": "Graphique de données",
+    "dataChartError": "Impossible d’afficher ce graphique de données. Vérifiez la définition du graphique et les données.",
+    "fullscreenDataChart": "Afficher le graphique de données en plein écran",
+    "callout": {
+      "note": "Remarque",
+      "tip": "Astuce",
+      "important": "L'importance",
+      "warning": "L'avertissement",
+      "caution": "Attention !"
+    }
   }
 }

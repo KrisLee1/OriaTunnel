@@ -7,6 +7,9 @@ export {
   DropdownMenuItem as ContextMenuItem,
   DropdownMenuSeparator as ContextMenuSeparator,
   DropdownMenuShortcut as ContextMenuShortcut,
+  DropdownMenuSub as ContextMenuSub,
+  DropdownMenuSubTrigger as ContextMenuSubTrigger,
+  DropdownMenuSubContent as ContextMenuSubContent,
 } from "./dropdown-menu";
 
 export function ContextMenu(props: ContextMenuPrimitive.Root.Props) {

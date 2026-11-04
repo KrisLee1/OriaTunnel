@@ -253,6 +253,26 @@ pub async fn file_control(
         .await
 }
 #[tauri::command]
+pub async fn file_resolve_conflict(
+    state: tauri::State<'_, Arc<AppState>>,
+    window: tauri::WebviewWindow,
+    id: String,
+    policy: String,
+    apply_all: bool,
+    session: Option<String>,
+    source_session: Option<String>,
+) -> Result<(), String> {
+    command_api::local(&window)?;
+    state.allow_launch()?;
+    if !["skip", "keep", "replace"].contains(&policy.as_str()) {
+        return Err("invalidRequest".into());
+    }
+    state
+        .files
+        .control_scoped(&id, &policy, session, source_session, apply_all)
+        .await
+}
+#[tauri::command]
 pub fn file_disconnect(
     state: tauri::State<Arc<AppState>>,
     window: tauri::WebviewWindow,
@@ -343,7 +363,22 @@ pub async fn file_open_target(
 ) -> Result<(), String> {
     command_api::local(&window)?;
     let path = state.files.local_target(&id)?;
-    let path = Fs::Local.canonical(&path).await?;
+    open_transfer_directory(&path).await
+}
+#[tauri::command]
+pub async fn file_open_transfer_folder(
+    state: tauri::State<'_, Arc<AppState>>,
+    window: tauri::WebviewWindow,
+    id: String,
+    source: String,
+    side: String,
+) -> Result<(), String> {
+    command_api::local(&window)?;
+    let path = state.files.local_transfer_folder(&id, &source, &side)?;
+    open_transfer_directory(&path).await
+}
+async fn open_transfer_directory(path: &str) -> Result<(), String> {
+    let path = Fs::Local.canonical(path).await?;
     if Fs::Local
         .meta(&path)
         .await?
@@ -368,6 +403,42 @@ pub async fn file_open_target(
             .map_err(err)?;
     }
     Ok(())
+}
+#[tauri::command]
+pub async fn file_read_text(
+    state: tauri::State<'_, Arc<AppState>>,
+    window: tauri::WebviewWindow,
+    id: String,
+) -> Result<files::TextDocument, String> {
+    command_api::local(&window)?;
+    state.allow_launch()?;
+    let _slot = state
+        .files
+        .preview_slots
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(err)?;
+    state.files.read_text(&id).await
+}
+#[tauri::command]
+pub async fn file_write_text(
+    state: tauri::State<'_, Arc<AppState>>,
+    window: tauri::WebviewWindow,
+    id: String,
+    expected: String,
+    text: String,
+) -> Result<files::TextDocument, files::TextSaveError> {
+    command_api::local(&window).map_err(files::TextSaveError::from)?;
+    state.allow_launch().map_err(files::TextSaveError::from)?;
+    let _slot = state
+        .files
+        .preview_slots
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|e| files::TextSaveError::from(err(e)))?;
+    state.files.write_text(&id, &expected, &text).await
 }
 #[tauri::command]
 pub async fn file_preview(

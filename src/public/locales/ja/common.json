@@ -97,5 +97,38 @@
     "description": "使いやすい外観を選びましょう。後から設定で変更できます。",
     "done": "使い始める",
     "saveFailed": "初期設定の完了状態を保存できません。次回起動時に再表示されます。"
+  },
+  "codeBlock": {
+    "copy": "コードをコピー",
+    "copied": "コピーしました",
+    "copyFailed": "コピーに失敗しました",
+    "plainText": "プレーンテキスト",
+    "wrap": "自動折り返し"
+  },
+  "markdown": {
+    "expand": "すべて表示",
+    "collapse": "折りたたむ",
+    "code": "コード",
+    "svgPreview": "SVG プレビュー",
+    "svgViewSource": "SVG ソースを表示",
+    "svgViewPreview": "SVG をプレビュー",
+    "svgError": "この SVG は安全にプレビューできないため、ソースを表示しています。",
+    "table": "テーブル",
+    "tableRows": "について{{count}}列",
+    "fullscreenTable": "全画面表示表",
+    "mermaidDiagram": "海豚の図",
+    "renderingDiagram": "描写図...",
+    "mermaidError": "このMermaid図はレンダリングできませんでした.その構文を確認してください.",
+    "fullscreenDiagram": "図を全画面で表示する",
+    "dataChart": "データチャート",
+    "dataChartError": "このデータチャートを描画できませんでした。チャート設定とデータを確認してください。",
+    "fullscreenDataChart": "データチャートを全画面表示",
+    "callout": {
+      "note": "注記",
+      "tip": "チップ",
+      "important": "重要なこと",
+      "warning": "警告",
+      "caution": "注意"
+    }
   }
 }

@@ -3,6 +3,7 @@ export type Entry = {
   id: string;
   name: string;
   kind: string;
+  hidden?: boolean;
   size: number;
   modified: number;
   permissions: number | null;
@@ -41,6 +42,8 @@ export type Task = {
   sourceRemote?: RemoteEndpoint | null;
   targetRemote?: RemoteEndpoint | null;
   sources: string[];
+  sourceKinds?: string[];
+  sourceDetails?: Record<string, { destination: string; size: number | null }>;
   target: string;
   destination?: string | null;
   phase: string;
@@ -54,15 +57,28 @@ export type Task = {
   revision: number;
   error: string | null;
   conflict: string | null;
+  conflictSource?: string | null;
+  currentSource?: string | null;
+  commitSource?: string | null;
+  skippedSources?: string[];
   temp: string | null;
   started: number;
   finished: number | null;
 };
+export type TransferFolder = { source: string; side: "source" | "target" };
 export type Snapshot = {
   revision: number;
   sessions: Session[];
   tasks: Task[];
   warning: string | null;
+};
+export type TextDocument = {
+  text: string;
+  version: string;
+  encoding: string;
+  lineEnding: string;
+  size: number;
+  modified: number;
 };
 export const active = (t: Task) =>
   ![
@@ -76,6 +92,8 @@ export const active = (t: Task) =>
   ].includes(t.phase);
 export const api = {
   openTarget: (id: string) => invoke("file_open_target", { id }),
+  openTransferFolder: (id: string, folder: TransferFolder) =>
+    invoke("file_open_transfer_folder", { id, ...folder }),
   clearHistory: () => invoke("file_clear_history"),
   reveal: (id: string) => invoke("file_reveal", { id }),
   snapshot: () => invoke<Snapshot>("file_snapshot"),
@@ -103,32 +121,62 @@ export const api = {
     session?: string,
     sourceSession?: string,
   ) => invoke("file_control", { id, action, session, sourceSession }),
+  resolveConflict: (
+    id: string,
+    policy: "skip" | "keep" | "replace",
+    applyAll: boolean,
+    session?: string,
+    sourceSession?: string,
+  ) =>
+    invoke("file_resolve_conflict", {
+      id,
+      policy,
+      applyAll,
+      session,
+      sourceSession,
+    }),
   mutate: (action: string, id: string, name = "") =>
     invoke("file_mutate", { action, id, name }),
   pick: (folder = false) => invoke<string[]>("file_pick", { folder }),
   preview: (id: string, expanded = false) =>
     invoke<ArrayBuffer>("file_preview", { id, expanded }),
+  readText: (id: string) => invoke<TextDocument>("file_read_text", { id }),
+  writeText: (id: string, expected: string, text: string) =>
+    invoke<TextDocument>("file_write_text", { id, expected, text }),
 };
 export function sorted(
   entries: Entry[],
   query: string,
   hidden: boolean,
   sort: string,
+  descending = false,
 ) {
   const items = entries.filter(
     (e) =>
-      (hidden || !e.name.startsWith(".")) &&
+      (hidden || (!e.hidden && !e.name.startsWith("."))) &&
       e.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
-  return items.sort(
-    (a, b) =>
-      Number(b.kind === "directory") - Number(a.kind === "directory") ||
-      (sort === "size"
-        ? b.size - a.size
+  return items.sort((a, b) => {
+    const group =
+      Number(b.kind === "directory") - Number(a.kind === "directory");
+    const value =
+      sort === "size"
+        ? a.size - b.size
         : sort === "modified"
-          ? b.modified - a.modified
-          : a.name.localeCompare(b.name)),
-  );
+          ? a.modified - b.modified
+          : sort === "type"
+            ? entryType(a).localeCompare(entryType(b))
+            : 0;
+    return (
+      (group || value || a.name.localeCompare(b.name)) * (descending ? -1 : 1)
+    );
+  });
+}
+function entryType(entry: Entry) {
+  if (entry.kind === "directory") return "";
+  if (entry.kind !== "file") return entry.kind;
+  const index = entry.name.lastIndexOf(".");
+  return index > 0 ? entry.name.slice(index + 1).toLowerCase() : "";
 }
 export function selection(
   current: string[],

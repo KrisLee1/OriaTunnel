@@ -164,6 +164,52 @@ impl Sftp {
 }
 impl russh_sftp::server::Handler for Sftp {
     type Error = StatusCode;
+    async fn init(
+        &mut self,
+        _: u32,
+        _: HashMap<String, String>,
+    ) -> std::result::Result<Version, Self::Error> {
+        let mut version = Version::new();
+        if self.root.join(".allow-text-edit").exists() {
+            version
+                .extensions
+                .insert("posix-rename@openssh.com".into(), "1".into());
+        }
+        Ok(version)
+    }
+    async fn extended(
+        &mut self,
+        id: u32,
+        request: String,
+        data: Vec<u8>,
+    ) -> std::result::Result<Packet, Self::Error> {
+        if request != "posix-rename@openssh.com" || !self.root.join(".allow-text-edit").exists() {
+            return Err(StatusCode::OpUnsupported);
+        }
+        if self.root.join(".deny-text-edit-rename").exists() {
+            return Err(StatusCode::PermissionDenied);
+        }
+        let mut rest = data.as_slice();
+        let mut paths = Vec::new();
+        for _ in 0..2 {
+            if rest.len() < 4 {
+                return Err(StatusCode::BadMessage);
+            }
+            let length = u32::from_be_bytes(rest[..4].try_into().unwrap()) as usize;
+            rest = &rest[4..];
+            if rest.len() < length {
+                return Err(StatusCode::BadMessage);
+            }
+            let name = std::str::from_utf8(&rest[..length]).map_err(|_| StatusCode::BadMessage)?;
+            paths.push(self.path(name)?);
+            rest = &rest[length..];
+        }
+        std::fs::rename(&paths[0], &paths[1]).map_err(|_| StatusCode::Failure)?;
+        if self.root.join(".lose-text-edit-reply").exists() {
+            return Err(StatusCode::Failure);
+        }
+        Ok(Packet::Status(status(id)))
+    }
     async fn stat(&mut self, id: u32, path: String) -> std::result::Result<Attrs, Self::Error> {
         self.lstat(id, path).await
     }
@@ -346,6 +392,80 @@ impl russh_sftp::server::Handler for Sftp {
         Ok(status(id))
     }
 }
+
+#[tokio::test]
+async fn text_edit_uses_real_sftp_and_verifies_failed_rename_replies() {
+    for failure in ["none", "lost-reply", "denied"] {
+        let root = tempfile::tempdir().unwrap();
+        let profile = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".allow-text-edit"), b"").unwrap();
+        std::fs::write(root.path().join("notes.txt"), b"original\r\n").unwrap();
+        if failure == "lost-reply" {
+            std::fs::write(root.path().join(".lose-text-edit-reply"), b"").unwrap();
+        }
+        if failure == "denied" {
+            std::fs::write(root.path().join(".deny-text-edit-rename"), b"").unwrap();
+        }
+        let (manager, server) =
+            manager(root.path().to_owned(), profile.path().join("journal.json")).await;
+        let directory = manager
+            .directory(Some("session".into()), "/".into())
+            .await
+            .unwrap();
+        let id = &directory
+            .entries
+            .iter()
+            .find(|e| e.name == "notes.txt")
+            .unwrap()
+            .id;
+        let document = manager.read_text(id).await.unwrap();
+        let saved = manager
+            .write_text(id, &document.version, "新的文本😀\n")
+            .await;
+        if failure == "denied" {
+            assert!(saved.is_err());
+            assert_eq!(
+                std::fs::read(root.path().join("notes.txt")).unwrap(),
+                b"original\r\n"
+            );
+        } else {
+            assert_eq!(saved.unwrap().text, "新的文本😀\n");
+            assert_eq!(
+                std::fs::read(root.path().join("notes.txt")).unwrap(),
+                "新的文本😀\r\n".as_bytes()
+            );
+        }
+        assert!(manager.active_ids().is_empty());
+        assert!(!std::fs::read_dir(root.path()).unwrap().any(|e| e
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".oria-edit-")));
+        server.abort();
+    }
+    let root = tempfile::tempdir().unwrap();
+    let profile = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("notes.txt"), b"original").unwrap();
+    let (manager, server) =
+        manager(root.path().to_owned(), profile.path().join("journal.json")).await;
+    let directory = manager
+        .directory(Some("session".into()), "/".into())
+        .await
+        .unwrap();
+    assert_eq!(
+        manager
+            .read_text(&directory.entries[0].id)
+            .await
+            .err()
+            .unwrap(),
+        "replaceUnsupported"
+    );
+    assert_eq!(
+        std::fs::read(root.path().join("notes.txt")).unwrap(),
+        b"original"
+    );
+    server.abort();
+}
 async fn setup(root: PathBuf, reject: bool) -> (Fs, tokio::task::JoinHandle<()>) {
     setup_with_direct(root, reject, None).await
 }
@@ -512,6 +632,14 @@ async fn two_real_sftp_hosts_relay_nested_files_without_local_staging_and_keep_c
     let task = settled(&m, &id).await;
     assert_eq!(task.phase, "completed");
     assert_eq!(task.direction, "relay");
+    assert_eq!(task.source_kinds, vec!["directory"]);
+    let mut legacy = serde_json::to_value(&task).unwrap();
+    assert_eq!(legacy["sourceKinds"][0], "directory");
+    legacy.as_object_mut().unwrap().remove("sourceKinds");
+    assert!(serde_json::from_value::<Task>(legacy)
+        .unwrap()
+        .source_kinds
+        .is_empty());
     assert_eq!(task.source_remote.as_ref().unwrap().host_id, "fixture");
     assert_eq!(
         task.target_remote.as_ref().unwrap().host_id,
@@ -731,7 +859,16 @@ async fn real_sftp_roundtrip_directory_background_and_preview() {
     m.submit(id.clone(), vec![source.entries[0].id.clone()], target.id)
         .await
         .unwrap();
-    assert_eq!(settled(&m, &id).await.phase, "completed");
+    let uploaded = settled(&m, &id).await;
+    assert_eq!(uploaded.phase, "completed");
+    let root = &uploaded.sources[0];
+    assert_eq!(uploaded.source_details[root].destination, "/folder");
+    assert_eq!(
+        uploaded.source_details[root].size,
+        Some(content.len() as u64)
+    );
+    assert_eq!(m.local_transfer_folder(&id, root, "source").unwrap(), *root);
+    assert!(m.local_transfer_folder(&id, root, "target").is_err());
     assert_eq!(
         std::fs::read(remote.path().join("folder/中文 file.bin")).unwrap(),
         content
@@ -753,7 +890,39 @@ async fn real_sftp_roundtrip_directory_background_and_preview() {
     m.submit(id.clone(), vec![file.id.clone()], target.id)
         .await
         .unwrap();
-    assert_eq!(settled(&m, &id).await.phase, "completed");
+    let completed = settled(&m, &id).await;
+    assert_eq!(completed.phase, "completed");
+    assert_eq!(
+        completed.source_details["/folder/中文 file.bin"].size,
+        Some(content.len() as u64)
+    );
+    assert!(completed.source_details["/folder/中文 file.bin"]
+        .destination
+        .ends_with("中文 file.bin"));
+    assert_eq!(
+        m.local_transfer_folder(&id, "/folder/中文 file.bin", "target")
+            .unwrap(),
+        m.local_target(&id).unwrap()
+    );
+    assert!(m
+        .local_transfer_folder(&id, "/folder/中文 file.bin", "source")
+        .is_err());
+    assert!(m
+        .local_transfer_folder(&id, "/not-selected", "target")
+        .is_err());
+    assert_eq!(
+        completed.current_source.as_deref(),
+        Some("/folder/中文 file.bin")
+    );
+    assert!(completed
+        .completed
+        .contains(&"/folder/中文 file.bin".into()));
+    let mut legacy = serde_json::to_value(&completed).unwrap();
+    legacy.as_object_mut().unwrap().remove("currentSource");
+    legacy.as_object_mut().unwrap().remove("sourceDetails");
+    let legacy = serde_json::from_value::<Task>(legacy).unwrap();
+    assert!(legacy.current_source.is_none());
+    assert!(legacy.source_details.is_empty());
     assert_eq!(
         std::fs::read(dest.path().join("中文 file.bin")).unwrap(),
         content
@@ -765,8 +934,8 @@ async fn real_sftp_roundtrip_directory_background_and_preview() {
 async fn conflicts_do_not_truncate_and_keep_both() {
     let remote = tempfile::tempdir().unwrap();
     let local = tempfile::tempdir().unwrap();
-    std::fs::write(local.path().join("same"), b"new").unwrap();
-    std::fs::write(remote.path().join("same"), b"original").unwrap();
+    std::fs::write(local.path().join("same.txt"), b"new").unwrap();
+    std::fs::write(remote.path().join("same.txt"), b"original").unwrap();
     let (m, j) = manager(remote.path().into(), local.path().join("journal.json")).await;
     let src = m
         .directory(None, local.path().to_str().unwrap().into())
@@ -782,7 +951,7 @@ async fn conflicts_do_not_truncate_and_keep_both() {
         vec![src
             .entries
             .iter()
-            .find(|e| e.name == "same")
+            .find(|e| e.name == "same.txt")
             .unwrap()
             .id
             .clone()],
@@ -792,17 +961,46 @@ async fn conflicts_do_not_truncate_and_keep_both() {
     .unwrap();
     assert_eq!(settled(&m, &id).await.phase, "conflict");
     assert_eq!(
-        std::fs::read(remote.path().join("same")).unwrap(),
+        std::fs::read(remote.path().join("same.txt")).unwrap(),
         b"original"
     );
     m.control(&id, "keep", None).await.unwrap();
     assert_eq!(settled(&m, &id).await.phase, "completed");
     assert_eq!(
-        std::fs::read(remote.path().join("same (2)")).unwrap(),
+        std::fs::read(remote.path().join("same (2).txt")).unwrap(),
         b"new"
     );
     m.shutdown().await;
     j.abort();
+}
+#[test]
+fn keep_both_numbers_precede_file_extensions_and_preserve_directory_names() {
+    for (name, kind, expected) in [
+        ("Cadence.txt", "file", "Cadence (2).txt"),
+        ("报告.PPTX", "file", "报告 (2).PPTX"),
+        ("archive.tar.gz", "file", "archive.tar (2).gz"),
+        (".env", "file", ".env (2)"),
+        ("README", "file", "README (2)"),
+        ("folder.txt", "directory", "folder.txt (2)"),
+    ] {
+        assert_eq!(numbered_name(name, 2, kind), expected);
+    }
+}
+#[tokio::test]
+async fn keep_both_probes_numbered_names_without_changing_parent_paths() {
+    let local = tempfile::tempdir().unwrap();
+    let parent = local.path().join("folder.with.dots");
+    std::fs::create_dir(&parent).unwrap();
+    std::fs::write(parent.join("Cadence (2).txt"), b"existing").unwrap();
+    let original = parent.join("Cadence.txt");
+    let next = available_name(&Fs::Local, original.to_str().unwrap(), "file")
+        .await
+        .unwrap();
+    assert_eq!(std::path::Path::new(&next), parent.join("Cadence (3).txt"));
+    assert_eq!(
+        std::fs::read(parent.join("Cadence (2).txt")).unwrap(),
+        b"existing"
+    );
 }
 #[tokio::test]
 async fn cancelled_work_is_joined_and_no_partial_final_file() {
@@ -1035,4 +1233,178 @@ async fn a_conflict_does_not_block_unrelated_files_and_unknown_commit_requires_h
     assert_eq!(task.completed.len(), 1);
     m.shutdown().await;
     j.abort();
+}
+
+#[tokio::test]
+async fn scoped_conflicts_apply_once_or_to_the_rest_without_recounting_skips() {
+    for action in ["skip", "keep", "replace"] {
+        for apply_all in [false, true] {
+            let remote = tempfile::tempdir().unwrap();
+            let local = tempfile::tempdir().unwrap();
+            for name in ["a", "b"] {
+                std::fs::write(remote.path().join(name), b"new").unwrap();
+                std::fs::write(local.path().join(name), b"original").unwrap();
+            }
+            std::fs::write(remote.path().join("unrelated"), b"ready").unwrap();
+            let (m, job) = manager(remote.path().into(), local.path().join("journal.json")).await;
+            let sources = m
+                .directory(Some("session".into()), "/".into())
+                .await
+                .unwrap();
+            let target = m
+                .directory(None, local.path().to_str().unwrap().into())
+                .await
+                .unwrap();
+            let id = uuid::Uuid::new_v4().to_string();
+            m.submit(
+                id.clone(),
+                sources
+                    .entries
+                    .iter()
+                    .map(|entry| entry.id.clone())
+                    .collect(),
+                target.id,
+            )
+            .await
+            .unwrap();
+            let first = settled(&m, &id).await;
+            assert_eq!(first.phase, "conflict");
+            assert_eq!(
+                std::fs::read(local.path().join("unrelated")).unwrap(),
+                b"ready"
+            );
+            let first_path = first.conflict.clone().unwrap();
+            let first_name = std::path::Path::new(&first_path)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            let first_source = first.conflict_source.clone().unwrap();
+            m.control_scoped(&id, action, None, None, apply_all)
+                .await
+                .unwrap();
+            let mut next = settled(&m, &id).await;
+            if !apply_all {
+                assert_eq!(next.phase, "conflict", "{action}");
+                assert_ne!(next.conflict_source.as_deref(), Some(first_source.as_str()));
+                assert_ne!(next.conflict.as_deref(), Some(first_path.as_str()));
+                assert_eq!(next.skipped, usize::from(action == "skip"));
+                m.control_scoped(&id, "skip", None, None, false)
+                    .await
+                    .unwrap();
+                next = settled(&m, &id).await;
+                assert_eq!(next.phase, "partial");
+                assert_eq!(next.skipped, 1 + usize::from(action == "skip"));
+            } else {
+                assert_eq!(
+                    next.phase,
+                    if action == "skip" {
+                        "partial"
+                    } else {
+                        "completed"
+                    }
+                );
+                assert_eq!(next.skipped, if action == "skip" { 2 } else { 0 });
+            }
+            assert_eq!(
+                std::fs::read(local.path().join(&first_name)).unwrap(),
+                if action == "replace" {
+                    b"new".as_slice()
+                } else {
+                    b"original".as_slice()
+                }
+            );
+            if action == "keep" {
+                assert!(next.source_details[&first_source]
+                    .destination
+                    .ends_with(&format!("{first_name} (2)")));
+                assert_eq!(
+                    std::fs::read(local.path().join(format!("{first_name} (2)"))).unwrap(),
+                    b"new"
+                );
+                assert!(!local.path().join(format!("{first_name} (3)")).exists());
+            }
+            assert_eq!(
+                next.source_details
+                    .values()
+                    .map(|detail| detail.size.unwrap())
+                    .sum::<u64>(),
+                11
+            );
+            assert_eq!(m.local_target(&id).unwrap(), next.target);
+            m.shutdown().await;
+            job.abort();
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_kept_directory_is_reused_across_later_individual_conflicts() {
+    let remote = tempfile::tempdir().unwrap();
+    let local = tempfile::tempdir().unwrap();
+    std::fs::create_dir(remote.path().join("folder")).unwrap();
+    std::fs::write(remote.path().join("folder/item"), b"nested").unwrap();
+    std::fs::write(remote.path().join("z"), b"new").unwrap();
+    std::fs::write(local.path().join("folder"), b"original file").unwrap();
+    std::fs::write(local.path().join("z"), b"original").unwrap();
+    let (m, job) = manager(remote.path().into(), local.path().join("journal.json")).await;
+    let sources = m
+        .directory(Some("session".into()), "/".into())
+        .await
+        .unwrap();
+    let target = m
+        .directory(None, local.path().to_str().unwrap().into())
+        .await
+        .unwrap();
+    let id = uuid::Uuid::new_v4().to_string();
+    m.submit(
+        id.clone(),
+        sources
+            .entries
+            .iter()
+            .map(|entry| entry.id.clone())
+            .collect(),
+        target.id,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        settled(&m, &id).await.conflict_source.as_deref(),
+        Some("/folder")
+    );
+    m.control_scoped(&id, "keep", None, None, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        settled(&m, &id).await.conflict_source.as_deref(),
+        Some("/z")
+    );
+    assert_eq!(
+        std::fs::read(local.path().join("folder (2)/item")).unwrap(),
+        b"nested"
+    );
+    m.control_scoped(&id, "skip", None, None, false)
+        .await
+        .unwrap();
+    let done = settled(&m, &id).await;
+    assert_eq!(done.phase, "partial");
+    assert_eq!(done.skipped, 1);
+    assert!(done.source_details["/folder"]
+        .destination
+        .ends_with("folder (2)"));
+    assert_eq!(done.source_details["/folder"].size, Some(6));
+    assert_eq!(done.source_details["/z"].size, Some(3));
+    assert_eq!(m.local_target(&id).unwrap(), done.target);
+    assert_eq!(
+        m.local_transfer_folder(&id, "/folder", "target").unwrap(),
+        done.source_details["/folder"].destination
+    );
+    assert!(!local.path().join("folder (3)").exists());
+    assert_eq!(
+        std::fs::read(local.path().join("folder")).unwrap(),
+        b"original file"
+    );
+    m.shutdown().await;
+    job.abort();
 }

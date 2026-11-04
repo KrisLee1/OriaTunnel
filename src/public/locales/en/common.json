@@ -97,5 +97,38 @@
     "description": "Choose your preferences. You can change them later in Settings.",
     "done": "Get started",
     "saveFailed": "Could not save setup completion. This dialog will appear again next time."
+  },
+  "codeBlock": {
+    "copy": "Copy code",
+    "copied": "Copied",
+    "copyFailed": "Copy failed",
+    "plainText": "Plain text",
+    "wrap": "Wrap lines"
+  },
+  "markdown": {
+    "expand": "Expand all",
+    "collapse": "Collapse",
+    "code": "Code",
+    "svgPreview": "SVG preview",
+    "svgViewSource": "View SVG source",
+    "svgViewPreview": "Preview SVG",
+    "svgError": "This SVG cannot be previewed safely. Showing its source instead.",
+    "table": "Table",
+    "tableRows": "{{count}} rows",
+    "fullscreenTable": "View table fullscreen",
+    "mermaidDiagram": "Mermaid diagram",
+    "renderingDiagram": "Rendering diagram…",
+    "mermaidError": "This Mermaid diagram could not be rendered. Check its syntax.",
+    "fullscreenDiagram": "View diagram fullscreen",
+    "dataChart": "Data chart",
+    "dataChartError": "This data chart could not be rendered. Check the chart specification and data.",
+    "fullscreenDataChart": "View data chart fullscreen",
+    "callout": {
+      "note": "Note",
+      "tip": "Tip",
+      "important": "Important",
+      "warning": "Warning",
+      "caution": "Caution"
+    }
   }
 }

@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 export function Breadcrumb(props: ComponentProps<"nav">) {
   return <nav data-slot="breadcrumb" {...props} />;
@@ -30,5 +30,21 @@ export function BreadcrumbSeparator() {
     <li role="presentation" aria-hidden="true" data-slot="breadcrumb-separator">
       <ChevronRight className="size-3 shrink-0" />
     </li>
+  );
+}
+export function BreadcrumbEllipsis({
+  className,
+  ...props
+}: ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="breadcrumb-ellipsis"
+      role="presentation"
+      aria-hidden="true"
+      className={cn("flex size-4 items-center justify-center", className)}
+      {...props}
+    >
+      <MoreHorizontal className="size-4" />
+    </span>
   );
 }

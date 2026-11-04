@@ -4,12 +4,27 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 ## 可复用能力
 
+- 文件地址行依次组合导航、`FilePathNavigation`、`FileSearchButton`、视图和更多菜单，不再另占搜索工具栏。目录复用共享 Breadcrumb 的 [collapsed 模式](https://ui.shadcn.com/docs/components/base/breadcrumb#collapsed)：保留根与末两级，中间目录放入 DropdownMenu；导航宽度不足 240px 时保留末级、本机根显示 Monitor，所有路径仍可跳转。搜索使用官方 shadcn/Base UI Popover + 共享 SearchInput，默认收起，悬停展开且不抢焦点，点击/键盘打开聚焦输入，点击后保持展开，Esc/外部点击收起，筛选值保留。视图按钮图标表示当前列表/网格模式。
+- `file-panel-layout.tsx` / `file-panel-layout-state.ts` 管理文件三面板布局：顶栏菜单提供自动、横向三栏、竖向三栏、上二下一，图标为 Columns3Cog / Columns3 / Rows3 与同线宽/圆角的 SVG。自动模式从 useWorkspacePanel.bounds 获取实时内容尺寸，不缓存初始宽高，也不另建可能与停靠尺寸脱节的观察源；宽高比 ≥1.8 横排，≤0.8 竖排，其余分两层，横排保持至 <1.65、竖排保持至 >0.9 避免边界抖动。固定外层「文件区/队列」、内层「源/目标」两级 Resizable，仅切换轴向，不用 key 重建 Group 或 Pane。模式和各布局比例保存到独立 files-panel-layout.v1 偏好，迁移旧 files-layout；仅用户拖动/键盘调整提交比例。队列默认展开，横向收起显示窄侧栏，Panel.expand 恢复最近尺寸；异步展开仍在提交后读取当前 ref。
+- 本机 Entry.hidden 来自 Rust 的 Windows Hidden/System 属性，文件列表与图标视图统一通过 sorted 过滤，显示隐藏文件同时允许属性隐藏条目和点文件；不依靠特殊目录名黑名单。旧元数据缺省 false，原生更新后刷新列表读取属性。远端仍按点文件规则过滤。
+- 传输列表由 `transfer-queue.tsx` 组合共享 Select / DropdownMenu，排序、分组为各自独立的图标入口，无子菜单或「当前主机」筛选。菜单按内容定宽且不换行；时间方向使用 ClockArrowDown / ClockArrowUp，目的/源主机使用 HardDriveDownload / HardDriveUpload，按钮跟随当前选择更新图标。默认最新在前、按上传/下载/主机间传输分组；也可按源/目的主机分组或不分组，仅持久化显示偏好。同名主机按 ID 区分，各组保持时间顺序。多选提交以一个批次项显示，叠放文件图标同时作为共享 shadcn/Base UI Collapsible 的触发器；展开明细使用 ScrollArea / TanStack Virtual，收起卸载，千项列表只渲染可见范围与缓冲。文件状态读取 Rust 的 completed / skippedSources / currentSource / conflictSource，缺乏逐项证据时显示未确认；目录只汇总所选根目录，不伪造递归文件队列。下载地址的文字按钮位于独立伸缩容器内，空白不触发打开文件夹。
+- 批次 sourceDetails 由 Rust 提供所选根条目的实际目标（包括冲突保留名）和可选大小，目录只有枚举完整才更新大小，旧记录缺失时不由前端推测。单项与批次明细共用 `transfer-paths.tsx`：整条记录保持两行，首行名称/方向/大小/状态/操作，次行「源主机 · 路径 → 目标主机 · 路径」。箭头两侧各 6px，源端按内容取宽并最多占半行，目标端使用剩余宽度；两端独立省略并以 title 保留完整地址，只有文字按钮响应打开。批次明细每项 44px，本机端通过 file_open_transfer_folder 按任务和已选来源解析，远端为可选字文本；单项补齐源路径，汇总以来源数量和 task.target 目录显示。大小处共享 Tooltip 支持悬停/Tab 聚焦，保留已传输/总大小、完成/跳过数量、速度/剩余时间与临时路径，安全清理仍为顶行动作。传输中首行显示已传输/总大小，结束后显示总大小；总大小求和全部已知根条目（包括已跳过文件），缺项显示未知。进度条覆盖于摘要底部，不占第三行，也不随批次展开移到底部。嵌套 ScrollArea 允许原生滚轮链，在短列表和长列表边界继续滚动外层，禁止 overscroll contain 拦截。
+- 复选框复用 `src/components/ui/checkbox.tsx` 的 shadcn/Base UI Checkbox，标签使用共享 Label 关联 id；背景、勾选色、圆角与描边读取主题 Token，焦点环仅在 Tab 键盘导航时显示。
+- 代码展示复用官方 Base UI `src/components/ui/code-block.tsx`（Header / Actions / CopyButton / Content / Line）；`components.json` 使用 `base-nova`，CLI 添加时保留项目已有组件。Shiki 与语言包按需加载，`src/lib/highlighter.tsx` 的颜色直接读取 ORIA Token。文件代码使用 `file-code-preview.tsx` 组合 CodeBlock 与 ScrollArea，通过 TanStack Virtual 测量实际行高，支持自动换行、行号、复制、首尾跳转和上下各约三屏缓冲；正文先显示，高亮按 128 行异步补上，保留语法状态，最多缓存 32 块高亮节点。追加读取保留现有正文与滚动位置，不扩大 Rust 的 1 / 5 MiB 读取界限。
+- 文件属性和预览分别在 `src/features/files/file-inspector.tsx` / `file-preview.tsx`，共用 FileIdentity 与主题卡片。属性字段对齐、完整路径可选择，隐藏 Windows 扩展路径前缀；预览的标题、文件摘要和状态操作保持固定，正文独立滚动。Markdown 由 `markdown/markdown-document.tsx` 按需加载，迁移 OriaAide 的 GFM、数学公式、行内扩展、提示块、结构化代码、严格 Mermaid、SVG 校验及八类数据图表；源码继续复用 CodeBlock，显示模块按可见范围加载。迁移来源见 [清单](markdown-migration.json)。不执行原始 HTML、文档脚本或 Mermaid 点击指令；外部图片仅 HTTP(S) 且无 referrer，CSP 仅扩展 img-src，链接复用 ExternalLink。
+- 本机目录由 `local-directory.ts` 仅在成功读取后保存，不保存 SSH 路径或失败草稿。两侧复用 `use-marquee-selection.ts` 的框选、边缘滚动及虚拟条目命中计算；Portal 菜单事件不参与框选，菜单打开时保留外部点击关闭。条目步长与选区计算共用列表 40px / 网格 100px，分别保留 4px / 8px 纵向间距。排序包含名称、类型、大小、修改时间与递增/递减，递减整体逆序，目录组位于末尾。
+- SVG 文件通过 `svg-preview-source.ts` 复用严格 SVG 校验，允许普通 XML 声明和前导编辑器注释，拒绝脚本、外部资源与 DTD；以 image/svg+xml Blob 在 img 中显示，卸载释放 URL。SVG 与 Markdown 的预览/源码切换为纯图标，位于 CodeBlock 内容顶栏最右侧；源码保持原文并复用 CodeBlock，SVG 未读完整时先显示已读源码，继续读取后再预览。
+- 文本编辑由 `use-text-file-editor.ts` 管理内存草稿、版本与保存状态，`file-text-editor.tsx` 组合共享 CodeBlock / Textarea，支持换行、复制、Ctrl/⌘+S 和未保存退出确认；只读源码继续使用懒加载高亮与虚拟列表。`file_read_text` 完整读取不超过 5 MiB 的普通 UTF-8 / BOM UTF-16 文本，`file_write_text` 按内容版本校验、保留编码和换行，通过受限同目录临时文件原子提交；Windows 保留原 ACL，SFTP 要求安全替换扩展并设置原权限/属主。保存参与 mutation lease 和退出/更新等待，保存错误使用 Toast，提交不明保留草稿及临时路径，不盲目重试或先删原文件。成功后刷新两端列表，内容不进入配置或任务日志。
+- 文件右键和更多菜单共用 `FileCreateOptions` / `FileSortOptions`，新建（文件夹/文本文件）与排序（字段/方向）各自收进子菜单。ContextMenu 复用已有 DropdownMenu 子菜单原语；子菜单触发器必须处于完整 Root / Portal / Positioner / Popup 链中，不能在 SSR 测试中仅放 Root 后直接渲染触发器。测试共享菜单内容，实际展开/关闭和选择通过隔离界面验证。
+- 远端更多菜单的上传操作由 `FileUploadOptions` 收进「上传」子菜单，上传文件使用 FileUp，上传文件夹使用 FolderUp；保持原有文件/文件夹选择回调与禁用状态。
+- 文件更多菜单明确 `align="end"`，文件菜单及子菜单通过 `files-options-popup` 仅保留透明度入场/退出，取消缩放和位移；避免右侧变换原点让左边缘在展开时横移。定位仍由 Base UI 负责碰撞与边界处理，不自行计算弹出坐标。
+
 - 搜索统一使用 `src/components/ui/search-input.tsx` 的 SearchInput（组合共享 Input 和内置 Lucide Search），图标位置、28px 高度和文字内边距集中在 globals.css；业务类如 host-search 只决定宽度/布局，不能重复设置图标位移。图标不拦截指针，输入保留可访问名称与原生搜索语义。
 - Base UI 的 DropdownMenuLabel 必须包含在 DropdownMenuGroup / RadioGroup 内，不能直接放在 Popup 下。菜单验证需实际渲染展开后的内容，静态关闭态 Portal 不会暴露上下文错误。文件两侧选项复用同一 FileOptionsMenu 内容。
 - Dialog / 模态 Drawer 默认使用 Base UI `modal="trap-focus"`，焦点仍受约束，由共享可见 scrim 阻挡正文指针；避免 Base UI 内部全窗口指针挡板遮住原生顶栏拖动区。Drawer 在 modal 不为 false 时保留可见遮罩。原生拖动区和窗口控件不参与业务动作禁用。
 - 弹窗底色使用 `--oria-color-bg`，内部控件/卡片使用 `--oria-color-surface`，边框直接使用 `--oria-color-border`；只调整透明度，不额外混入前景色调深/调浅。`oria-control-surface` 供 Input、Select、ComboboxChips、描边 Button/Item 统一背景与边框；启动/停止等彩色动作保持原变体无边框。共享弹窗 header 不加下边框，焦点环和焦点边框只在 Tab 进入键盘导航后显示；关于页按界面深浅色使用对应 runtime 应用图标。
 - `src/components/ui/workspace-panel.tsx` / `use-workspace-panel.ts` / `workspace-layout.ts` 是文件与终端共用的非模态悬浮面板：顶栏、停靠菜单、尺寸/边界、Pointer Capture、展开/收起、Motion 与 Tab 焦点共用，位置和三方向尺寸各自持久化；点击/聚焦的面板为 35 层，另一面板 34 层，仍低于原生顶栏和模态框。关闭不卸载业务内容，保持目录/选区/SSH 会话。
-- 文件传输在 `src/features/files/`：`FileWorkspaceProvider` 管理入口、认证与只读 Rust 快照；两端文件浏览和传输列表为三张主题卡片，内外留白与分栏统一 8px，工具栏控件统一 28px，使用共享 Resizable；底部停靠左右布局，两侧停靠上下布局。两端复用同一主机选择/连接标题组件，左侧可选此电脑或 SSH，右侧选另一 SSH。传输区是 collapsible Panel，可直接拖动展开/收起，标题也可切换，不用固定 maxSize 锁死拖动。目录使用 Breadcrumb，完整路径另行编辑；本机「此电脑」列出 OS 盘符并使用 HardDrive，Windows 内部扩展路径前缀不展示。两栏列表/图标共用窗口化条目，跨栏 Pointer Events 和原生文件拖入共用 Rust 提交；传输项为两行，方向紧跟文件名，本机目标路径可直接打开所在文件夹，顶栏右侧 BrushCleaning 仅清空已结束且无残留临时文件的记录。任务收起/切页/前端重载不停止 Rust 队列，运行数据不能由前端补造。
+- 文件传输在 `src/features/files/`：`FileWorkspaceProvider` 管理入口、认证与只读 Rust 快照；两端文件浏览和传输列表为三张主题卡片，内外留白与分栏统一 8px，工具栏控件统一 28px，使用共享 Resizable；布局由实时宽高或用户指定模式决定，与停靠位置分离。两端复用同一主机选择/连接标题组件，左侧可选此电脑或 SSH，右侧选另一 SSH。传输区是 collapsible Panel，可直接拖动展开/收起，标题也可切换，不用固定 maxSize 锁死拖动。目录使用 Breadcrumb，完整路径另行编辑；本机「此电脑」列出 OS 盘符并使用 HardDrive，Windows 内部扩展路径前缀不展示。两栏列表/图标共用窗口化条目，跨栏 Pointer Events 和原生文件拖入共用 Rust 提交；传输项为两行，方向紧跟文件名，本机目标路径可直接打开所在文件夹，顶栏右侧 BrushCleaning 仅清空已结束且无残留临时文件的记录。任务收起/切页/前端重载不停止 Rust 队列，运行数据不能由前端补造。
 
 - 顶栏不建立整体层叠上下文：仅窗口控件为 60 层，业务胶囊、导航和标题为 40 层，弹窗及蒙层为 50 层；失焦透明度应用在各胶囊而非左右容器，避免把业务操作一并抬到蒙层之上。
 
@@ -160,4 +175,14 @@ ServiceIconStrip 内的代理服务按钮不继承 IP 路径行的自动边距�
 
 服务前台终端按服务 ID 与已解析主机共享识别：主机入口及该主机已关联转发使用同一活动启动终端与停止入口，保留当前 clientId 所有权、动作和结束状态检查，不跨主机复用。D 服务图标通过 service-running-context.ts 读取同一运行证据；代理监听状态独立控制浏览器启动可用性。
 
-文件连接图状态在 `src/features/files/transfer-state.tsx` / `transfer-graph.ts` / `transfer-edge.tsx`：从 Rust Task 的两端、phase 和 transport 投影独立文件连线，区分直传与经本机中转；暂停/冲突/远端结果不明为静态，完成移除。节点有专用不可交互文件 Handle 和传输状态；不能借用 TCP 转发端口或修改转发状态。投影排除 bytes/speed/eta，字节更新复用图表引用；SVG 文件图标和连线动画遵循实际 transferring 及减少动态效果。
+文件冲突由 `use-transfer-conflict.ts` 按 Rust conflict 状态依次提示，`transfer-conflict-dialog.tsx` 组合共享 Dialog / Header / Footer / Checkbox / Label；关闭仅延后该冲突，可从记录重开，错误留在弹窗。默认仅处理当前文件，勾选「所有文件按此操作」才对当前任务后续冲突应用相同策略；使用独立 `file_resolve_conflict` IPC，避免旧后端忽略范围参数。提示身份同时包含来源和目标，快照修订和无关任务变化不重复提示或抢占当前冲突。传输记录的错误说明置于第二行并省略超长内容，title 保留全文，不新增错误行。`use-transfer-queue.ts` 仅在 effect 中读取当前 Panel ref 执行展开意图，异步传输回调不能捕获布局句柄；实际显示状态跟随 onResize，保留直接拖动。
+
+文件面板顶栏为 32px，取消 header 底部 padding 和 files-body 顶部 padding，避免叠加留白；8px 外边距仅用于正文水平和底部，卡片内边距及分栏仍为 8px。此规则限定在 files-workspace。
+
+`file-path-navigation.tsx` 组合 Breadcrumb / Input / Button，TextCursorInput 进入输入，CornerDownLeft 明确跳转，失焦不切换模式，成功后回到导航、失败保留草稿。输入支持 Enter / Esc / Ctrl/Cmd+L 与 IME 组合输入；跳转按钮在编辑前后保持同一 DOM，避免 pointerdown 失焦后重新切换造成闪烁。
+
+文件连接图状态在 `src/features/files/transfer-state.tsx` / `transfer-graph.ts` / `transfer-edge.tsx`：从 Rust Task 的两端、phase 和 transport 投影独立文件连线，区分直传与经本机中转；暂停/冲突/远端结果不明为静态，完成移除。主机的专用不可交互文件 Handle 固定在标题区域左右侧，不随转发条目区高度移动；不能借用 TCP 转发端口或修改转发状态。投影排除 bytes/speed/eta，字节更新复用图表引用；SVG 文件图标和连线动画遵循实际 transferring 及减少动态效果。
+
+文件连线的透明 SVG 命中路径使用共享 Tooltip，支持悬停和键盘聚焦；`transfer-details.tsx` 只在打开时读取 FileTransferDetailsContext 中的完整 Rust 任务，显示前 3 项和剩余数量。每项按文件名、紧随其下的目标地址、方向/状态、进度排列。详细进度与画布投影分离，连线只携带任务 ID；相同文件名/状态/数量但任务身份改变时也必须更新悬停关联。
+
+文件外观统一使用 `src/features/files/file-artwork.tsx`，供文件列表、图标视图与传输记录复用。目录/链接身份优先读取 Rust 元数据，扩展名只决定文件装饰；磁盘保留 HardDrive。纸张、分层文件夹及类型颜色仅用主题 Token 和透明度，图标视图的类型文字与图标共用 `--files-artwork-tint`。轮廓圆角读取 `--oria-radius-md`，上限为图标宽度的 12%，随主题与尺寸更新；文件展开后的右上角与其他外角一致。父项用 Motion 的 `rest` / `artwork-hover` 变体驱动文件夹前片轻微打开及折角展开，复用 interactionSpring，禁止整个图标上移，减少动态效果时保持静态。

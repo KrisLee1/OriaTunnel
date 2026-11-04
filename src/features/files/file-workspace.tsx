@@ -1,13 +1,34 @@
 import {
   FileActivityContext,
+  FileTransferDetailsContext,
   projectFileActivities,
   type FileActivity,
 } from "./transfer-state";
-import { SearchInput } from "@/components/ui/search-input";
-import { TransferItem } from "./transfer-item";
+import { FileSearchButton } from "./file-search-button";
+import { motion } from "motion/react";
+import { FilePathNavigation } from "./file-path-navigation";
+import { toast } from "@/components/ui/toast";
+import { readLocalDirectory, saveLocalDirectory } from "./local-directory";
+import { useMarqueeSelection } from "./use-marquee-selection";
+import { FileArtwork } from "./file-artwork";
+import { FilePropertiesDialog, type FileTarget } from "./file-inspector";
+import { FilePreviewDialog } from "./file-preview";
+import { TransferQueue } from "./transfer-queue";
+import { TransferConflictDialog } from "./transfer-conflict-dialog";
+import { conflictKey, useTransferConflict } from "./use-transfer-conflict";
+import { useTransferQueue } from "./use-transfer-queue";
+import {
+  FileLayoutMenu,
+  FilePanelGrid,
+  useFilePanelLayout,
+} from "./file-panel-layout";
 import { WorkspacePanel } from "@/components/ui/workspace-panel";
 import { useWorkspacePanel } from "@/components/ui/use-workspace-panel";
-import { FileOptionsMenu } from "./file-options-menu";
+import {
+  FileOptionsMenu,
+  FileSortOptions,
+  FileCreateOptions,
+} from "./file-options-menu";
 import {
   createContext,
   useContext,
@@ -19,7 +40,6 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { usePanelCallbackRef } from "react-resizable-panels";
 import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -27,19 +47,15 @@ import {
   Server,
   ArrowRightLeft,
   HardDrive,
-  BrushCleaning,
   EyeOff,
   ArrowDownAZ,
-  Ruler,
-  Clock,
-  Check,
   Copy,
   Pencil,
   Info,
   FolderOpen,
   FolderDown,
-  Folder,
   File,
+  Plus,
   Upload,
   Download,
   ArrowUp,
@@ -52,20 +68,12 @@ import {
   MoreHorizontal,
   Search,
   Unplug,
-  FolderPlus,
   Pause,
   Play,
   X,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -80,6 +88,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
@@ -94,11 +105,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
 import { AuthenticationField } from "@/features/hosts/authentication-field";
 import { useNativeFileDrop } from "@/hooks/use-native-file-drop";
 import * as bridge from "@/lib/bridge";
@@ -109,11 +115,12 @@ import {
   sorted,
   selection,
   size,
-  breadcrumbs,
   type Directory,
   type Entry,
   type Snapshot,
   type Session,
+  type Task,
+  type TransferFolder,
 } from "./api";
 import "./files.css";
 const Context = createContext<{ open: (host?: string) => void; count: number }>(
@@ -138,12 +145,13 @@ export function OpenFilesButton({ hostId }: { hostId?: string }) {
 }
 type Drag = { side: "local" | "remote"; ids: string[]; x: number; y: number };
 type ModalAction = {
-  kind: "rename" | "mkdir" | "delete" | "properties";
+  kind: "rename" | "mkdir" | "createText" | "delete" | "properties";
   id: string;
   name: string;
   entry?: Entry;
   ids?: string[];
   remote: boolean;
+  target?: FileTarget;
 };
 export function FileWorkspaceProvider({
   data,
@@ -164,41 +172,31 @@ export function FileWorkspaceProvider({
       tasks: [],
       warning: null,
     }),
-    [error, setError] = useState(""),
-    [refresh, setRefresh] = useState(0),
-    [queue, setQueue] = useState(false),
-    [filter, setFilter] = useState("all"),
-    [hostFilter, setHostFilter] = useState(false);
+    [refresh, setRefresh] = useState(0);
   const panel = useWorkspacePanel({
     open,
     storageKey: "oria-tunnel.files-workspace.v1",
     defaults: { dock: "bottom", sizes: { bottom: 480, left: 440, right: 440 } },
     minimums: { bottom: 360, left: 360, right: 360 },
   });
-  const sideDock = panel.sideDock;
-  const [taskLimit, setTaskLimit] = useState(200);
-  useEffect(() => setTaskLimit(200), [filter, hostFilter]);
   const [auth, setAuth] = useState<Session | null>(null),
     [secrets, setSecrets] = useState<Record<string, string>>({}),
     [remember, setRemember] = useState<string[]>([]),
     [action, setAction] = useState<ModalAction | null>(null),
     [name, setName] = useState(""),
     [busy, setBusy] = useState(false),
-    [preview, setPreview] = useState<Entry | null>(null),
+    [preview, setPreview] = useState<FileTarget | null>(null),
     [drag, setDrag] = useState<Drag | null>(null);
-  const [queuePanel, setQueuePanel] = usePanelCallbackRef();
-  useEffect(() => {
-    if (queuePanel) {
-      if (queue) queuePanel.resize("30%");
-      else queuePanel.collapse();
-    }
-  }, [queuePanel]);
-  const changeQueue = (visible: boolean) => {
-    setQueue(visible);
-    if (visible) {
-      if (queuePanel?.isCollapsed()) queuePanel.resize("30%");
-    } else queuePanel?.collapse();
-  };
+  const {
+    queue,
+    changeQueue,
+    panelRef: queuePanelRef,
+    onResize: resizeQueue,
+  } = useTransferQueue();
+  const fileLayout = useFilePanelLayout(
+    { width: panel.bounds.width - 16, height: panel.bounds.height - 40 },
+    queue,
+  );
   const savedDirectories = useRef<Record<string, string>>({});
   const connectionGeneration = useRef({ local: 0, remote: 0 });
   const authSide = useRef<"local" | "remote">("remote");
@@ -218,14 +216,42 @@ export function FileWorkspaceProvider({
   );
   const stateRef = useRef(snapshot);
   stateRef.current = snapshot;
-  const perform = useCallback(async (fn: () => Promise<unknown>) => {
-    try {
-      setError("");
-      await fn();
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
+  const conflict = useTransferConflict(snapshot.tasks);
+  const showError = useCallback(
+    (message: string) => {
+      if (message)
+        toast.add({
+          type: "error",
+          title: t("title"),
+          description: t(message, { defaultValue: message }),
+          timeout: 6000,
+        });
+    },
+    [t],
+  );
+  const [initialLocalDirectory] = useState(readLocalDirectory);
+  const warningSeen = useRef<string | null>(null);
+  useEffect(() => {
+    const warning = snapshot.warning;
+    if (warning && warning !== warningSeen.current)
+      toast.add({
+        type: "warning",
+        title: t("title"),
+        description: t(warning, { defaultValue: warning }),
+        timeout: 6000,
+      });
+    warningSeen.current = warning;
+  }, [snapshot.warning, t]);
+  const perform = useCallback(
+    async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError],
+  );
   const connect = useCallback(
     async (
       id: string,
@@ -270,7 +296,7 @@ export function FileWorkspaceProvider({
       .then((s) => {
         if (live) setSnapshot(s);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => showError(String(e)));
     return () => {
       live = false;
       mounted.current = false;
@@ -377,10 +403,16 @@ export function FileWorkspaceProvider({
   }, [finishDrag]);
   const edit = (a: ModalAction) => {
     setAction(a);
-    setName(a.kind === "rename" ? a.name : "");
+    setName(
+      a.kind === "rename"
+        ? a.name
+        : a.kind === "createText"
+          ? t("newTextName")
+          : "",
+    );
   };
   const mutate = async () => {
-    if (!action) return;
+    if (!action || busy) return;
     setBusy(true);
     await perform(async () => {
       for (const id of action.ids || [action.id])
@@ -390,37 +422,37 @@ export function FileWorkspaceProvider({
     });
     setBusy(false);
   };
-  const taskAction = (id: string, a: string, hostId: string) =>
-    void perform(async () => {
-      if (a === "openTarget") {
-        await api.openTarget(id);
-        return;
-      }
-      const s = snapshot.sessions.find(
-        (s) => s.hostId === hostId && s.phase === "connected",
+  const controlTask = async (task: Task, a: string, applyAll = false) => {
+    const { id, hostId } = task;
+    if (a === "openTarget") {
+      await api.openTarget(id);
+      return;
+    }
+    const s = snapshot.sessions.find(
+      (s) => s.hostId === hostId && s.phase === "connected",
+    );
+    const source =
+      task.sourceRemote &&
+      snapshot.sessions.find(
+        (session) =>
+          session.hostId === task.sourceRemote!.hostId &&
+          session.phase === "connected",
       );
-      const task = snapshot.tasks.find((task) => task.id === id);
-      const source =
-        task?.sourceRemote &&
-        snapshot.sessions.find(
-          (session) =>
-            session.hostId === task.sourceRemote!.hostId &&
-            session.phase === "connected",
-        );
+    if (a === "skip" || a === "keep" || a === "replace") {
+      await api.resolveConflict(id, a, applyAll, s?.id, source?.id);
+    } else {
       await api.control(id, a, s?.id, source?.id);
-    });
-  const tasks = snapshot.tasks.filter(
-    (task) =>
-      (!hostFilter || task.hostId === host) &&
-      (filter === "all" ||
-        (filter === "active"
-          ? active(task)
-          : filter === "attention"
-            ? ["conflict", "failed", "interrupted", "paused"].includes(
-                task.phase,
-              )
-            : ["completed", "partial", "cancelled"].includes(task.phase))),
-  );
+    }
+  };
+  const taskAction = (task: Task, action: string, folder?: TransferFolder) => {
+    if (action === "resolveConflict") conflict.show(task);
+    else
+      void perform(() =>
+        action === "openFolder" && folder
+          ? api.openTransferFolder(task.id, folder)
+          : controlTask(task, action),
+      );
+  };
   const previousActivities = useRef<FileActivity[]>([]);
   const activities = useMemo(
     () => projectFileActivities(snapshot.tasks, previousActivities.current),
@@ -436,270 +468,144 @@ export function FileWorkspaceProvider({
   );
   return (
     <Context.Provider value={context}>
-      <FileActivityContext.Provider value={activities}>
-        {children}
-      </FileActivityContext.Provider>
+      <FileTransferDetailsContext.Provider value={snapshot.tasks}>
+        <FileActivityContext.Provider value={activities}>
+          {children}
+        </FileActivityContext.Provider>
+      </FileTransferDetailsContext.Provider>
       <WorkspacePanel
         panel={panel}
         title={t("title")}
         onClose={() => setOpen(false)}
         className="files-workspace"
+        actions={<FileLayoutMenu layout={fileLayout} />}
       >
         <p className="sr-only">{t("description")}</p>
-        {error && (
-          <div role="alert" className="files-error">
-            {t(error, { defaultValue: error })}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("close")}
-              onClick={() => setError("")}
-            >
-              <X />
-            </Button>
-          </div>
-        )}
-        {snapshot.warning && (
-          <p className="files-error">{t(snapshot.warning)}</p>
-        )}
-        <ResizablePanelGroup orientation="vertical" className="files-body">
-          <ResizablePanel
-            id="browser"
-            minSize={sideDock ? "280px" : "180px"}
-            defaultSize="70%"
-          >
-            <ResizablePanelGroup
-              orientation={sideDock ? "vertical" : "horizontal"}
-              data-file-browser-layout={sideDock ? "vertical" : "horizontal"}
-              defaultLayout={readLayout()}
-              onLayoutChanged={(layout) => {
-                try {
-                  localStorage.setItem(
-                    "oria-tunnel.files-layout",
-                    JSON.stringify(layout),
-                  );
-                } catch {
-                  /* preference unavailable */
+        <FilePanelGrid
+          layout={fileLayout}
+          queuePanelRef={queuePanelRef}
+          onQueueResize={resizeQueue}
+          queue={
+            <TransferQueue
+              tasks={snapshot.tasks}
+              expanded={queue}
+              orientation={fileLayout.orientation.outer}
+              onToggle={() => changeQueue(!queue)}
+              onAction={taskAction}
+              onClear={() => void perform(() => api.clearHistory())}
+            />
+          }
+        >
+          {(["local", "remote"] as const).map((side) => {
+            const left = side === "local";
+            const remote = !left || !!sourceHost;
+            const selectedHost = left ? sourceHost : host;
+            const session = left ? sourceSid : sid;
+            const status = left ? sourceCurrent : current;
+            const ready = !remote || (left ? sourceConnected : connected);
+            const otherRemote = left || !!sourceHost;
+            const otherReady = left
+              ? connected
+              : !sourceHost || sourceConnected;
+            const otherSide = left ? "remote" : "local";
+            const transferKind =
+              remote && otherRemote ? "relay" : remote ? "download" : "upload";
+            return (
+              <FilePane
+                key={
+                  session ||
+                  selectedHost ||
+                  (left ? "computer" : "disconnected")
                 }
-              }}
-            >
-              {(["local", "remote"] as const).map((side) => {
-                const left = side === "local";
-                const remote = !left || !!sourceHost;
-                const selectedHost = left ? sourceHost : host;
-                const session = left ? sourceSid : sid;
-                const status = left ? sourceCurrent : current;
-                const ready = !remote || (left ? sourceConnected : connected);
-                const otherRemote = left || !!sourceHost;
-                const otherReady = left
-                  ? connected
-                  : !sourceHost || sourceConnected;
-                const otherSide = left ? "remote" : "local";
-                const transferKind =
-                  remote && otherRemote
-                    ? "relay"
-                    : remote
-                      ? "download"
-                      : "upload";
-                return (
-                  <Fragment key={side}>
-                    {!left && <ResizableHandle aria-label={t("resize")} />}
-                    <ResizablePanel
-                      id={side}
-                      minSize={sideDock ? "136px" : "280px"}
-                      defaultSize="50%"
-                    >
-                      <FilePane
-                        key={
-                          session ||
-                          selectedHost ||
-                          (left ? "computer" : "disconnected")
-                        }
-                        side={side}
-                        remote={remote}
-                        transferKind={transferKind}
-                        canTransfer={
-                          ready &&
-                          otherReady &&
-                          (!remote || !otherRemote || sourceHost !== host)
-                        }
-                        initialPath={
-                          savedDirectories.current[side + ":" + selectedHost]
-                        }
-                        refresh={refresh}
-                        session={remote && ready ? session : null}
-                        title={
-                          <FileEndpointTitle
-                            hosts={data.hosts.filter(
-                              (host) =>
-                                data.addedHostIds?.includes(host.id) ||
-                                host.source === "manual",
-                            )}
-                            host={selectedHost}
-                            allowLocal={left}
-                            excludeHost={left ? host : sourceHost}
-                            status={status}
-                            onChange={(id) => {
-                              connectionGeneration.current[side]++;
-                              if (left) {
-                                setSourceHost(id);
-                                setSourceSid(null);
-                              } else {
-                                setHost(id);
-                                setSid(null);
-                              }
-                              dirs.current[side] = null;
-                            }}
-                            onConnect={() =>
-                              void connect(selectedHost, {}, [], side)
-                            }
-                            onDisconnect={() =>
-                              session &&
-                              void perform(async () => {
-                                await api.disconnect(session);
-                                if (left) setSourceSid(null);
-                                else setSid(null);
-                                dirs.current[side] = null;
-                              })
-                            }
-                          />
-                        }
-                        status={status}
-                        onDirectory={(directory) => {
-                          dirs.current[side] = directory;
-                          savedDirectories.current[side + ":" + selectedHost] =
-                            directory.path;
-                        }}
-                        onPreview={setPreview}
-                        onAction={edit}
-                        onError={setError}
-                        onTransfer={(ids, explicitTarget) => {
-                          const target =
-                            explicitTarget ||
-                            (otherReady
-                              ? dirs.current[otherSide]?.id
-                              : undefined);
-                          if (target) void transfer(ids, target);
-                          else setError("notConnected");
-                        }}
-                        onDrag={(value) => {
-                          dragRef.current = value;
-                          setDrag(value);
-                        }}
-                        drag={drag}
-                        disabledDrop={!open || !!action || !!preview || !!auth}
-                        onDrop={transfer}
-                      />
-                    </ResizablePanel>
-                  </Fragment>
-                );
-              })}
-            </ResizablePanelGroup>
-          </ResizablePanel>
-          <ResizableHandle aria-label={t("resizeQueue")} />
-          <ResizablePanel
-            id="queue"
-            collapsible
-            collapsedSize="38px"
-            onResize={(size, _id, previous) => {
-              if (previous) setQueue(size.inPixels > 60);
-            }}
-            panelRef={setQueuePanel}
-            defaultSize="38px"
-            minSize="110px"
-          >
-            <section
-              className={`files-queue themed-surface ${queue ? "" : "collapsed"}`}
-            >
-              <div className="files-toolbar">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => changeQueue(!queue)}
-                >
-                  {t("transfers")} · {snapshot.tasks.length}
-                </Button>
-                {queue && (
-                  <>
-                    <Select
-                      value={filter}
-                      onValueChange={(v) => v && setFilter(v)}
-                      items={["all", "active", "attention", "finished"].map(
-                        (v) => ({ value: v, label: t(v) }),
-                      )}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {["all", "active", "attention", "finished"].map((v) => (
-                          <SelectItem value={v} key={v}>
-                            {t(v)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant={hostFilter ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setHostFilter(!hostFilter)}
-                    >
-                      {t("currentHost")}
-                    </Button>
-                  </>
-                )}
-                <Button
-                  className="files-clear-history"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("clearHistory")}
-                  title={t("clearHistory")}
-                  disabled={
-                    !snapshot.tasks.some(
-                      (task) =>
-                        !task.temp &&
-                        [
-                          "completed",
-                          "partial",
-                          "failed",
-                          "cancelled",
-                        ].includes(task.phase),
-                    )
-                  }
-                  onClick={() => void perform(() => api.clearHistory())}
-                >
-                  <BrushCleaning />
-                </Button>
-              </div>
-              {queue && (
-                <div className="files-task-list scroll-fade">
-                  {tasks.length === 0 && (
-                    <p className="files-empty">{t("noTransfers")}</p>
-                  )}
-                  {tasks.slice(0, taskLimit).map((task) => (
-                    <TransferItem
-                      key={task.id}
-                      task={task}
-                      onAction={(action) =>
-                        taskAction(task.id, action, task.hostId)
+                side={side}
+                remote={remote}
+                transferKind={transferKind}
+                canTransfer={
+                  ready &&
+                  otherReady &&
+                  (!remote || !otherRemote || sourceHost !== host)
+                }
+                initialPath={
+                  savedDirectories.current[side + ":" + selectedHost] ||
+                  (!remote ? initialLocalDirectory : undefined)
+                }
+                refresh={refresh}
+                session={remote && ready ? session : null}
+                title={
+                  <FileEndpointTitle
+                    hosts={data.hosts.filter(
+                      (host) =>
+                        data.addedHostIds?.includes(host.id) ||
+                        host.source === "manual",
+                    )}
+                    host={selectedHost}
+                    allowLocal={left}
+                    excludeHost={left ? host : sourceHost}
+                    status={status}
+                    onChange={(id) => {
+                      connectionGeneration.current[side]++;
+                      if (left) {
+                        setSourceHost(id);
+                        setSourceSid(null);
+                      } else {
+                        setHost(id);
+                        setSid(null);
                       }
-                    />
-                  ))}
-                  {tasks.length > taskLimit && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setTaskLimit((n) => n + 200)}
-                    >
-                      {t("loadMoreTasks")}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </section>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+                      dirs.current[side] = null;
+                    }}
+                    onConnect={() => void connect(selectedHost, {}, [], side)}
+                    onDisconnect={() =>
+                      session &&
+                      void perform(async () => {
+                        await api.disconnect(session);
+                        if (left) setSourceSid(null);
+                        else setSid(null);
+                        dirs.current[side] = null;
+                      })
+                    }
+                  />
+                }
+                status={status}
+                onDirectory={(directory) => {
+                  dirs.current[side] = directory;
+                  if (!remote) saveLocalDirectory(directory.path);
+                  savedDirectories.current[side + ":" + selectedHost] =
+                    directory.path;
+                }}
+                onPreview={setPreview}
+                onAction={edit}
+                onError={showError}
+                onTransfer={(ids, explicitTarget) => {
+                  const target =
+                    explicitTarget ||
+                    (otherReady ? dirs.current[otherSide]?.id : undefined);
+                  if (target) void transfer(ids, target);
+                  else showError("notConnected");
+                }}
+                onDrag={(value) => {
+                  dragRef.current = value;
+                  setDrag(value);
+                }}
+                drag={drag}
+                disabledDrop={!open || !!action || !!preview || !!auth}
+                onDrop={transfer}
+              />
+            );
+          })}
+        </FilePanelGrid>
       </WorkspacePanel>
+      {conflict.task &&
+        !auth &&
+        !action &&
+        !preview &&
+        !verification?.fingerprint && (
+          <TransferConflictDialog
+            key={conflictKey(conflict.task)}
+            task={conflict.task}
+            onResolve={controlTask}
+            onClose={() => conflict.dismiss(conflict.task!)}
+          />
+        )}
       <Dialog
         open={!!verification?.fingerprint && open}
         onOpenChange={() => {}}
@@ -777,28 +683,13 @@ export function FileWorkspaceProvider({
         </DialogContent>
       </Dialog>
       <Dialog
-        open={!!action}
+        open={!!action && action.kind !== "properties"}
         onOpenChange={(v) => !busy && !v && setAction(null)}
       >
         <DialogContent>
           <DialogTitle>{t(action?.kind || "properties")}</DialogTitle>
           <DialogDescription>{action?.name}</DialogDescription>
-          {action?.kind === "properties" ? (
-            <dl data-selectable="true">
-              <dt>{t("size")}</dt>
-              <dd>
-                {action.entry?.kind === "file" ? size(action.entry.size) : "—"}
-              </dd>
-              <dt>{t("modified")}</dt>
-              <dd>
-                {action.entry?.modified
-                  ? new Date(action.entry.modified).toLocaleString()
-                  : "—"}
-              </dd>
-              <dt>{t("permissions")}</dt>
-              <dd>{action.entry?.permissions?.toString(8) || "—"}</dd>
-            </dl>
-          ) : (
+          {action?.kind !== "properties" && (
             <>
               {action?.kind === "delete" ? (
                 <p>{t(action.remote ? "permanentDelete" : "recycleDelete")}</p>
@@ -821,7 +712,15 @@ export function FileWorkspaceProvider({
           )}
         </DialogContent>
       </Dialog>
-      <Preview entry={preview} close={() => setPreview(null)} />
+      <FilePropertiesDialog
+        target={action?.kind === "properties" ? action.target || null : null}
+        close={() => setAction(null)}
+      />
+      <FilePreviewDialog
+        target={preview}
+        close={() => setPreview(null)}
+        onSaved={() => setRefresh((n) => n + 1)}
+      />
       {drag && (
         <div
           className="files-drag"
@@ -922,25 +821,6 @@ function FileEndpointTitle({
   );
 }
 
-function readLayout() {
-  try {
-    const v = JSON.parse(
-      localStorage.getItem("oria-tunnel.files-layout") || "null",
-    );
-    if (
-      v &&
-      Number.isFinite(v.local) &&
-      Number.isFinite(v.remote) &&
-      v.local >= 25 &&
-      v.remote >= 25
-    )
-      return v;
-  } catch {
-    /* invalid preference */
-  }
-  return undefined;
-}
-
 type PaneProps = {
   initialPath?: string;
   side: "local" | "remote";
@@ -952,7 +832,7 @@ type PaneProps = {
   status?: Session;
   refresh: number;
   onDirectory: (d: Directory) => void;
-  onPreview: (e: Entry) => void;
+  onPreview: (target: FileTarget) => void;
   onAction: (a: ModalAction) => void;
   onError: (e: string) => void;
   onTransfer: (ids: string[], target?: string) => void;
@@ -961,17 +841,17 @@ type PaneProps = {
   disabledDrop: boolean;
   onDrop: (ids: string[], target: string) => Promise<void>;
 };
-function FilePane(p: PaneProps) {
+export function FilePane(p: PaneProps) {
   const { t } = useTranslation("files");
   const [dir, setDir] = useState<Directory | null>(null),
-    [path, setPath] = useState(""),
-    [editingPath, setEditingPath] = useState(false),
+    [editPathRequest, requestPathEdit] = useState(0),
     [query, setQuery] = useState(""),
     [view, setView] = useState(
       () => localStorage.getItem(`oria-tunnel.files-view.${p.side}`) || "list",
     ),
     [hidden, setHidden] = useState(false),
     [sort, setSort] = useState("name"),
+    [descending, setDescending] = useState(false),
     [selected, setSelected] = useState<string[]>([]),
     [loading, setLoading] = useState(false),
     [hover, setHover] = useState(false),
@@ -997,9 +877,8 @@ function FilePane(p: PaneProps) {
       setLoading(true);
       try {
         const d = await api.list(p.session || null, next);
-        if (g !== generation.current) return;
+        if (g !== generation.current) return false;
         setDir(d);
-        setPath(d.path === ":computer:" ? "" : d.path);
         setSelected([]);
         setScroll(0);
         p.onDirectory(d);
@@ -1013,8 +892,10 @@ function FilePane(p: PaneProps) {
           history.current.push(d.path);
           cursor.current = history.current.length - 1;
         }
+        return true;
       } catch (e) {
         if (g === generation.current) p.onError(String(e));
+        return false;
       } finally {
         if (g === generation.current) setLoading(false);
       }
@@ -1040,9 +921,11 @@ function FilePane(p: PaneProps) {
   useEffect(() => {
     setSelected([]);
   }, [query, hidden]);
-  const items = sorted(dir?.entries || [], query, hidden, sort),
+  const items = sorted(dir?.entries || [], query, hidden, sort, descending),
     ordered = items.map((e) => e.id);
-  const rowHeight = view === "list" ? 36 : 92;
+  const rowHeight = view === "list" ? 40 : 100;
+  const gapY = view === "list" ? 4 : 8;
+  const gapX = view === "list" ? 0 : 8;
   const rowCount =
     view === "list" ? items.length : Math.ceil(items.length / cols);
   const start = Math.max(0, Math.floor(scroll / rowHeight) - 5),
@@ -1054,6 +937,28 @@ function FilePane(p: PaneProps) {
     view === "list"
       ? items.slice(start, end)
       : items.slice(start * cols, end * cols);
+  const chooseEntry = (id: string, ctrl: boolean, shift: boolean) => {
+    setSelected(selection(selected, id, ordered, ctrl, shift, anchor.current));
+    anchor.current = id;
+  };
+  const marquee = useMarqueeSelection({
+    viewport,
+    ids: ordered,
+    columns: view === "list" ? 1 : cols,
+    rowHeight,
+    gapX,
+    gapY,
+    selected,
+    onChange: setSelected,
+    onClick: chooseEntry,
+  });
+  const paneError = useRef("");
+  useEffect(() => {
+    const value = p.status?.error || "";
+    const key = value ? `${p.status?.id}:${value}` : "";
+    if (key && key !== paneError.current) p.onError(value);
+    paneError.current = key;
+  }, [p.status?.id, p.status?.error, p.onError]);
   const dropRef = useRef<HTMLElement | null>(null);
   dropRef.current = root.current;
   useNativeFileDrop(
@@ -1072,6 +977,19 @@ function FilePane(p: PaneProps) {
     },
     setHover,
   );
+  const inspectTarget = (entry: Entry): FileTarget => {
+    const drive = !p.remote && dir?.path === ":computer:";
+    const sep = !p.remote && dir?.path.includes("\\") ? "\\" : "/";
+    return {
+      entry,
+      path: drive
+        ? entry.name
+        : (dir?.path.replace(/[\\/]$/, "") || "") + sep + entry.name,
+      remote: p.remote,
+      hostName: p.status?.hostName,
+      drive,
+    };
+  };
   const openEntry = (e: Entry) => {
     if (!p.remote && dir?.path === ":computer:") {
       void load(e.name);
@@ -1080,7 +998,7 @@ function FilePane(p: PaneProps) {
     if (e.kind === "directory") {
       const sep = !p.remote && dir?.path.includes("\\") ? "\\" : "/";
       void load(`${dir?.path.replace(/[\\/]$/, "")}${sep}${e.name}`);
-    } else if (e.kind === "file") p.onPreview(e);
+    } else if (e.kind === "file") p.onPreview(inspectTarget(e));
     else
       p.onAction({
         kind: "properties",
@@ -1088,11 +1006,12 @@ function FilePane(p: PaneProps) {
         name: e.name,
         entry: e,
         remote: p.remote,
+        target: inspectTarget(e),
       });
   };
   const action = (kind: ModalAction["kind"], e?: Entry) => {
     const item = e || items.find((i) => selected.includes(i.id));
-    if (kind === "mkdir" && dir) {
+    if ((kind === "mkdir" || kind === "createText") && dir) {
       p.onAction({
         kind,
         id: dir.id,
@@ -1116,10 +1035,11 @@ function FilePane(p: PaneProps) {
             : undefined,
         entry: item,
         remote: p.remote,
+        target: inspectTarget(item),
       });
   };
   const menu = (e?: Entry) => (
-    <ContextMenuContent>
+    <ContextMenuContent className="files-options-popup">
       {e ? (
         <>
           <ContextMenuItem
@@ -1238,10 +1158,19 @@ function FilePane(p: PaneProps) {
         </>
       ) : (
         <>
-          <ContextMenuItem disabled={!dir?.id} onClick={() => action("mkdir")}>
-            <FolderPlus />
-            {t("mkdir")}
-          </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={!dir?.id}>
+              <Plus />
+              {t("create")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="files-options-popup">
+              <FileCreateOptions
+                canCreate={!!dir?.id}
+                onCreate={() => action("mkdir")}
+                onCreateText={() => action("createText")}
+              />
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           <ContextMenuItem onClick={() => dir && void load(dir.path, false)}>
             <RefreshCw />
             {t("refresh")}
@@ -1262,19 +1191,20 @@ function FilePane(p: PaneProps) {
             {t(hidden ? "hideHidden" : "showHidden")}
           </ContextMenuItem>
           <ContextMenuSeparator />
-          {["name", "size", "modified"].map((key) => (
-            <ContextMenuItem key={key} onClick={() => setSort(key)}>
-              {key === "name" ? (
-                <ArrowDownAZ />
-              ) : key === "size" ? (
-                <Ruler />
-              ) : (
-                <Clock />
-              )}
-              {t(key)}
-              {sort === key && <Check className="ml-auto" />}
-            </ContextMenuItem>
-          ))}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <ArrowDownAZ />
+              {t("sortBy")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="files-options-popup">
+              <FileSortOptions
+                sort={sort}
+                descending={descending}
+                onSortChange={setSort}
+                onDescendingChange={setDescending}
+              />
+            </ContextMenuSubContent>
+          </ContextMenuSub>
         </>
       )}
     </ContextMenuContent>
@@ -1285,7 +1215,7 @@ function FilePane(p: PaneProps) {
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === "l") {
           event.preventDefault();
-          setEditingPath(true);
+          requestPathEdit((n) => n + 1);
         }
       }}
       data-native-file-drop
@@ -1354,94 +1284,35 @@ function FilePane(p: PaneProps) {
           size="icon-sm"
           title={t("refresh")}
           disabled={!canRead || loading}
-          onClick={() => void load(dir?.path || path, false)}
+          onClick={() => void load(dir?.path || p.initialPath || "", false)}
         >
           <RefreshCw className={loading ? "animate-spin" : ""} />
         </Button>
-        {editingPath ? (
-          <Input
-            autoFocus
-            aria-label={t("path")}
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            onBlur={() => setEditingPath(false)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                void load(path);
-                setEditingPath(false);
-              }
-              if (e.key === "Escape") {
-                setPath(dir?.path || "");
-                setEditingPath(false);
-              }
-            }}
-            disabled={!canRead}
-          />
-        ) : (
-          <Breadcrumb
-            aria-label={t("path")}
-            className="files-breadcrumb"
-            onDoubleClick={() => canRead && setEditingPath(true)}
-          >
-            <BreadcrumbList>
-              {!p.remote && (
-                <BreadcrumbItem>
-                  <button type="button" onClick={() => void load(":computer:")}>
-                    {t("local")}
-                  </button>
-                </BreadcrumbItem>
-              )}
-              {breadcrumbs(dir?.path || "", p.remote).map(
-                (part, index, parts) => (
-                  <Fragment key={part.path}>
-                    {(index > 0 || !p.remote) && <BreadcrumbSeparator />}
-                    <BreadcrumbItem>
-                      <button
-                        type="button"
-                        aria-current={
-                          index === parts.length - 1 ? "page" : undefined
-                        }
-                        title={part.path}
-                        onClick={() => void load(part.path)}
-                      >
-                        {part.label}
-                      </button>
-                    </BreadcrumbItem>
-                  </Fragment>
-                ),
-              )}
-            </BreadcrumbList>
-          </Breadcrumb>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
+        <FilePathNavigation
+          path={dir?.path || ""}
+          remote={p.remote}
           disabled={!canRead}
-          title={t("editPath")}
-          aria-label={t("editPath")}
-          onClick={() => setEditingPath(true)}
-        >
-          <MoreHorizontal />
-        </Button>
-      </div>
-      <div className="files-toolbar">
-        <SearchInput
-          aria-label={t("search")}
-          placeholder={t("search")}
+          loading={loading}
+          editRequest={editPathRequest}
+          onNavigate={load}
+        />
+        <FileSearchButton
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
+          disabled={!canRead}
         />
         <Button
           variant="ghost"
           size="icon-sm"
           title={t("view")}
+          aria-label={t("view")}
           onClick={() => {
             const v = view === "list" ? "grid" : "list";
             setView(v);
             localStorage.setItem(`oria-tunnel.files-view.${p.side}`, v);
           }}
         >
-          {view === "list" ? <LayoutGrid /> : <List />}
+          {view === "list" ? <List /> : <LayoutGrid />}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -1451,16 +1322,19 @@ function FilePane(p: PaneProps) {
               </Button>
             }
           />
-          <DropdownMenuContent>
+          <DropdownMenuContent align="end" className="files-options-popup">
             <FileOptionsMenu
               remote={p.remote}
               hidden={hidden}
               sort={sort}
+              descending={descending}
               canCreate={!!dir?.id}
               canUpload={!!dir}
               onHiddenChange={setHidden}
               onSortChange={setSort}
+              onDescendingChange={setDescending}
               onCreate={() => action("mkdir")}
+              onCreateText={() => action("createText")}
               onUpload={(folder) => {
                 void api
                   .pick(folder)
@@ -1477,9 +1351,6 @@ function FilePane(p: PaneProps) {
       {!canRead ? (
         <div className="files-empty">
           {t(p.status?.phase || "notConnected")}
-          {p.status?.error && (
-            <p>{t(p.status.error, { defaultValue: p.status.error })}</p>
-          )}
         </div>
       ) : (
         <ContextMenu>
@@ -1487,6 +1358,7 @@ function FilePane(p: PaneProps) {
             render={
               <div
                 ref={viewport}
+                {...marquee.handlers}
                 className="files-viewport scroll-fade"
                 role="grid"
                 aria-label={
@@ -1496,6 +1368,8 @@ function FilePane(p: PaneProps) {
                 tabIndex={0}
                 onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
                 onKeyDown={(e) => {
+                  if (!e.currentTarget.contains(e.target as Node)) return;
+                  if (e.key === "Escape") marquee.cancel();
                   if ((e.ctrlKey || e.metaKey) && e.key === "a") {
                     e.preventDefault();
                     setSelected(ordered);
@@ -1543,7 +1417,11 @@ function FilePane(p: PaneProps) {
                   <ContextMenu key={e.id}>
                     <ContextMenuTrigger
                       render={
-                        <div
+                        <motion.div
+                          initial="rest"
+                          animate="rest"
+                          whileHover="artwork-hover"
+                          whileFocus="artwork-hover"
                           role="row"
                           tabIndex={-1}
                           aria-selected={chosen}
@@ -1553,13 +1431,18 @@ function FilePane(p: PaneProps) {
                             top:
                               Math.floor(
                                 position / (view === "list" ? 1 : cols),
-                              ) * rowHeight,
+                              ) *
+                                rowHeight +
+                              gapY / 2,
                             left:
                               view === "list"
                                 ? 0
-                                : `${((position % cols) * 100) / cols}%`,
-                            width: view === "list" ? "100%" : `${100 / cols}%`,
-                            height: rowHeight,
+                                : `calc(${((position % cols) * 100) / cols}% + ${gapX / 2}px)`,
+                            width:
+                              view === "list"
+                                ? "100%"
+                                : `calc(${100 / cols}% - ${gapX}px)`,
+                            height: rowHeight - gapY,
                           }}
                           data-file-target={
                             e.kind === "directory" && !p.disabledDrop
@@ -1567,6 +1450,7 @@ function FilePane(p: PaneProps) {
                               : undefined
                           }
                           data-file-side={p.side}
+                          data-file-entry={e.id}
                           onContextMenu={() => {
                             if (!chosen) setSelected([e.id]);
                           }}
@@ -1625,15 +1509,16 @@ function FilePane(p: PaneProps) {
                         className="files-entry-name"
                         title={e.name}
                       >
-                        {!p.remote && dir?.path === ":computer:" ? (
-                          <HardDrive />
-                        ) : e.kind === "directory" ? (
-                          <Folder />
-                        ) : (
-                          <File />
-                        )}
+                        <FileArtwork
+                          name={e.name}
+                          kind={
+                            !p.remote && dir?.path === ":computer:"
+                              ? "drive"
+                              : e.kind
+                          }
+                          large={view === "grid"}
+                        />
                         <span>{e.name}</span>
-                        {e.kind === "link" && <span>↗</span>}
                       </span>
                       {view === "list" && (
                         <>
@@ -1653,6 +1538,13 @@ function FilePane(p: PaneProps) {
                 );
               })}
             </div>
+            {marquee.box && (
+              <div
+                className="files-selection-box"
+                aria-hidden="true"
+                style={marquee.box}
+              />
+            )}
             {items.length === 0 && (
               <p className="files-empty">
                 {t(loading ? "loading" : query ? "noResults" : "empty")}
@@ -1663,82 +1555,5 @@ function FilePane(p: PaneProps) {
         </ContextMenu>
       )}
     </section>
-  );
-}
-function Preview({ entry, close }: { entry: Entry | null; close: () => void }) {
-  const { t } = useTranslation("files");
-  const [text, setText] = useState(""),
-    [url, setUrl] = useState(""),
-    [error, setError] = useState(""),
-    [loading, setLoading] = useState(false),
-    [expanded, setExpanded] = useState(false);
-  const image = /\.(png|jpe?g|webp|gif)$/i.test(entry?.name || "");
-  useEffect(() => {
-    if (!entry) return;
-    let live = true,
-      objectUrl = "";
-    setText("");
-    setError("");
-    setLoading(true);
-    void api
-      .preview(entry.id, expanded)
-      .then((result) => {
-        if (!live) return;
-        const bytes = new Uint8Array(result);
-        if (image) {
-          objectUrl = URL.createObjectURL(
-            new Blob([bytes], { type: "image/png" }),
-          );
-          setUrl(objectUrl);
-        } else {
-          let encoding = "utf-8";
-          if (bytes[0] === 255 && bytes[1] === 254) encoding = "utf-16le";
-          if (bytes[0] === 254 && bytes[1] === 255) encoding = "utf-16be";
-          try {
-            setText(
-              new TextDecoder(encoding, { fatal: true }).decode(bytes, {
-                stream: entry.size > bytes.length,
-              }),
-            );
-          } catch {
-            setError("previewUnsupported");
-          }
-        }
-      })
-      .catch((e) => live && setError(String(e)))
-      .finally(() => live && setLoading(false));
-    return () => {
-      live = false;
-      URL.revokeObjectURL(objectUrl);
-      setUrl("");
-    };
-  }, [entry?.id, expanded]);
-  useEffect(() => setExpanded(false), [entry?.id]);
-  return (
-    <Dialog open={!!entry} onOpenChange={(v) => !v && close()}>
-      <DialogContent className="files-preview">
-        <DialogTitle>{entry?.name}</DialogTitle>
-        <DialogDescription>
-          {entry && size(entry.size)} · {t("readonly")}
-        </DialogDescription>
-        {loading ? (
-          <p>{t("loading")}</p>
-        ) : error ? (
-          <p role="alert">{t(error, { defaultValue: error })}</p>
-        ) : image ? (
-          <img src={url} alt={entry?.name} />
-        ) : (
-          <pre data-selectable="true">{text}</pre>
-        )}
-        {!image && entry && entry.size > (expanded ? 5 : 1) * 1024 * 1024 && (
-          <>
-            <p>{t("truncated")}</p>
-            {!expanded && (
-              <Button onClick={() => setExpanded(true)}>{t("loadMore")}</Button>
-            )}
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }

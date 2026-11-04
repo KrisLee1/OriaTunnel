@@ -34,6 +34,8 @@ pub fn roots() -> Vec<String> {
 #[serde(rename_all = "camelCase")]
 pub struct Meta {
     pub kind: String,
+    #[serde(default)]
+    pub hidden: bool,
     pub size: u64,
     pub modified: u64,
     pub permissions: Option<u32>,
@@ -116,6 +118,17 @@ impl Fs {
                         link || m.file_attributes() & 0x400 != 0
                     };
                     Ok(Some(Meta {
+                        hidden: {
+                            #[cfg(windows)]
+                            {
+                                use std::os::windows::fs::MetadataExt;
+                                m.file_attributes() & (0x2 | 0x4) != 0
+                            }
+                            #[cfg(not(windows))]
+                            {
+                                false
+                            }
+                        },
                         kind: if link {
                             "link"
                         } else if m.is_dir() {
@@ -325,6 +338,7 @@ impl Fs {
 }
 fn remote_meta(a: FileAttributes) -> Meta {
     Meta {
+        hidden: false,
         kind: if a.is_symlink() {
             "link"
         } else if a.is_dir() {
@@ -418,6 +432,54 @@ impl Writer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_hidden_and_system_attributes_are_exposed_without_name_heuristics() {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::{
+            core::PCWSTR,
+            Win32::Storage::FileSystem::{
+                SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_SYSTEM,
+            },
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ordinary-name");
+        std::fs::create_dir(&path).unwrap();
+        let wide: Vec<_> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        unsafe {
+            SetFileAttributesW(
+                PCWSTR(wide.as_ptr()),
+                FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM,
+            )
+            .unwrap();
+        }
+        std::fs::write(dir.path().join("$normal"), b"visible").unwrap();
+        let meta = Fs::Local
+            .meta(path.to_str().unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(meta.kind, "directory");
+        assert!(meta.hidden);
+        let entries = Fs::Local.list(dir.path().to_str().unwrap()).await.unwrap();
+        assert!(
+            entries
+                .iter()
+                .find(|(name, _)| name == "ordinary-name")
+                .unwrap()
+                .1
+                .hidden
+        );
+        assert!(
+            !entries
+                .iter()
+                .find(|(name, _)| name == "$normal")
+                .unwrap()
+                .1
+                .hidden
+        );
+        assert_eq!(serde_json::to_value(&meta).unwrap()["hidden"], true);
+    }
     #[test]
     fn names_reject_traversal() {
         for n in ["", ".", "..", "a/b", "a\\b", "a\0b"] {

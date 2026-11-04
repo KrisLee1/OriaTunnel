@@ -15,6 +15,8 @@ export type FileActivity = {
 };
 const empty: FileActivity[] = [];
 export const FileActivityContext = createContext<FileActivity[]>(empty);
+// Only the mounted hover details consume progress; canvas projections stay stable.
+export const FileTransferDetailsContext = createContext<Task[]>([]);
 export const useFileActivities = () => useContext(FileActivityContext);
 
 // Metrics are deliberately excluded: byte progress must not rebuild the canvas.

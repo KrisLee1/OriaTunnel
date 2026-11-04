@@ -51,6 +51,16 @@ const nodes = [
   { id: "host:b", position: { x: 700, y: 0 } },
 ];
 describe("actual file activity on the connection graph", () => {
+  it("updates hover task identities even when filenames, counts and phases are identical", () => {
+    const before = projectFileEdges(projectFileActivities([task]), nodes);
+    const after = projectFileEdges(
+      projectFileActivities([{ ...task, id: "replacement" }]),
+      nodes,
+      before,
+    );
+    expect(after).not.toBe(before);
+    expect(after[0].data?.taskIds).toEqual(["replacement"]);
+  });
   it("draws one direct edge or two relay legs according to Rust's selected transport", () => {
     const direct = projectFileEdges(projectFileActivities([task]), nodes);
     expect(direct.map((edge) => [edge.source, edge.target])).toEqual([
@@ -86,6 +96,32 @@ describe("actual file activity on the connection graph", () => {
     expect(projectFileActivities([{ ...task, phase: "completed" }])).toEqual(
       [],
     );
+  });
+  it("anchors to host headings rather than forwarding rows in tall or vertically stacked cards", () => {
+    const stacked = [
+      { id: "host:a", position: { x: 0, y: 0 }, height: 900 },
+      { id: "host:b", position: { x: 0, y: 1200 }, height: 600 },
+      { id: "local", position: { x: 350, y: 600 } },
+    ];
+    const [edge] = projectFileEdges(projectFileActivities([task]), stacked);
+    expect(edge.source).toBe("host:a");
+    expect(edge.target).toBe("host:b");
+    expect(edge.sourceHandle).toBe("files-source-right");
+    expect(edge.targetHandle).toBe("files-target-left");
+    const [download] = projectFileEdges(
+      projectFileActivities([
+        {
+          ...task,
+          direction: "download",
+          sourceRemote: task.sourceRemote,
+          targetRemote: null,
+          hostId: "a",
+        },
+      ]),
+      stacked,
+    );
+    expect(download.sourceHandle).toBe("files-source-right");
+    expect(download.target).toBe("local");
   });
   it("retains an unknown direct outcome without showing moving data or inventing invisible hosts", () => {
     const activities = projectFileActivities([
