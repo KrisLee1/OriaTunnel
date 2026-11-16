@@ -1,7 +1,6 @@
 import { SearchInput } from "@/components/ui/search-input";
-import { SearchIcon } from "lucide-react";
+import { UndoDeleteButton } from "@/components/undo-delete-button";
 import { useTranslation } from "react-i18next";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -16,6 +15,9 @@ export function HostToolbar({
   query,
   filter,
   grouping,
+  undoCount,
+  undoDisabled,
+  onUndo,
   onQuery,
   onFilter,
   onGrouping,
@@ -23,6 +25,9 @@ export function HostToolbar({
   query: string;
   filter: string;
   grouping: HostGrouping;
+  undoCount: number;
+  undoDisabled: boolean;
+  onUndo: () => void;
   onQuery: (query: string) => void;
   onFilter: (filter: string) => void;
   onGrouping: (grouping: HostGrouping) => void;
@@ -118,6 +123,7 @@ export function HostToolbar({
             </SelectContent>
           </Select>
         </div>
+        <UndoDeleteButton count={undoCount} disabled={undoDisabled} onClick={onUndo} />
       </div>
     </div>
   );

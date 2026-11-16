@@ -188,7 +188,8 @@ const initial: Snapshot = {
   sourceFiles: [],
   autoSyncHosts: true,
   activity: [],
-  undoCount: 0,
+  hostUndoCount: 0,
+  forwardUndoCount: 0,
   autostart: false,
   autostartSupported: false,
 };
@@ -263,6 +264,18 @@ export function App() {
   const [importing, setImporting] = useState(false);
   const [deleting, setDeleting] = useState<Rule[] | null>(null);
   const [deletingHost, setDeletingHost] = useState<Host | null>(null);
+  const [stopHostWork, setStopHostWork] = useState<boolean | null>(null);
+  const [deleteHostError, setDeleteHostError] = useState("");
+  useEffect(() => {
+    if (!deletingHost) return;
+    let live = true;
+    void bridge.hostHasActiveWork(deletingHost.id).then(
+      (active) => { if (live) setStopHostWork(active); },
+      () => { if (live) setStopHostWork(true); },
+    );
+    return () => { live = false; };
+  }, [deletingHost]);
+
   const [hostDraft, setHostDraft] = useState<Host | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [addedInSession, setAddedInSession] = useState<string[]>([]);
@@ -347,7 +360,7 @@ export function App() {
   };
   const [exporting, setExporting] = useState<string[] | null>(null);
   const action = useCallback(
-    async (fn: () => Promise<unknown>) => {
+    async (fn: () => Promise<unknown>, onError: (message: string) => void = setError) => {
       setBusy(true);
       setError("");
       try {
@@ -356,7 +369,7 @@ export function App() {
           accept(result as Snapshot);
         return true;
       } catch (e) {
-        setError(String(e));
+        onError(String(e));
         return false;
       } finally {
         setBusy(false);
@@ -767,11 +780,16 @@ export function App() {
                   selected={selectedHost}
                   setSelected={setSelectedHost}
                   onEdit={setHostDraft}
+                  onUndo={() => void action(() => bridge.undoDelete("host"))}
                   onAdd={() => openHostDiscovery()}
                   onForward={(id) => newRule(id)}
                   onTest={startHost}
                   onStopTest={(id) => void stop("host-test:" + id)}
-                  onDelete={setDeletingHost}
+                  onDelete={(host) => {
+                    setStopHostWork(null);
+                    setDeleteHostError("");
+                    setDeletingHost(host);
+                  }}
                   onCopy={(h) =>
                     setHostDraft({
                       ...h,
@@ -798,7 +816,7 @@ export function App() {
                   <RuleToolbar
                     count={data.rules.length}
                     selected={selection.length}
-                    undoCount={data.undoCount}
+                    undoCount={data.forwardUndoCount}
                     busy={busy}
                     available={bridge.desktop}
                     onToggleAll={(checked) =>
@@ -827,7 +845,7 @@ export function App() {
                           : data.rules.map((r) => r.id),
                       );
                     }}
-                    onUndo={() => void action(bridge.undoDelete)}
+                    onUndo={() => void action(() => bridge.undoDelete("forward"))}
                   />
                   {!data.rules.length ? (
                     <PageEmptyState
@@ -1067,28 +1085,27 @@ export function App() {
             {deletingHost && (
               <Modal
                 key="delete-host"
-                title={t("confirmDelete")}
+                title={t("deleteHostTitle", { name: deletingHost.name })}
+                description={stopHostWork ? t("stopHostWorkHint") : undefined}
                 close={() => {
                   if (!busy) setDeletingHost(null);
                 }}
               >
-                <strong>{deletingHost.name}</strong>
-                <p className="muted">
-                  {t(
-                    deletingHostRules.length
-                      ? "deleteHostCascadeHint"
-                      : "deleteHostOnlyHint",
-                    { count: deletingHostRules.length },
-                  )}
-                </p>
                 {!!deletingHostRules.length && (
-                  <ul className="delete-targets">
-                    {deletingHostRules.map((rule) => (
-                      <li key={rule.id}>{rule.name}</li>
-                    ))}
-                  </ul>
+                  <>
+                    <p className="muted">
+                      {t("deleteHostCascadeHint", { count: deletingHostRules.length })}
+                    </p>
+                    <ul className="delete-targets">
+                      {deletingHostRules.map((rule) => (
+                        <li key={rule.id}>{rule.name}</li>
+                      ))}
+                    </ul>
+                  </>
                 )}
-                <p className="muted">{t("deleteUndoHint")}</p>
+                {deleteHostError && <p className="inline-error" role="alert">{formatNativeMessage(
+                  t(deleteHostError, { ns: "files", defaultValue: t(`error.${deleteHostError}`, { ns: "terminal", defaultValue: deleteHostError }) }),
+                )}</p>}
                 <ModalActions>
                   <Button
                     variant="ghost"
@@ -1099,11 +1116,16 @@ export function App() {
                   </Button>
                   <Button
                     variant="destructive"
-                    disabled={busy}
+                    disabled={busy || stopHostWork === null}
                     onClick={() => {
                       const hostId = deletingHost.id;
                       const ids = deletingHostRules.map((r) => r.id);
-                      void action(() => bridge.deleteHost(hostId, ids)).then(
+                      setDeleteHostError("");
+                      void action(() => bridge.deleteHost(hostId, ids, stopHostWork === true), (error) => {
+                        if (["hostUsedByFiles", "hostUsedByTerminal", "hostUsedByService"].includes(error) && !stopHostWork)
+                          setStopHostWork(true);
+                        else setDeleteHostError(error);
+                      }).then(
                         (ok) => {
                           if (ok) {
                             setAddedInSession((items) =>
@@ -1119,7 +1141,7 @@ export function App() {
                       );
                     }}
                   >
-                    {t("delete")}
+                    {t(stopHostWork ? "stopAndDeleteHost" : "delete")}
                   </Button>
                 </ModalActions>
               </Modal>
@@ -1865,6 +1887,7 @@ function Hosts({
   onCopy,
   onTest,
   onStopTest,
+  onUndo,
 }: {
   data: Snapshot;
   busy: boolean;
@@ -1874,6 +1897,7 @@ function Hosts({
   onAdd: () => void;
   onForward: (id: string) => void;
   onTest: (id: string) => void;
+  onUndo: () => void;
   onStopTest: (id: string) => void;
   onDelete: (h: Host) => void;
   onCopy: (h: Host) => void;
@@ -1926,6 +1950,9 @@ function Hosts({
         <span aria-live="polite">{t("hostCount", { count: list.length })}</span>
       </header>
       <HostToolbar
+        undoCount={data.hostUndoCount}
+        undoDisabled={busy || !bridge.desktop}
+        onUndo={onUndo}
         query={query}
         filter={filter}
         grouping={grouping}

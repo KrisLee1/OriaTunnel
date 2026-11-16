@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "Connecting",
+    "credentialsRequired": "Waiting for a password or passphrase",
     "authenticating": "Authenticating",
     "verifying-host": "Verify fingerprint",
     "opening-pty": "Requesting PTY",

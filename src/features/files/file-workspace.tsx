@@ -223,7 +223,7 @@ export function FileWorkspaceProvider({
       remote: null,
     }),
     dragRef = useRef<Drag | null>(null),
-    authSeen = useRef(new Set<string>()),
+    notifiedSessions = useRef(new Set<string>()),
     mounted = useRef(true);
   const setSnapshot = useCallback(
     (next: Snapshot) =>
@@ -349,25 +349,27 @@ export function FileWorkspaceProvider({
     (session) => !!session?.fingerprint,
   );
   useEffect(() => {
-    if (auth) return;
-    const failed = [sourceCurrent, current].find(
-      (session) =>
-        session?.error?.toLowerCase().includes("auth") &&
-        !authSeen.current.has(session.id) &&
-        session.route.some((id) =>
-          data.hosts.some(
-            (host) => host.id === id && host.authMethod !== "agent",
-          ),
-        ),
-    );
-    if (failed) {
-      authSeen.current.add(failed.id);
-      authSide.current = failed.id === sourceSid ? "local" : "remote";
-      setAuth(failed);
-      setSecrets({});
-      setRemember([]);
+    for (const session of [sourceCurrent, current]) {
+      if (!session || (!session.error && session.phase !== "credentialsRequired"))
+        continue;
+      const key = JSON.stringify([session.id, session.phase, session.error]);
+      if (notifiedSessions.current.has(key)) continue;
+      if (
+        (session.phase === "credentialsRequired" || session.error === "authenticationFailed") &&
+        session.route.some((id) => data.hosts.some((h) => h.id === id && h.authMethod !== "agent"))
+      ) {
+        if (auth) continue;
+        notifiedSessions.current.add(key);
+        authSide.current = session.id === sourceSid ? "local" : "remote";
+        setAuth(session);
+        setSecrets({});
+        setRemember([]);
+        break;
+      }
+      notifiedSessions.current.add(key);
+      if (session.error) showError(session.error);
     }
-  }, [sourceCurrent, current, auth, data.hosts, sourceSid]);
+  }, [sourceCurrent, current, auth, data.hosts, sourceSid, showError]);
   useEffect(() => {
     if (snapshot.tasks.some(active)) changeQueue(true);
   }, [snapshot.tasks.length]);
@@ -384,7 +386,7 @@ export function FileWorkspaceProvider({
           pendingRemote.current !== null ||
           (sid &&
             (!current ||
-              !["failed", "disconnected", "closed"].includes(current.phase)))
+              !["failed", "disconnected", "closed", "credentialsRequired"].includes(current.phase)))
         )
           return;
         id = host || preferredHost;
@@ -705,7 +707,7 @@ export function FileWorkspaceProvider({
       >
         <DialogContent>
           <DialogTitle>{t("authentication")}</DialogTitle>
-          <DialogDescription>{auth?.hostName}</DialogDescription>
+          {auth?.error && <p className="inline-error" role="alert">{t(auth.error)}</p>}
           {auth?.route
             .map((id) => data.hosts.find((h) => h.id === id))
             .filter((h) => !!h)
@@ -1019,13 +1021,6 @@ export function FilePane(p: PaneProps) {
       if (entry) openEntry(entry);
     },
   });
-  const paneError = useRef("");
-  useEffect(() => {
-    const value = p.status?.error || "";
-    const key = value ? `${p.status?.id}:${value}` : "";
-    if (key && key !== paneError.current) p.onError(value);
-    paneError.current = key;
-  }, [p.status?.id, p.status?.error, p.onError]);
   const dropRef = useRef<HTMLElement | null>(null);
   dropRef.current = root.current;
   useNativeFileDrop(

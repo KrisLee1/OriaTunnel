@@ -20,7 +20,8 @@ const fixture = (): Snapshot => ({
   closeToTray: true,
   agentSupported: false,
   autoSyncHosts: false,
-  undoCount: 0,
+  hostUndoCount: 0,
+  forwardUndoCount: 0,
   autostart: false,
   autostartSupported: false,
 });

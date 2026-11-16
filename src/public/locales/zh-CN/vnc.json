@@ -27,6 +27,8 @@
   "chooseDefault": "设置为系统默认 VNC",
   "askEachTime": "每次询问",
   "openVnc": "打开 VNC",
+  "thisAppVnc": "此应用 VNC",
+  "systemDefaultVnc": "系统默认 VNC",
   "chooseClient": "选择 VNC 客户端",
   "justOnce": "此次",
   "always": "总是"

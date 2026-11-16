@@ -173,7 +173,8 @@ export interface Snapshot {
   sourceFiles: string[];
   autoSyncHosts: boolean;
   activity: ActivityRecord[];
-  undoCount: number;
+  hostUndoCount: number;
+  forwardUndoCount: number;
   autostart: boolean;
   autostartSupported: boolean;
   autostartError?: string;

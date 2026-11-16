@@ -15,12 +15,13 @@ OriaTunnel は、Windows と macOS 向けの SSH トンネル・リモートサ�
 
 ホストと転送ルールを保存すれば、日常の開始・停止やサービスへのアクセスは画面から操作できます。SSH コマンドに詳しくない方も、管理者や同僚が用意した設定を読み込み、自分の認証情報を設定して利用できます。
 
-現在のバージョン：**v0.2.0** · [更新履歴](#更新履歴)
+現在のバージョン：**v0.3.0** · [更新履歴](#更新履歴)
 
 **[📥 ダウンロードとインストール](#ダウンロードとインストール)** · [🚀 クイックスタート](#クイックスタート) · [📖 詳しいユーザーガイド（中国語・簡体字）](../USAGE.md) · [🧭 転送方式を選ぶ](#転送方式を選ぶ)
 
 ## できること
 
+- **内蔵 VNC ビューア** — 転送先のデスクトップを専用ウィンドウで開き、全画面表示や拡大縮小、SSH 端末、ファイル転送を利用できます。
 - 📁 **ファイルの閲覧と転送（0.2.0）**：ローカルと SSH のファイルを閲覧し、アップロード、ダウンロード、ホスト間転送、バックグラウンドキュー、プレビュー、テキスト編集を利用できます。
 - 🔗 **複数のトンネルを管理：** ホストごとに接続を確認し、ルールを個別または一括で開始・停止できます。
 - 💻 **SSH ターミナルを内蔵：** 複数タブの対話型ターミナルに加え、入力や継続的なフォアグラウンド実行が必要なコマンドには専用ターミナルを使えます。
@@ -36,17 +37,17 @@ OriaTunnel は、Windows と macOS 向けの SSH トンネル・リモートサ�
 ## ダウンロードとインストール
 
 
-[Releases のダウンロードページ](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0)で、お使いの OS とデバイスのアーキテクチャに合ったパッケージを選択してください。
+[Releases のダウンロードページ](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)で、お使いの OS とデバイスのアーキテクチャに合ったパッケージを選択してください。
 
 - **Windows：** `.exe` インストーラーをダウンロードし、インストールウィザードに従って進めてください。
 - **macOS：** `.dmg` をダウンロードして開き、`OriaTunnel.app` を **アプリケーション**フォルダーにドラッグしてください。`.zip` をダウンロードした場合は、先に中の `.dmg` を展開してください。
 
 | プラットフォーム | ダウンロード |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
 
 「このアプリについて」のバージョン更新から確認し、ダウンロードしてインストールできます。起動時の確認は無効にできます。インストール時に SSH 接続が切断されるため、端末での作業を先に保存してください。初回導入や古い開発版には上記のインストーラーを使用してください。[アプリの更新（中国語）](../USAGE.md#应用更新)を参照してください。
 
@@ -108,6 +109,10 @@ OriaTunnel の設定ファイルがある場合は、転送ページから読み
 - [ファイル転送・プレビュー・編集（0.2.0）](../USAGE.md#文件传输)
 
 ## 更新履歴
+
+### v0.3.0
+
+転送先のデスクトップを専用ウィンドウで開き、全画面表示や拡大縮小、SSH 端末、ファイル転送を利用できます。 従来の VNC パスワードで Mac の画面共有に接続できます。高解像度でのスクロールとドラッグを改善し、ホストと転送の削除をそれぞれ取り消せるようになりました。
 
 ### v0.2.0
 

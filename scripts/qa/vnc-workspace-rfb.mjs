@@ -1,15 +1,22 @@
+import { createCipheriv, randomBytes } from "node:crypto";
 import net from "node:net";
 import { once } from "node:events";
 import { deflateSync, inflateSync } from "node:zlib";
 import assert from "node:assert/strict";
 
 // A real loopback RFB peer with deterministic pixels and Extended Clipboard.
-export async function framebuffer() {
+export async function framebuffer({
+  password,
+  classic = false,
+  apple = false,
+  width = 320,
+  height = 240,
+} = {}) {
   const peers = [];
   const server = net.createServer((socket) => {
     const peer = { socket, inputs: [], received: null, ready: false };
     peers.push(peer);
-    serve(peer).catch((error) => {
+    serve(peer, password, classic, width, height, apple).catch((error) => {
       if (!socket.destroyed) {
         peer.error = error;
         socket.destroy();
@@ -20,6 +27,8 @@ export async function framebuffer() {
   await once(server, "listening");
   return {
     port: server.address().port,
+    width,
+    height,
     peers,
     close() {
       for (const p of peers) p.socket.destroy();
@@ -27,7 +36,7 @@ export async function framebuffer() {
     },
   };
 }
-async function serve(peer) {
+async function serve(peer, password, classic, width, height, apple) {
   const { socket } = peer;
   const incoming = socket[Symbol.asyncIterator]();
   let buffer = Buffer.alloc(0);
@@ -49,27 +58,52 @@ async function serve(peer) {
     socket.write(Buffer.concat([header, body]));
   }
   const banner = "RFB 003.008\n";
-  socket.write(banner);
+  socket.write(apple ? "RFB 003.889\n" : banner);
   assert.equal((await read(12)).toString(), banner);
-  socket.write(Buffer.from([1, 1]));
-  await read(1);
+  const security = password ? 2 : 1;
+  socket.write(Buffer.from(apple ? [4, 30, 33, 36, security] : [1, security]));
+  assert.equal((await read(1))[0], security);
+  if (password) {
+    const challenge = randomBytes(16);
+    socket.write(challenge);
+    const key = Buffer.alloc(8);
+    for (let i = 0; i < Math.min(8, password.length); i++) {
+      const bits = password.charCodeAt(i).toString(2).padStart(8, "0");
+      key[i] = parseInt([...bits].reverse().join(""), 2);
+    }
+    const cipher = createCipheriv(
+      "des-ede3",
+      Buffer.concat([key, key, key]),
+      null,
+    );
+    cipher.setAutoPadding(false);
+    if (!(await read(16)).equals(cipher.update(challenge))) {
+      const reason = Buffer.from("Authentication failed");
+      const header = Buffer.alloc(8);
+      header.writeUInt32BE(1);
+      header.writeUInt32BE(reason.length, 4);
+      socket.end(Buffer.concat([header, reason]));
+      peer.rejected = true;
+      return;
+    }
+  }
   socket.write(Buffer.alloc(4));
   await read(1);
   const init = Buffer.alloc(24);
-  init.writeUInt16BE(320);
-  init.writeUInt16BE(240, 2);
+  init.writeUInt16BE(width);
+  init.writeUInt16BE(height, 2);
   socket.write(init);
   await read(20);
   const encoding = await read(4);
   await read(encoding.readUInt16BE(2) * 4);
   await read(10);
-  const frame = Buffer.alloc(16 + 320 * 240 * 4, 0);
+  const frame = Buffer.alloc(16 + width * height * 4, 0);
   frame.writeUInt16BE(1, 2);
-  frame.writeUInt16BE(320, 8);
-  frame.writeUInt16BE(240, 10);
+  frame.writeUInt16BE(width, 8);
+  frame.writeUInt16BE(height, 10);
   for (let i = 16; i < frame.length; i += 4) frame[i] = 77;
   socket.write(frame);
-  extended(0x1f000001, Buffer.alloc(4));
+  if (!classic) extended(0x1f000001, Buffer.alloc(4));
   peer.offer = (text) => {
     peer.offered = text;
     extended(0x08000001);

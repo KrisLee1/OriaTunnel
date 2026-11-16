@@ -15,12 +15,13 @@ OriaTunnel is a desktop tool for managing SSH tunnels and remote services on Win
 
 Save hosts and forwarding rules once, then start, stop, and open services through the interface. If you are unfamiliar with SSH commands, you can import a configuration prepared by an administrator or colleague and supply your own authentication details.
 
-Current version: **v0.2.0** · [Version history](#version-history)
+Current version: **v0.3.0** · [Version history](#version-history)
 
 **[📥 Download and install](#download-and-install)** · [🚀 Quick start](#quick-start) · [📖 Full user guide (Simplified Chinese)](../USAGE.md) · [🧭 Choose a forwarding mode](#choose-a-forwarding-mode)
 
 ## What you can do
 
+- **Built-in VNC viewer** — Open a forwarded desktop in its own window, switch to full screen, adjust the zoom, or use the SSH terminal and file transfer panels.
 - 📁 **Browse and transfer files (0.2.0):** browse local and SSH files, upload, download, transfer between hosts, manage background tasks, preview files, and edit text.
 - 🔗 **Manage multiple tunnels:** view connections by host and start or stop rules individually or in batches.
 - 💻 **Open an SSH terminal:** use multiple interactive terminal tabs, or run interactive and long-running foreground commands in dedicated terminals.
@@ -36,17 +37,17 @@ Current version: **v0.2.0** · [Version history](#version-history)
 ## Download and install
 
 
-Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) and choose the package for your operating system and device architecture.
+Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0) and choose the package for your operating system and device architecture.
 
 - **Windows:** download the `.exe` installer and follow the installation wizard.
 - **macOS:** download and open the `.dmg`, then drag `OriaTunnel.app` into **Applications**. If you download a `.zip`, extract the `.dmg` inside it first.
 
 | Platform | Download |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
 
 Check for updates under **About → Version update**, then download and install when ready. Startup checks can be disabled. Installation disconnects SSH sessions; save terminal work first. Use the installers above for a first installation or an older development build. See [application updates (Chinese)](../USAGE.md#应用更新).
 
@@ -108,6 +109,10 @@ The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, 
 - [File transfers, previews, and editing (0.2.0)](../USAGE.md#文件传输)
 
 ## Version history
+
+### v0.3.0
+
+Open a forwarded desktop in its own window, switch to full screen, adjust the zoom, or use the SSH terminal and file transfer panels. Connect to Mac Screen Sharing with a classic VNC password. Scrolling and dragging are smoother on high-resolution desktops. Hosts and forwards now have separate deletion histories for undo.
 
 ### v0.2.0
 

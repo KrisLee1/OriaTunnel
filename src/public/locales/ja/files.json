@@ -29,6 +29,7 @@
   "replace": "ファイルを置換",
   "verifyHost": "ホストの指紋を確認",
   "trust": "信頼して接続",
+  "credentialsRequired": "パスワードまたはパスフレーズの入力待ち",
   "authentication": "認証",
   "rename": "名前を変更",
   "mkdir": "新しいフォルダー",

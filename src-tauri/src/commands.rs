@@ -252,7 +252,9 @@ impl Service {
         }
         if self.name.trim().is_empty()
             || self.name.len() > 256
-            || (self.actions.is_empty() && self.control.health_probe.is_none() && self.port.is_none())
+            || (self.actions.is_empty()
+                && self.control.health_probe.is_none()
+                && self.port.is_none())
             || self.actions.len() > 32
             || self.rule_ids.len() > 256
             || self.host_ids.len() > 500

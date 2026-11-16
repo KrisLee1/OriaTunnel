@@ -29,6 +29,7 @@
   "replace": "替换文件",
   "verifyHost": "核对主机指纹",
   "trust": "信任并连接",
+  "credentialsRequired": "等待输入密码或口令",
   "authentication": "身份认证",
   "rename": "重命名",
   "mkdir": "新建文件夹",

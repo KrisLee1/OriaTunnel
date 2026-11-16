@@ -4,7 +4,7 @@ use russh::{
     Channel, ChannelId,
 };
 use russh_sftp::protocol::*;
-use std::{collections::HashSet, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 #[path = "direct_tests.rs"]
 mod direct_tests;
@@ -127,8 +127,7 @@ impl server::Handler for Server {
             delayed: false,
             root: self.root.clone(),
             files: HashMap::new(),
-            dirs: HashSet::new(),
-            read_dirs: HashSet::new(),
+            dirs: HashMap::new(),
         };
         let handle = s.handle();
         tokio::spawn(async move {
@@ -143,8 +142,7 @@ struct Sftp {
     delayed: bool,
     root: PathBuf,
     files: HashMap<String, tokio::fs::File>,
-    dirs: HashSet<String>,
-    read_dirs: HashSet<String>,
+    dirs: HashMap<String, Option<String>>,
 }
 fn status(id: u32) -> Status {
     Status {
@@ -274,14 +272,18 @@ impl russh_sftp::server::Handler for Sftp {
         if !self.path(&path)?.is_dir() {
             return Err(StatusCode::NoSuchFile);
         }
-        self.dirs.insert(path.clone());
-        self.read_dirs.remove(&path);
-        Ok(Handle { id, handle: path })
+        // The UI and verifier can independently enumerate the same directory.
+        let handle = uuid::Uuid::new_v4().to_string();
+        self.dirs.insert(handle.clone(), Some(path));
+        Ok(Handle { id, handle })
     }
-    async fn readdir(&mut self, id: u32, path: String) -> std::result::Result<Name, Self::Error> {
-        if !self.dirs.contains(&path) || !self.read_dirs.insert(path.clone()) {
-            return Err(StatusCode::Eof);
-        }
+    async fn readdir(&mut self, id: u32, handle: String) -> std::result::Result<Name, Self::Error> {
+        let path = self
+            .dirs
+            .get_mut(&handle)
+            .ok_or(StatusCode::Failure)?
+            .take()
+            .ok_or(StatusCode::Eof)?;
         let mut files = vec![];
         for e in std::fs::read_dir(self.path(&path)?).map_err(|_| StatusCode::Failure)? {
             let e = e.unwrap();
@@ -858,7 +860,9 @@ async fn relay_cancel_cleans_the_destination_and_same_host_copies_are_rejected()
         )
         .await
         .unwrap();
-    m.control(&id, "cancel", None).await.unwrap();
+    m.stop_host_transfers("unrelated").await.unwrap();
+    assert!(m.host_activity("destination-host").1.contains(&id));
+    m.stop_host_transfers("destination-host").await.unwrap();
     assert_eq!(settled(&m, &id).await.phase, "cancelled");
     assert_eq!(std::fs::read_dir(destination.path()).unwrap().count(), 0);
     assert!(source.path().join("large.bin").exists());

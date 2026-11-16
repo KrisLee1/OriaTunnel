@@ -27,6 +27,8 @@
   "chooseDefault": "システム既定の VNC に設定",
   "askEachTime": "毎回確認",
   "openVnc": "VNC を開く",
+  "thisAppVnc": "このアプリの VNC",
+  "systemDefaultVnc": "システム既定の VNC",
   "chooseClient": "VNC クライアントを選択",
   "justOnce": "今回のみ",
   "always": "常に使用"

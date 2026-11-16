@@ -184,12 +184,14 @@ pub async fn run_with_password_observer(
 }
 pub(crate) struct Failure {
     pub(crate) kind: FailureKind,
+    pub(crate) credentials_required: bool,
     message: String,
 }
 impl Failure {
     fn new(kind: FailureKind, message: impl Into<String>) -> Self {
         Self {
             kind,
+            credentials_required: false,
             message: message.into(),
         }
     }
@@ -592,6 +594,7 @@ pub(crate) async fn connect(
                 }
             }
         }
+        let missing_secret = hop.secret.is_empty() && host.auth_method != AuthMethod::Agent;
         hop.secret.clear();
         connection.sessions.push(Arc::new(ssh));
         match auth {
@@ -613,11 +616,14 @@ pub(crate) async fn connect(
                 }
             }
             Ok(None) => return Ok(None),
-            Err(_) => {
-                return Err(Failure::new(
+            Err(error) => {
+                let mut failure = Failure::new(
                     FailureKind::Authentication,
                     crate::native_message::plain("authFailed"),
-                ))
+                );
+                failure.credentials_required = missing_secret
+                    && crate::native_message::key(&error).as_deref() == Some("authFailed");
+                return Err(failure);
             }
         }
     }

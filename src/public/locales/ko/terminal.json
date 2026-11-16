@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "연결 중",
+    "credentialsRequired": "암호 또는 암호문 입력 대기 중",
     "authenticating": "인증 중",
     "verifying-host": "지문 확인 필요",
     "opening-pty": "PTY 요청 중",

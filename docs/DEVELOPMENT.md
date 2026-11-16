@@ -315,3 +315,16 @@ pnpm test src/features/commands
 压力测试与服务端夹具运行在同一进程，记录的 RSS 峰值包含两者和分配器，不能当作应用常驻内存承诺；尾部字节预算另逐轮断言。当前完成分钟级持续压力与千次执行，尚未进行小时级运行或 Windows 原生内存验收。手动 QA 必须同时指定 `ORIATUNNEL_TEST_DATA_DIR` 和 `ORIATUNNEL_TEST_SSH_CONFIG` 的隔离路径，不连接用户真实主机。
 
 服务分类为可选 category，目录 ID 清单在 `src/features/commands/service-category-ids.json`，Rust 内嵌校验，前端测试核对与模板分类一致；other 表示明确未分类。模板保存/分享保留分类，旧配置无字段仍可读取。批量删除通过 delete_service_profiles 接收 id/revision 列表，在 workers 锁下核对全部范围/活动任务/修订，克隆配置后一次持久化；任一错误不部分删除，单条接口复用相同事务。
+
+
+## 内置 VNC 远程桌面
+
+`src-tauri/src/vnc/` 负责 VNC 地址解析、RFB 协商、认证和画面解码，`src/features/vnc/` 负责独立窗口中的画布、输入和顶栏。每个窗口可打开 SSH 终端和文件传输。macOS 的原生全屏与 Dock 窗口恢复位于 `src-tauri/src/macos_windows.rs` 和 `src-tauri/src/macos_fullscreen.m`。
+
+协议回归使用本机回环夹具。在仓库根目录运行：
+
+```sh
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib vnc::
+```
+
+Windows 与 macOS 的原生窗口、安装及显示验证步骤见 [VNC 平台验收](VNC_REMOTE_DESKTOP_PLAN.md)。

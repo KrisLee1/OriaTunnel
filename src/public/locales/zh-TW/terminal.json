@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "連線中",
+    "credentialsRequired": "等待輸入密碼或通行片語",
     "authenticating": "驗證中",
     "verifying-host": "待核對指紋",
     "opening-pty": "申請 PTY",

@@ -15,12 +15,13 @@ OriaTunnel est un outil de bureau de gestion des tunnels SSH et des services dis
 
 Enregistrez vos hôtes et règles de redirection, puis démarrez, arrêtez et ouvrez vos services depuis l’interface. Sans connaître les commandes SSH, vous pouvez aussi importer une configuration préparée par un administrateur ou un collègue et renseigner vos propres informations d’authentification.
 
-Version actuelle : **v0.2.0** · [Historique des versions](#historique-des-versions)
+Version actuelle : **v0.3.0** · [Historique des versions](#historique-des-versions)
 
 **[📥 Télécharger et installer](#télécharger-et-installer)** · [🚀 Prise en main](#prise-en-main) · [📖 Guide utilisateur complet (chinois simplifié)](../USAGE.md) · [🧭 Choisir un mode de redirection](#choisir-un-mode-de-redirection)
 
 ## Fonctionnalités
 
+- **Client VNC intégré** — Ouvrez le bureau distant depuis une redirection dans une fenêtre dédiée avec zoom, plein écran, terminal SSH et transfert de fichiers.
 - 📁 **Parcourir et transférer des fichiers (0.2.0) :** parcourir les fichiers locaux et SSH, envoyer, télécharger, transférer entre hôtes, gérer la file en arrière-plan, prévisualiser et modifier du texte.
 - 🔗 **Gérer plusieurs tunnels :** affichez les connexions par hôte et démarrez ou arrêtez les règles individuellement ou par lot.
 - 💻 **Ouvrir un terminal SSH :** utilisez plusieurs onglets interactifs ou un terminal dédié aux commandes interactives et aux services fonctionnant au premier plan.
@@ -36,17 +37,17 @@ Version actuelle : **v0.2.0** · [Historique des versions](#historique-des-versi
 ## Télécharger et installer
 
 
-Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
+Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
 
 - **Windows :** téléchargez le programme d’installation `.exe` et suivez l’assistant d’installation.
 - **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
 
 | Plateforme | Téléchargement |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
 
 Vérifiez les mises à jour dans **À propos → Mise à jour**, puis téléchargez et installez la nouvelle version. La vérification au démarrage peut être désactivée. L’installation interrompt les connexions SSH ; enregistrez d’abord votre travail dans le terminal. Pour une première installation ou une ancienne version de développement, utilisez les programmes ci-dessus. Voir les [mises à jour de l’application (chinois)](../USAGE.md#应用更新).
 
@@ -108,6 +109,10 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 - [Transfert, aperçu et modification de fichiers (0.2.0)](../USAGE.md#文件传输)
 
 ## Historique des versions
+
+### v0.3.0
+
+Ouvrez le bureau distant depuis une redirection dans une fenêtre dédiée avec zoom, plein écran, terminal SSH et transfert de fichiers. Connectez-vous au partage d’écran du Mac avec un mot de passe VNC classique. Le défilement et le déplacement des fenêtres sont plus fluides en haute résolution. Les suppressions d’hôtes et de redirections peuvent être annulées séparément.
 
 ### v0.2.0
 

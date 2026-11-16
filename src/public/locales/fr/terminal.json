@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "Connexion",
+    "credentialsRequired": "En attente du mot de passe ou de la phrase secrète",
     "authenticating": "Authentification",
     "verifying-host": "Vérifier l’empreinte",
     "opening-pty": "Demande de PTY",

@@ -15,12 +15,13 @@ OriaTunnel ist ein Desktop-Werkzeug zur Verwaltung von SSH-Tunneln und entfernte
 
 Speichern Sie Hosts und Weiterleitungsregeln und nutzen Sie die Oberfläche zum Starten, Stoppen und Öffnen von Diensten. Auch ohne SSH-Befehlskenntnisse können Sie eine vorbereitete Konfiguration importieren und Ihre eigenen Authentifizierungsdaten ergänzen.
 
-Aktuelle Version: **v0.2.0** · [Versionsverlauf](#versionsverlauf)
+Aktuelle Version: **v0.3.0** · [Versionsverlauf](#versionsverlauf)
 
 **[📥 Herunterladen und installieren](#herunterladen-und-installieren)** · [🚀 Schnellstart](#schnellstart) · [📖 Vollständiges Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) · [🧭 Weiterleitungsart wählen](#weiterleitungsart-wählen)
 
 ## Funktionen
 
+- **Integrierter VNC-Viewer** — Öffnen Sie den entfernten Desktop über eine Weiterleitung in einem eigenen Fenster. Dort stehen Vollbild, Zoom, SSH-Terminal und Dateiübertragung zur Verfügung.
 - 📁 **Dateien durchsuchen und übertragen (0.2.0):** lokale und SSH-Dateien durchsuchen, hoch- und herunterladen, zwischen Hosts übertragen, Hintergrundaufgaben verwalten, Vorschauen öffnen und Text bearbeiten.
 - 🔗 **Mehrere Tunnel verwalten:** Verbindungen nach Host anzeigen und Regeln einzeln oder gemeinsam starten und stoppen.
 - 💻 **SSH-Terminal öffnen:** mehrere interaktive Terminal-Tabs nutzen oder interaktive und dauerhaft im Vordergrund laufende Befehle in eigenen Terminals ausführen.
@@ -36,17 +37,17 @@ Aktuelle Version: **v0.2.0** · [Versionsverlauf](#versionsverlauf)
 ## Herunterladen und installieren
 
 
-Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
+Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
 
 - **Windows:** Laden Sie das `.exe`-Installationsprogramm herunter und folgen Sie dem Installationsassistenten.
 - **macOS:** Laden Sie die `.dmg`-Datei herunter, öffnen Sie sie und ziehen Sie `OriaTunnel.app` in den Ordner **Programme (Applications)**. Wenn Sie eine `.zip`-Datei herunterladen, entpacken Sie zuerst die darin enthaltene `.dmg`-Datei.
 
 | Plattform | Download |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
 
 Unter **Über → Versionsaktualisierung** können Sie Updates prüfen, herunterladen und installieren. Die Prüfung beim Start ist abschaltbar. Die Installation trennt SSH-Verbindungen; speichern Sie vorher Ihre Terminalarbeit. Für die Erstinstallation oder ältere Entwicklungsbuilds verwenden Sie die obigen Installationspakete. Siehe [App-Updates (Chinesisch)](../USAGE.md#应用更新).
 
@@ -108,6 +109,10 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 - [Dateiübertragung, Vorschau und Bearbeitung (0.2.0)](../USAGE.md#文件传输)
 
 ## Versionsverlauf
+
+### v0.3.0
+
+Öffnen Sie den entfernten Desktop über eine Weiterleitung in einem eigenen Fenster. Dort stehen Vollbild, Zoom, SSH-Terminal und Dateiübertragung zur Verfügung. Die Mac-Bildschirmfreigabe unterstützt die Verbindung mit einem klassischen VNC-Passwort. Scrollen und Ziehen auf hochauflösenden Desktops wurden verbessert. Das Löschen von Hosts und Weiterleitungen lässt sich getrennt rückgängig machen.
 
 ### v0.2.0
 

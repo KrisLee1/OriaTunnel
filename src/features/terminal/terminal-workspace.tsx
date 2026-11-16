@@ -436,7 +436,7 @@ export function TerminalWorkspaceProvider({
     });
     setSecrets({});
     setRemember({});
-    setError("authentication");
+    setError(failed.error || "");
   }, [sessions, data, clientId, busy, draft, closing, trust, t]);
   const tabIds = [...sessions.map((s) => s.id), ...commandTabs];
   const tabSignature = tabIds.join("\0");
@@ -539,7 +539,7 @@ export function TerminalWorkspaceProvider({
           </Button>
         }
       >
-        {error && (
+        {error && !draft && (
           <p className="terminal-error" role="alert">
             {formatUiError(error, t)}
             <Button
@@ -687,7 +687,7 @@ export function TerminalWorkspaceProvider({
                       setDraft({
                         hostId: selectedSession.hostId,
                         noEnvironment: true,
-                        fallback: selectedSession.error === "authentication",
+                        fallback: terminalNeedsCredentials(selectedSession, data.hosts),
                         locked: true,
                         replaceId: selectedSession.id,
                         ...(retryProfile
@@ -803,9 +803,7 @@ export function TerminalWorkspaceProvider({
                   draft.profile,
                   {
                     replaceId: draft.replaceId,
-                    automatic:
-                      !!draft.profile ||
-                      Object.values(secrets).every((value) => !value),
+                    automatic: true,
                   },
                 ).catch(() => {});
               }}

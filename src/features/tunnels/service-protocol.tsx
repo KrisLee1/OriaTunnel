@@ -159,7 +159,7 @@ export function VncLauncher({ name, disabled, onOpen, children }: {
             </DialogHeader>
             <fieldset className="grid gap-2">
               <legend className="sr-only">{vnc("client")}</legend>
-              {(["system", "internal"] as const).map((value) => (
+              {(["internal", "system"] as const).map((value) => (
                 <label
                   key={value}
                   className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 has-checked:border-ring has-checked:bg-accent/30"
@@ -172,7 +172,7 @@ export function VncLauncher({ name, disabled, onOpen, children }: {
                     onChange={() => setSelection(value)}
                     className="accent-primary"
                   />
-                  {vnc(value === "system" ? "useSystem" : "useInternal")}
+                  {vnc(value === "internal" ? "thisAppVnc" : "systemDefaultVnc")}
                 </label>
               ))}
             </fieldset>
@@ -180,12 +180,12 @@ export function VncLauncher({ name, disabled, onOpen, children }: {
               <Button
                 variant="outline"
                 disabled={disabled}
-                onClick={() => confirm(true)}
+                onClick={() => confirm(false)}
               >
-                {vnc("always")}
-              </Button>
-              <Button disabled={disabled} onClick={() => confirm(false)}>
                 {vnc("justOnce")}
+              </Button>
+              <Button disabled={disabled} onClick={() => confirm(true)}>
+                {vnc("always")}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "连接中",
+    "credentialsRequired": "等待输入密码或口令",
     "authenticating": "认证中",
     "verifying-host": "待核对指纹",
     "opening-pty": "申请 PTY",

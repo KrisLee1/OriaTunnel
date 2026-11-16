@@ -29,6 +29,7 @@
   "replace": "Remplacer les fichiers",
   "verifyHost": "Vérifier l’empreinte de l’hôte",
   "trust": "Faire confiance et connecter",
+  "credentialsRequired": "En attente du mot de passe ou de la phrase secrète",
   "authentication": "Authentification",
   "rename": "Renommer",
   "mkdir": "Nouveau dossier",

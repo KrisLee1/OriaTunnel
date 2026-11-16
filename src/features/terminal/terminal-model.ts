@@ -92,7 +92,7 @@ export function terminalNeedsCredentials(
 ) {
   return (
     session.finishedAt !== null &&
-    session.error === "authentication" &&
+    (session.phase === "credentialsRequired" || session.error === "authentication") &&
     !session.submitted &&
     session.routeHostIds.some((id) =>
       hosts.some((host) => host.id === id && host.authMethod !== "agent"),
@@ -147,7 +147,7 @@ export function unsubmittedPreset(
 ) {
   if (
     !session ||
-    session.error !== "authentication" ||
+    (session.phase !== "credentialsRequired" && session.error !== "authentication") ||
     session.submitted ||
     !session.serviceId
   )

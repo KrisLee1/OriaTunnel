@@ -384,6 +384,11 @@ pub async fn execute(
             (request.changed)();
             return;
         }
+        Err(e) if e.credentials_required => {
+            manager.finish(&id, "credentialsRequired", None);
+            (request.changed)();
+            return;
+        }
         Err(e) => {
             manager.finish(
                 &id,

@@ -14,12 +14,12 @@ fn init(width: u16, height: u16) -> Vec<u8> {
     bytes
 }
 
-async fn security(peer: &mut DuplexStream, minor: u8, auth: u8) {
-    let banner = format!("RFB 003.00{minor}\n");
+async fn security(peer: &mut DuplexStream, offered: u16, minor: u8, auth: u8) {
+    let banner = format!("RFB 003.{offered:03}\n");
     peer.write_all(banner.as_bytes()).await.unwrap();
     let mut reply = [0; 12];
     peer.read_exact(&mut reply).await.unwrap();
-    assert_eq!(reply.as_slice(), banner.as_bytes());
+    assert_eq!(reply.as_slice(), format!("RFB 003.00{minor}\n").as_bytes());
     if minor == 3 {
         peer.write_u32(u32::from(auth)).await.unwrap();
     } else {
@@ -34,14 +34,14 @@ async fn security(peer: &mut DuplexStream, minor: u8, auth: u8) {
 
 #[tokio::test(start_paused = true)]
 async fn handshake_version_security_and_wrong_password_matrix() {
-    for minor in [3, 7, 8] {
+    for (offered, minor) in [(3, 3), (7, 7), (8, 8), (889, 8)] {
         for (auth, accepted) in [(1, true), (2, true), (2, false)] {
             let (socket, mut peer) = tokio::io::duplex(4096);
             let (actions, mut input) = mpsc::channel(2);
             let (out, mut events) = mpsc::channel(4);
             let client =
                 tokio::spawn(async move { rfb::run(socket, &mut input, &out, None, false).await });
-            security(&mut peer, minor, auth).await;
+            security(&mut peer, offered, minor, auth).await;
             if auth == 2 {
                 peer.write_all(&[7; 16]).await.unwrap();
                 assert_eq!(events.recv().await.unwrap().unwrap(), [0]);
@@ -62,7 +62,10 @@ async fn handshake_version_security_and_wrong_password_matrix() {
                 peer.write_u32(u32::from(!accepted)).await.unwrap();
             }
             if !accepted {
-                if minor == 8 {
+                if offered == 889 {
+                    // A malformed failure reason must not hide a definitive rejection.
+                    peer.write_u32(u32::MAX).await.unwrap();
+                } else if minor == 8 {
                     peer.write_all(&[0, 0, 0, 3, 98, 97, 100]).await.unwrap();
                 }
                 let err = client.await.unwrap().unwrap_err();
@@ -118,6 +121,45 @@ fn rectangle(bounds: [u16; 4], encoding: i32, body: &[u8]) -> Vec<u8> {
     record
 }
 
+#[tokio::test]
+async fn apple_account_only_offer_reports_types_before_requesting_credentials() {
+    let (events, sent, err) = exchange(b"RFB 003.889\n\x04\x1e\x21\x24\x23").await;
+    assert_eq!(sent, b"RFB 003.008\n");
+    assert!(events.is_empty());
+    let error = session_error(err);
+    assert_eq!(
+        native_message::key(&error).as_deref(),
+        Some("vncSecurityTypes")
+    );
+    assert!(error.contains("30, 33, 36, 35"));
+}
+
+#[tokio::test]
+async fn retina_desktop_sizes_respect_the_framebuffer_budget() {
+    let (w, h) = (5120, 2880);
+    let mut wire = server_prefix(w, h);
+    wire.extend([0, 0, 0, 1]);
+    wire.extend(rectangle([w - 1, h - 1, 1, 1], 0, &[7, 8, 9, 0]));
+    wire.extend([0, 0, 0, 1]);
+    wire.extend(rectangle([0, 0, 6016, 3384], -223, &[]));
+    let (events, _, _) = exchange(&wire).await;
+    let mut pixels = vec![10];
+    pixels.extend(frame::packet(2, [w - 1, h - 1, 1, 1]));
+    pixels.extend([7, 8, 9, 255]);
+    assert_eq!(
+        events,
+        [
+            frame::packet(1, [0, 0, w, h]),
+            pixels,
+            frame::packet(1, [0, 0, 6016, 3384])
+        ]
+    );
+    for (width, height) in [(6016, 3384), (10240, 2880)] {
+        let (events, _, _) = exchange(&server_prefix(width, height)).await;
+        assert_eq!(events, [frame::packet(1, [0, 0, width, height])]);
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn stalled_version_security_and_server_init_expire() {
     for prefix in [
@@ -151,7 +193,7 @@ async fn a_slow_canvas_applies_backpressure_without_timing_out_or_dropping_recta
     wire.extend(rectangle([0, 0, 1, 1], 0, &[1, 2, 3, 0]));
     wire.extend(rectangle([1, 0, 1, 1], 1, &[0, 0, 0, 0]));
     peer.write_all(&wire).await.unwrap();
-    let mut setup = [0; 68];
+    let mut setup = [0; 72];
     peer.read_exact(&mut setup).await.unwrap();
     tokio::time::advance(Duration::from_secs(120)).await;
     assert!(!client.is_finished());
@@ -181,7 +223,7 @@ async fn refused_unsupported_and_oversized_handshakes_never_publish_a_desktop() 
         ),
         (b"RFB 003.007\n\0\0\0\0\x01x", "vncServerRefused"),
         (b"RFB 003.008\n\0\0\0\0\x01x", "vncServerRefused"),
-        (b"RFB 003.008\n\0\xff\xff\xff\xff", "vncProtocol"),
+        (b"RFB 003.008\n\0\xff\xff\xff\xff", "vncProtocolField"),
         (b"RFB 003.003\n\0\0\0\x13", "vncSecurityTypes"),
         (b"RFB 003.007\n\x02\x12\x13", "vncSecurityTypes"),
         (b"RFB 003.008\n\x02\x12\x13", "vncSecurityTypes"),
@@ -195,39 +237,43 @@ async fn refused_unsupported_and_oversized_handshakes_never_publish_a_desktop() 
             assert!(sent.len() == 12 && message.contains("19"));
         }
     }
-    for (w, h) in [(0, 1), (1, 0), (16385, 1), (4097, 4097)] {
+    for (w, h) in [(0, 1), (1, 0), (16385, 1), (8192, 4097)] {
         let (events, _, err) = exchange(&server_prefix(w, h)).await;
         assert!(events.is_empty());
-        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            native_message::key(&session_error(err)).as_deref(),
+            Some("vncDesktopSize")
+        );
     }
 }
 
 #[tokio::test]
 async fn split_update_commits_only_after_its_last_rectangle_is_decoded() {
-    // 64 solid ZRLE tiles expand to one MiB, crossing the IPC batch limit
+    // 64 raw ZRLE tiles expand to one MiB, crossing the IPC batch limit
     // without filling the simulated socket.
-    let mut compressed = Vec::with_capacity(1024);
+    let mut tile = vec![0];
+    tile.extend([1, 2, 3].repeat(64 * 64));
+    let mut compressed = Vec::with_capacity(8192);
     Compress::new(Compression::fast(), true)
-        .compress_vec(
-            &[1, 1, 2, 3].repeat(64),
-            &mut compressed,
-            FlushCompress::Sync,
-        )
+        .compress_vec(&tile.repeat(64), &mut compressed, FlushCompress::Sync)
         .unwrap();
     let mut body = (compressed.len() as u32).to_be_bytes().to_vec();
     body.extend(compressed);
     let mut wire = server_prefix(512, 512);
     wire.extend([0, 0, 0, 2]);
     wire.extend(rectangle([0, 0, 512, 512], 16, &body));
-    wire.extend(rectangle([0, 0, 1, 1], 0, &[9, 8, 7]));
+    // A trailing rectangle larger than the reserved 8 KiB tail starts a new batch.
+    let mut trailing = [9, 8, 7, 0].repeat(64 * 64);
+    trailing.pop();
+    wire.extend(rectangle([0, 0, 64, 64], 0, &trailing));
     let (events, _, err) = exchange(&wire).await;
     assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
     assert_eq!(events.iter().map(|e| e[0]).collect::<Vec<_>>(), [1, 9]);
-    assert_eq!(events[1].len(), 10 + 512 * 512 * 4);
+    assert_eq!(events[1].len(), 1 + 64 * 9 + 512 * 512 * 4);
     wire.push(0);
     let (events, _, _) = exchange(&wire).await;
     assert_eq!(events.iter().map(|e| e[0]).collect::<Vec<_>>(), [1, 9, 10]);
-    assert_eq!(&events[2][10..], &[9, 8, 7, 255]);
+    assert_eq!(&events[2][10..], [9, 8, 7, 255].repeat(64 * 64));
 }
 
 #[tokio::test]
@@ -246,12 +292,19 @@ async fn large_raw_bands_cover_the_rectangle_and_commit_only_at_the_end() {
         let rows = u16::from_be_bytes([band[8], band[9]]);
         assert!(rows > 0);
         assert_eq!(band[0], if i + 1 == events.len() { 10 } else { 9 });
-        assert_eq!(&band[1..10], frame::packet(11, [7, 3 + row, w, rows]));
-        let stride = usize::from(w) * 4;
         assert_eq!(
-            &band[10..],
-            &data[usize::from(row) * stride..usize::from(row + rows) * stride]
+            &band[1..10],
+            frame::packet(rfb::RAW_BAND_KIND, [7, 3 + row, w, rows])
         );
+        let stride = usize::from(w) * 4;
+        let mut expected =
+            data[usize::from(row) * stride..usize::from(row + rows) * stride].to_vec();
+        if cfg!(target_os = "macos") {
+            for p in expected.as_chunks_mut::<4>().0 {
+                p[3] = 255;
+            }
+        }
+        assert_eq!(&band[10..], expected);
         row += rows;
     }
     assert_eq!(row, h);
@@ -273,18 +326,22 @@ async fn large_raw_bands_cover_the_rectangle_and_commit_only_at_the_end() {
 #[tokio::test]
 async fn malformed_or_truncated_rectangles_do_not_reach_the_canvas() {
     for (count, rect, key) in [
-        (1, rectangle([1, 0, 2, 1], 0, &[]), "vncProtocol"),
+        (1, rectangle([1, 0, 2, 1], 0, &[]), "vncProtocolField"),
         (1, rectangle([0, 0, 2, 1], 1, &[0, 1, 0, 0]), "vncProtocol"),
         (1, rectangle([0, 0, 2, 1], 0, &[1, 2, 3]), "vncTruncated"),
-        (1, rectangle([0, 0, 1, 1], 16, &[0xff; 4]), "vncProtocol"),
+        (
+            1,
+            rectangle([0, 0, 1, 1], 16, &[0xff; 4]),
+            "vncProtocolField",
+        ),
         (
             1,
             rectangle([0, 0, 1, 1], 16, &[0, 0, 0, 4, 1]),
             "vncTruncated",
         ),
-        (1, rectangle([0, 0, 0, 1], -223, &[]), "vncProtocol"),
+        (1, rectangle([0, 0, 0, 1], -223, &[]), "vncDesktopSize"),
         (2, rectangle([0, 0, 1, 1], -223, &[]), "vncProtocol"),
-        (1, rectangle([0, 0, 1, 1], 99, &[]), "vncProtocol"),
+        (1, rectangle([0, 0, 1, 1], 99, &[]), "vncProtocolField"),
     ] {
         let mut wire = server_prefix(2, 1);
         wire.extend([0, 0, 0, count]);
@@ -305,9 +362,9 @@ async fn resize_requests_full_then_incremental_updates_and_idle_desktops_stay_op
     let (out, mut events) = mpsc::channel(1);
     let client = tokio::spawn(async move { rfb::run(socket, &mut input, &out, None, false).await });
     peer.write_all(&server_prefix(2, 1)).await.unwrap();
-    let mut setup = [0; 68];
+    let mut setup = [0; 72];
     peer.read_exact(&mut setup).await.unwrap();
-    assert_eq!(&setup[58..], &[3, 0, 0, 0, 0, 0, 0, 2, 0, 1]);
+    assert_eq!(&setup[62..], &[3, 0, 0, 0, 0, 0, 0, 2, 0, 1]);
     events.recv().await.unwrap().unwrap();
     tokio::time::advance(Duration::from_secs(120)).await;
     assert!(!client.is_finished());
@@ -339,6 +396,43 @@ async fn resize_requests_full_then_incremental_updates_and_idle_desktops_stay_op
     );
 }
 
+#[tokio::test]
+async fn zlib_rectangles_share_their_dictionary_and_require_the_exact_pixel_count() {
+    fn rect(stream: &mut Compress, x: u16, pixels: &[u8]) -> Vec<u8> {
+        let mut compressed = Vec::with_capacity(128);
+        stream
+            .compress_vec(pixels, &mut compressed, FlushCompress::Sync)
+            .unwrap();
+        let mut body = (compressed.len() as u32).to_be_bytes().to_vec();
+        body.extend(compressed);
+        rectangle([x, 0, 1, 1], 6, &body)
+    }
+    let mut stream = Compress::new(Compression::fast(), true);
+    let mut wire = server_prefix(2, 1);
+    wire.extend([0, 0, 0, 2]);
+    wire.extend(rect(&mut stream, 1, &[1, 2, 3, 0]));
+    wire.extend(rect(&mut stream, 0, &[1, 2, 3, 10]));
+    let (messages, _, _) = exchange(&wire).await;
+    let mut expected = vec![10];
+    for x in [1, 0] {
+        expected.extend(frame::packet(2, [x, 0, 1, 1]));
+        expected.extend([1, 2, 3, 255]);
+    }
+    assert_eq!(messages[1], expected);
+    for pixels in [&[1, 2, 3][..], &[0; 256]] {
+        let mut wire = server_prefix(1, 1);
+        wire.extend([0, 0, 0, 1]);
+        wire.extend(rect(
+            &mut Compress::new(Compression::fast(), true),
+            0,
+            pixels,
+        ));
+        let (messages, _, err) = exchange(&wire).await;
+        assert_eq!(messages.len(), 1);
+        assert!(session_error(err).contains("Zlib"));
+    }
+}
+
 #[test]
 fn zrle_tiles_cross_edges_and_reject_decompression_or_run_overflows() {
     let compress = |src: &[u8]| {
@@ -353,22 +447,24 @@ fn zrle_tiles_cross_edges_and_reject_decompression_or_run_overflows() {
         frame::zrle(
             &mut flate2::Decompress::new(true),
             &compress(src),
-            w,
-            h,
+            [0, 0, w, h],
             &mut dst,
         )
         .map(|_| dst)
     };
     let tiles = [1, 1, 2, 3, 1, 4, 5, 6, 1, 7, 8, 9, 0, 10, 11, 12];
-    let rgba = decode(&tiles, 65, 65).unwrap();
-    for (pixel, expected) in [
-        (0, [1, 2, 3, 255]),
-        (64, [4, 5, 6, 255]),
-        (64 * 65, [7, 8, 9, 255]),
-        (65 * 65 - 1, [10, 11, 12, 255]),
+    let patches = decode(&tiles, 65, 65).unwrap();
+    let mut expected = vec![];
+    for (kind, bounds, pixel) in [
+        (12, [0, 0, 64, 64], [1, 2, 3, 255]),
+        (12, [64, 0, 1, 64], [4, 5, 6, 255]),
+        (12, [0, 64, 64, 1], [7, 8, 9, 255]),
+        (2, [64, 64, 1, 1], [10, 11, 12, 255]),
     ] {
-        assert_eq!(&rgba[pixel * 4..pixel * 4 + 4], &expected);
+        frame::append_header(&mut expected, kind, bounds);
+        expected.extend(pixel);
     }
+    assert_eq!(patches, expected);
     for bad in [
         vec![0; 8192],
         vec![128, 1, 2, 3, 255],

@@ -83,14 +83,12 @@ pub async fn file_connect(
     };
     let manager = state.files.clone();
     let sid = id.clone();
-    let active: sessions::Active = Arc::new(move || {
-        manager
-            .sessions
-            .lock()
-            .unwrap()
-            .get(&sid)
-            .is_some_and(|s| s.phase != "disconnected")
-    });
+    let active: sessions::Active =
+        Arc::new(move || {
+            manager.sessions.lock().unwrap().get(&sid).is_some_and(|s| {
+                !matches!(s.phase.as_str(), "disconnected" | "credentialsRequired")
+            })
+        });
     let (hops, observer) = sessions::credentials(
         state.inner().clone(),
         app.clone(),
@@ -165,6 +163,7 @@ pub async fn file_connect(
             .await
             .map_err(|e| {
                 match e.kind {
+                    FailureKind::Authentication if e.credentials_required => "credentialsRequired",
                     FailureKind::Authentication => "authenticationFailed",
                     FailureKind::HostKey => "hostKeyMismatch",
                     FailureKind::Timeout => "connectionTimeout",
@@ -208,13 +207,18 @@ pub async fn file_connect(
         task_state.trust.lock().unwrap().remove(&sid);
         task_state.files.session_change(&sid, |s| {
             s.fingerprint = None;
-            s.phase = if result.is_ok() {
-                "connected"
-            } else {
-                "disconnected"
+            if cancel.is_cancelled() {
+                s.phase = "disconnected".into();
+                s.error = None;
+                return;
             }
-            .into();
-            s.error = result.err();
+            let (phase, error) = match result {
+                Ok(()) => ("connected", None),
+                Err(e) if e == "credentialsRequired" => ("credentialsRequired", None),
+                Err(e) => ("disconnected", Some(e)),
+            };
+            s.phase = phase.into();
+            s.error = error;
         });
     });
     state.files.track(job);
@@ -258,6 +262,7 @@ pub async fn file_submit(
     target: String,
 ) -> Result<String, String> {
     let scope = crate::workspace::scope(&window)?;
+    let _launch = state.workers.lock().await;
     state.allow_launch()?;
     for id in sources.iter().chain(std::iter::once(&target)) {
         scope.check_optional(state.files.entry(id)?.session.as_deref())?;
@@ -275,6 +280,7 @@ pub async fn file_control(
     source_session: Option<String>,
 ) -> Result<(), String> {
     let scope = crate::workspace::scope(&window)?;
+    let _launch = state.workers.lock().await;
     state.allow_launch()?;
     scope.check_optional(session.as_deref())?;
     scope.check_optional(source_session.as_deref())?;
@@ -297,6 +303,7 @@ pub async fn file_resolve_conflict(
     source_session: Option<String>,
 ) -> Result<(), String> {
     let scope = crate::workspace::scope(&window)?;
+    let _launch = state.workers.lock().await;
     state.allow_launch()?;
     scope.check_optional(session.as_deref())?;
     scope.check_optional(source_session.as_deref())?;

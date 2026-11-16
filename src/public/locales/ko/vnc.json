@@ -27,6 +27,8 @@
   "chooseDefault": "시스템 기본 VNC로 설정",
   "askEachTime": "매번 묻기",
   "openVnc": "VNC 열기",
+  "thisAppVnc": "이 앱의 VNC",
+  "systemDefaultVnc": "시스템 기본 VNC",
   "chooseClient": "VNC 클라이언트 선택",
   "justOnce": "이번만",
   "always": "항상"

@@ -56,3 +56,28 @@ export function pointerPosition(
 }
 export const pointerButtons = (dom: number) =>
   (dom & 1) | ((dom & 2) << 1) | ((dom & 4) >> 1);
+
+// RFB wheels are discrete button pulses. Start a gesture immediately, then
+// accumulate fractional trackpad motion before sending another notch.
+export function wheelPulseFilter() {
+  let lastTime = -Infinity;
+  let lastButton = 0;
+  let pixels = 0;
+  return (dx: number, dy: number, mode: number, time: number) => {
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const delta = horizontal ? dx : dy;
+    if (!delta) return 0;
+    const button = horizontal ? (delta < 0 ? 32 : 64) : (delta < 0 ? 8 : 16);
+    const first = time - lastTime > 150 || button !== lastButton;
+    lastTime = time;
+    lastButton = button;
+    if (first || mode !== 0) {
+      pixels = 0;
+      return button;
+    }
+    pixels += Math.abs(delta);
+    if (pixels < 50) return 0;
+    pixels %= 50;
+    return button;
+  };
+}

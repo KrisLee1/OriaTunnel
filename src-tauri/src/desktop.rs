@@ -589,9 +589,8 @@ pub fn launch_endpoint() -> Result<Option<crate::vnc::Endpoint>, String> {
 }
 pub fn acquire(
     directory: &Path,
-    app: tauri::AppHandle,
-    endpoint: Option<&crate::vnc::Endpoint>,
-) -> std::io::Result<Option<Instance>> {
+    targets: &[crate::vnc::Endpoint],
+) -> std::io::Result<Option<(Instance, TcpListener)>> {
     std::fs::create_dir_all(directory)?;
     let file = OpenOptions::new()
         .create(true)
@@ -614,13 +613,21 @@ pub fn acquire(
                         &([127, 0, 0, 1], port).into(),
                         Duration::from_millis(100),
                     ) {
-                        if let Some(target) = endpoint {
-                            let data = format!("vnc://{}", target.address());
-                            stream.write_all(b"vnc:")?;
-                            stream.write_all(&(data.len() as u16).to_be_bytes())?;
-                            stream.write_all(data.as_bytes())?;
-                        } else {
+                        if targets.is_empty() {
                             stream.write_all(b"show")?;
+                        } else {
+                            for (index, target) in targets.iter().enumerate() {
+                                if index > 0 {
+                                    stream = TcpStream::connect_timeout(
+                                        &([127, 0, 0, 1], port).into(),
+                                        Duration::from_millis(100),
+                                    )?;
+                                }
+                                let data = format!("vnc://{}", target.address());
+                                stream.write_all(b"vnc:")?;
+                                stream.write_all(&(data.len() as u16).to_be_bytes())?;
+                                stream.write_all(data.as_bytes())?;
+                            }
                         }
                         return Ok(None);
                     }
@@ -636,6 +643,12 @@ pub fn acquire(
     }
     let listener = TcpListener::bind("127.0.0.1:0")?;
     std::fs::write(&rendezvous, listener.local_addr()?.port().to_string())?;
+    Ok(Some((Instance { _file: file }, listener)))
+}
+
+// Bind early so a concurrent launch can enqueue a connection. Only dispatch
+// it once the owning instance has installed the application and viewer state.
+pub fn listen(listener: TcpListener, app: tauri::AppHandle) {
     std::thread::spawn(move || {
         for mut stream in listener.incoming().flatten() {
             let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
@@ -669,7 +682,6 @@ pub fn acquire(
             }
         }
     });
-    Ok(Some(Instance { _file: file }))
 }
 pub fn install_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let snapshot = crate::app::state(app).snapshot();

@@ -103,6 +103,8 @@ export class VncFramebuffer {
       this.present();
     }
     this.partial = partial;
+    const words = new Uint32Array(image.data.buffer);
+    let coalesce = false;
     let offset = 1;
     while (offset < data.byteLength) {
       const kind = view.getUint8(offset);
@@ -112,23 +114,53 @@ export class VncFramebuffer {
       const h = view.getUint16(offset + 7);
       offset += 9;
       if (kind === 2 || kind === 11) {
-        const words = new Uint32Array(image.data.buffer);
         // The packed rectangle header need not end on a four-byte boundary.
         // On our little-endian desktop targets RGBX -> RGBA is one word write.
+        if (kind === 2 && w === image.width) {
+          const length = w * h * 4;
+          image.data.set(new Uint8Array(data, offset, length), y * w * 4);
+          offset += length;
+        } else
+          for (let row = 0; row < h; row++) {
+            const start = (y + row) * image.width + x;
+            if (kind === 2 && w <= 64) {
+              for (let i = 0; i < w; i++, offset += 4)
+                words[start + i] = view.getUint32(offset, true);
+            } else if (kind === 11) {
+              for (let i = 0; i < w; i++, offset += 4)
+                words[start + i] = view.getUint32(offset, true) | 0xff000000;
+            } else {
+              image.data.set(new Uint8Array(data, offset, w * 4), start * 4);
+              offset += w * 4;
+            }
+          }
+      } else if (kind === 13) {
+        coalesce = true;
+        // Two-color ZRLE tiles are common in text. Each row starts on a byte.
+        const bg = view.getUint32(offset, true);
+        const fg = view.getUint32(offset + 4, true);
+        offset += 8;
+        for (let row = 0; row < h; row++) {
+          let dst = (y + row) * image.width + x;
+          for (let column = 0; column < w; column += 8) {
+            const bits = view.getUint8(offset++);
+            const end = dst + Math.min(8, w - column);
+            for (let mask = 128; dst < end; mask >>= 1)
+              words[dst++] = bits & mask ? fg : bg;
+          }
+        }
+      } else if (kind === 12) {
+        coalesce = true;
+        const color = view.getUint32(offset, true);
+        offset += 4;
         for (let row = 0; row < h; row++) {
           const start = (y + row) * image.width + x;
-          if (kind === 11) {
-            for (let i = 0; i < w; i++, offset += 4)
-              words[start + i] = view.getUint32(offset, true) | 0xff000000;
-          } else {
-            image.data.set(new Uint8Array(data, offset, w * 4), start * 4);
-            offset += w * 4;
-          }
+          words.fill(color, start, start + w);
         }
       } else if (kind === 3) {
         const sx = view.getUint16(offset),
           sy = view.getUint16(offset + 2);
-        const words = new Uint32Array(image.data.buffer);
+        coalesce = true;
         // Copy bottom-up for downward moves; copyWithin handles horizontal overlap.
         if (w === image.width) {
           words.copyWithin(y * w, sy * w, (sy + h) * w);
@@ -154,8 +186,12 @@ export class VncFramebuffer {
     }
     if (!this.partial) {
       this.ready = true;
-      if (this.mode === "quality") this.present();
-      else if (this.scheduled === null) {
+      // Scroll and tiled desktop updates can outpace the display. Apply the
+      // patches in order and upload the latest completed image at vsync.
+      if (this.mode === "quality" && !coalesce) {
+        this.cancelPresent();
+        this.present();
+      } else if (this.scheduled === null) {
         this.scheduled = requestAnimationFrame(() => {
           this.scheduled = null;
           this.present();
@@ -190,7 +226,7 @@ export class VncFramebuffer {
       height = image.height;
     }
     // Keep very large zoom levels within the native decoder's canvas budget.
-    if (width * height > 4096 ** 2 || Math.max(width, height) > 16384) {
+    if (width * height > 32 * 1024 * 1024 || Math.max(width, height) > 16384) {
       width = image.width;
       height = image.height;
     }
@@ -203,7 +239,7 @@ export class VncFramebuffer {
     }
     if (!dirty) return;
     this.damage = null;
-    const upload = (target: CanvasRenderingContext2D) =>
+    const upload = (target: CanvasRenderingContext2D) => {
       target.putImageData(
         image,
         0,
@@ -213,6 +249,7 @@ export class VncFramebuffer {
         dirty.right - dirty.left,
         dirty.bottom - dirty.top,
       );
+    };
     if (width === image.width && height === image.height) {
       upload(ctx);
       return;

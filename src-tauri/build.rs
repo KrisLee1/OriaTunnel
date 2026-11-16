@@ -1,4 +1,12 @@
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        let source = "src/macos_fullscreen.m";
+        println!("cargo:rerun-if-changed={source}");
+        cc::Build::new()
+            .file(source)
+            .flag("-fobjc-arc")
+            .compile("macos_fullscreen");
+    }
     // Use the linker as the single manifest owner for every Windows executable.
     // Tauri's resource manifest otherwise only reaches the app binary, leaving
     // tests/examples unable to load TaskDialogIndirect from Common Controls v6.

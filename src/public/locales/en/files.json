@@ -29,6 +29,7 @@
   "replace": "Replace files",
   "verifyHost": "Verify host fingerprint",
   "trust": "Trust and connect",
+  "credentialsRequired": "Waiting for a password or passphrase",
   "authentication": "Authentication",
   "rename": "Rename",
   "mkdir": "New folder",

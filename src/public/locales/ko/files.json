@@ -29,6 +29,7 @@
   "replace": "파일 바꾸기",
   "verifyHost": "호스트 지문 확인",
   "trust": "신뢰하고 연결",
+  "credentialsRequired": "암호 또는 암호문 입력 대기 중",
   "authentication": "인증",
   "rename": "이름 바꾸기",
   "mkdir": "새 폴더",

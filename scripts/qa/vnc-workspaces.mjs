@@ -443,10 +443,11 @@ try {
     await main.command("Page.bringToFront", {});
     await main.evaluate(card + ".click()");
     await until(
-      () => main.evaluate(radio("system") + "?.checked"),
-      "system client preselected",
+      () => main.evaluate(radio("internal") + "?.checked"),
+      "in-app VNC client preselected",
     );
-    await hit(main, radio("internal"), "internal VNC client");
+    assert.equal(await main.evaluate(radio("internal") + ".labels[0].textContent"), "此应用 VNC");
+    assert.equal(await main.evaluate(radio("system") + ".labels[0].textContent"), "系统默认 VNC");
     if (duration === "此次") await captureChoice(q(dialog), "client-dialog");
     await clickText(main, dialog + " button", duration);
   }

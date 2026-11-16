@@ -27,6 +27,8 @@
   "chooseDefault": "Définir comme client VNC par défaut du système",
   "askEachTime": "Demander à chaque fois",
   "openVnc": "Ouvrir VNC",
+  "thisAppVnc": "VNC de cette application",
+  "systemDefaultVnc": "VNC par défaut du système",
   "chooseClient": "Choisir un client VNC",
   "justOnce": "Cette fois",
   "always": "Toujours"

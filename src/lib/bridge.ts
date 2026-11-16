@@ -44,7 +44,8 @@ export const snapshot = () =>
         sourceFiles: [],
         autoSyncHosts: true,
         activity: [],
-        undoCount: 0,
+        hostUndoCount: 0,
+        forwardUndoCount: 0,
         autostart: false,
         autostartSupported: false,
       });
@@ -90,15 +91,18 @@ export const deleteRule = (id: string) =>
   invoke<Snapshot>("delete_rule", { id });
 export const deleteRules = (ids: string[]) =>
   invoke<Snapshot>("delete_rules", { ids });
-export const deleteHost = (id: string, expectedRuleIds: string[]) =>
-  invoke<Snapshot>("delete_host", { id, expectedRuleIds });
+export const hostHasActiveWork = (id: string) =>
+  invoke<boolean>("host_has_active_work", { id });
+export const deleteHost = (id: string, expectedRuleIds: string[], stopActive: boolean) =>
+  invoke<Snapshot>("delete_host", { id, expectedRuleIds, stopActive });
 export const hideHost = (id: string, hidden: boolean) =>
   invoke<Snapshot>("hide_host", { id, hidden });
 export const setCloseToTray = (enabled: boolean) =>
   invoke<Snapshot>("set_close_to_tray", { enabled });
 export const showMainWindow = () => invoke<void>("show_main_window");
 export const quitApp = () => invoke<void>("quit_app");
-export const undoDelete = () => invoke<Snapshot>("undo_delete");
+export const undoDelete = (kind: "host" | "forward") =>
+  invoke<Snapshot>("undo_delete", { kind });
 export const setAutostart = (enabled: boolean) =>
   invoke<Snapshot>("set_autostart", { enabled });
 export const startBatch = (

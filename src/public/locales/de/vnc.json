@@ -27,6 +27,8 @@
   "chooseDefault": "Als Systemstandard für VNC festlegen",
   "askEachTime": "Jedes Mal fragen",
   "openVnc": "VNC öffnen",
+  "thisAppVnc": "VNC in dieser App",
+  "systemDefaultVnc": "VNC-Systemstandard",
   "chooseClient": "VNC-Client auswählen",
   "justOnce": "Nur dieses Mal",
   "always": "Immer"

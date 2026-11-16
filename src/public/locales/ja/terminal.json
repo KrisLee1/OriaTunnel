@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "接続中",
+    "credentialsRequired": "パスワードまたはパスフレーズの入力待ち",
     "authenticating": "認証中",
     "verifying-host": "フィンガープリントの確認待ち",
     "opening-pty": "PTY を要求中",

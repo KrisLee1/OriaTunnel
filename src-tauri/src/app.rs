@@ -41,9 +41,29 @@ struct DeletedHost {
     snapshot: Option<Host>,
     hidden: bool,
 }
-struct DeletedEntry {
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeletionKind {
+    Host,
+    Forward,
+}
+
+struct DeletedForwards {
     rules: Vec<Rule>,
-    host: Option<DeletedHost>,
+    removed_hosts: BTreeSet<String>,
+}
+
+#[derive(Default)]
+struct DeletionHistory {
+    hosts: Vec<(DeletedHost, Vec<Rule>)>,
+    forwards: Vec<DeletedForwards>,
+}
+
+fn remember_deletion<T>(history: &mut Vec<T>, entry: T) {
+    history.push(entry);
+    if history.len() > 20 {
+        history.remove(0);
+    }
 }
 #[derive(Default)]
 struct LoginCredentials {
@@ -73,7 +93,7 @@ pub struct AppState {
     generations: Mutex<BTreeMap<String, String>>,
     wake: tokio::sync::watch::Sender<u64>,
     activity: Mutex<crate::activity::Activity>,
-    deleted: Mutex<Vec<DeletedEntry>>,
+    deleted: Mutex<DeletionHistory>,
     import: Mutex<Option<PendingImport>>,
     autostart: Mutex<Result<bool, String>>,
     power_missing: std::sync::atomic::AtomicBool,
@@ -158,7 +178,7 @@ impl AppState {
             revision: 0.into(),
             activity: Mutex::new(crate::activity::Activity::open(path.with_file_name("logs"))),
             wake: tokio::sync::watch::channel(0).0,
-            deleted: Mutex::new(Vec::new()),
+            deleted: Mutex::default(),
             import: Mutex::new(None),
             autostart: Mutex::new(crate::long_running::read()),
             power_missing: false.into(),
@@ -475,6 +495,7 @@ impl AppState {
                 }
             }
         }
+        let deleted = self.deleted.lock().unwrap();
         Snapshot {
             services: config.services.clone(),
             hosts,
@@ -500,7 +521,8 @@ impl AppState {
             source_files: config.source_files.clone(),
             auto_sync_hosts: config.auto_sync_hosts,
             activity: self.activity.lock().unwrap().records(),
-            undo_count: self.deleted.lock().unwrap().len(),
+            host_undo_count: deleted.hosts.len(),
+            forward_undo_count: deleted.forwards.len(),
             autostart: startup.as_ref().copied().unwrap_or(false),
             autostart_supported: crate::long_running::AUTOSTART_SUPPORTED,
             autostart_error: startup.err(),
@@ -774,13 +796,6 @@ impl AppState {
     fn remove_rule(&self, id: &str) -> Result<(), String> {
         self.remove_rules(&[id.to_string()])
     }
-    fn remember_deletion(&self, entry: DeletedEntry) {
-        let mut deleted = self.deleted.lock().unwrap();
-        deleted.push(entry);
-        if deleted.len() > 20 {
-            deleted.remove(0);
-        }
-    }
     fn remove_rules(&self, ids: &[String]) -> Result<(), String> {
         let ids: std::collections::BTreeSet<_> = ids.iter().collect();
         if ids.is_empty() {
@@ -800,36 +815,28 @@ impl AppState {
         next.rules.retain(|r| !ids.contains(&r.id));
         self.persist(&next)?;
         *c = next;
-        self.remember_deletion(DeletedEntry {
-            rules: removed,
-            host: None,
-        });
+        remember_deletion(
+            &mut self.deleted.lock().unwrap().forwards,
+            DeletedForwards {
+                rules: removed,
+                removed_hosts: BTreeSet::new(),
+            },
+        );
         Ok(())
     }
-    fn remove_host(&self, id: &str, expected_rule_ids: &[String]) -> Result<Vec<String>, String> {
-        if self.files.busy_host(id) {
-            return Err("hostUsedByFiles".into());
-        }
-        if self
-            .commands
-            .list()
-            .iter()
-            .any(|r| r.active() && r.route_host_ids.iter().any(|h| h == id))
-        {
-            return Err("hostUsedByService".into());
-        }
-        if self
-            .terminals
-            .list()
-            .iter()
-            .any(|session| session.active() && session.route_host_ids.iter().any(|used| used == id))
-        {
-            return Err("hostUsedByTerminal".into());
-        }
-        let mut c = self.config.lock().unwrap();
+    fn deletion_hosts(&self, config: &Config) -> Vec<Host> {
         let mut hosts = self.discovery.lock().unwrap().hosts.clone();
-        hosts.extend(c.hosts.clone());
-        hosts.extend(c.host_snapshots.values().cloned());
+        hosts.extend(config.hosts.iter().cloned());
+        hosts.extend(config.host_snapshots.values().cloned());
+        hosts
+    }
+    fn host_rules_for_deletion(
+        &self,
+        c: &Config,
+        id: &str,
+        hosts: &[Host],
+        expected_rule_ids: &[String],
+    ) -> Result<Vec<Rule>, String> {
         if hosts.iter().any(|host| {
             host.id != id
                 && (c.hosts.iter().any(|saved| saved.id == host.id)
@@ -839,11 +846,106 @@ impl AppState {
                         host_id: host.id.clone(),
                         ..Default::default()
                     },
-                    &hosts,
+                    hosts,
                     id,
                 )
         }) {
             return Err(crate::native_message::plain("hostJumpInUse"));
+        }
+        let rules: Vec<_> = c
+            .rules
+            .iter()
+            .filter(|r| rule_uses_host(r, hosts, id))
+            .cloned()
+            .collect();
+        let ids: Vec<_> = rules.iter().map(|r| r.id.clone()).collect();
+        if ids.iter().collect::<std::collections::BTreeSet<_>>()
+            != expected_rule_ids.iter().collect()
+        {
+            return Err(crate::native_message::plain("hostRulesChanged"));
+        }
+        if !c.hosts.iter().any(|h| h.id == id)
+            && !c.host_metadata.contains_key(id)
+            && rules.is_empty()
+        {
+            return Err(crate::native_message::plain("hostNotAdded"));
+        }
+        Ok(rules)
+    }
+
+    async fn stop_host_work(&self, id: &str, expected_rule_ids: &[String]) -> Result<(), String> {
+        // Validate the user's confirmation before stopping anything, and recheck
+        // the dependency list in remove_host before persisting the deletion.
+        let mut workers = self.workers.lock().await;
+        {
+            let config = self.config.lock().unwrap();
+            self.host_rules_for_deletion(
+                &config,
+                id,
+                &self.deletion_hosts(&config),
+                expected_rule_ids,
+            )?;
+        }
+        self.files.stop_host_transfers(id).await?;
+        for sid in self.files.host_activity(id).0 {
+            file_api::disconnect(self, &sid);
+        }
+        let mut joins = Vec::new();
+        for run in self
+            .commands
+            .list()
+            .into_iter()
+            .filter(|r| r.active() && r.route_host_ids.iter().any(|h| h == id))
+        {
+            self.commands.cancel(&run.id)?;
+            if let Some(join) = self.command_workers.lock().await.remove(&run.id) {
+                joins.push(join);
+            }
+        }
+        for session in self
+            .terminals
+            .list()
+            .into_iter()
+            .filter(|s| s.active() && s.route_host_ids.iter().any(|h| h == id))
+        {
+            self.terminals.cancel(&session.id, &session.client_id)?;
+            if let Some(join) = self.terminal_workers.lock().await.remove(&session.id) {
+                joins.push(join);
+            }
+        }
+        clear_deleted_sessions(self, &mut workers, &[format!("host-test:{id}")]).await;
+        // Service workflows can acquire the worker lock while unwinding.
+        drop(workers);
+        for job in joins {
+            job.await.map_err(|_| "cleanupFailed".to_string())?;
+        }
+        Ok(())
+    }
+    fn host_busy_reason(&self, id: &str) -> Option<&'static str> {
+        if self.files.busy_host(id) {
+            return Some("hostUsedByFiles");
+        }
+        if self
+            .commands
+            .list()
+            .iter()
+            .any(|r| r.active() && r.route_host_ids.iter().any(|h| h == id))
+        {
+            return Some("hostUsedByService");
+        }
+        if self
+            .terminals
+            .list()
+            .iter()
+            .any(|session| session.active() && session.route_host_ids.iter().any(|used| used == id))
+        {
+            return Some("hostUsedByTerminal");
+        }
+        None
+    }
+    fn remove_host(&self, id: &str, expected_rule_ids: &[String]) -> Result<Vec<String>, String> {
+        if let Some(reason) = self.host_busy_reason(id) {
+            return Err(reason.into());
         }
         if self
             .runtimes
@@ -859,24 +961,10 @@ impl AppState {
         {
             return Err(crate::native_message::plain("hostTestRunning"));
         }
-        let rules: Vec<_> = c
-            .rules
-            .iter()
-            .filter(|r| rule_uses_host(r, &hosts, id))
-            .cloned()
-            .collect();
+        let mut c = self.config.lock().unwrap();
+        let hosts = self.deletion_hosts(&c);
+        let rules = self.host_rules_for_deletion(&c, id, &hosts, expected_rule_ids)?;
         let ids: Vec<_> = rules.iter().map(|r| r.id.clone()).collect();
-        if ids.iter().collect::<std::collections::BTreeSet<_>>()
-            != expected_rule_ids.iter().collect()
-        {
-            return Err(crate::native_message::plain("hostRulesChanged"));
-        }
-        if !c.hosts.iter().any(|h| h.id == id)
-            && !c.host_metadata.contains_key(id)
-            && rules.is_empty()
-        {
-            return Err(crate::native_message::plain("hostNotAdded"));
-        }
         let host = DeletedHost {
             id: id.into(),
             manual: c.hosts.iter().find(|h| h.id == id).cloned(),
@@ -892,27 +980,48 @@ impl AppState {
         next.hidden_hosts.retain(|host_id| host_id != id);
         self.persist(&next)?;
         *c = next;
-        self.remember_deletion(DeletedEntry {
-            rules,
-            host: Some(host),
-        });
+        let mut deleted = self.deleted.lock().unwrap();
+        for batch in &mut deleted.forwards {
+            if batch
+                .rules
+                .iter()
+                .any(|rule| rule_uses_host(rule, &hosts, id))
+            {
+                batch.removed_hosts.insert(id.to_owned());
+            }
+        }
+        remember_deletion(&mut deleted.hosts, (host, rules));
         Ok(ids)
     }
-    fn restore_rule(&self) -> Result<(), String> {
+    fn restore_deletion(&self, kind: DeletionKind) -> Result<(), String> {
         let mut config = self.config.lock().unwrap();
         let mut deleted = self.deleted.lock().unwrap();
-        let entry = deleted
-            .last()
-            .ok_or(crate::native_message::plain("nothingToUndo"))?;
+        let empty = || crate::native_message::plain("nothingToUndo");
+        let (host, rules) = match kind {
+            DeletionKind::Host => {
+                let (host, rules) = deleted.hosts.last().ok_or_else(empty)?;
+                (Some(host), rules)
+            }
+            DeletionKind::Forward => {
+                let batch = deleted.forwards.last().ok_or_else(empty)?;
+                if batch.removed_hosts.iter().any(|id| {
+                    !config.hosts.iter().any(|h| &h.id == id)
+                        && !config.host_metadata.contains_key(id)
+                }) {
+                    return Err(crate::native_message::plain("restoreForwardHostFirst"));
+                }
+                (None, &batch.rules)
+            }
+        };
         if config
             .rules
             .iter()
-            .any(|r| entry.rules.iter().any(|old| old.id == r.id))
+            .any(|r| rules.iter().any(|old| old.id == r.id))
         {
             return Err(crate::native_message::plain("ruleIdUsed"));
         }
         let mut next = config.clone();
-        if let Some(host) = &entry.host {
+        if let Some(host) = host {
             if next.hosts.iter().any(|h| h.id == host.id)
                 || next.host_metadata.contains_key(&host.id)
             {
@@ -932,14 +1041,23 @@ impl AppState {
                 next.hidden_hosts.push(host.id.clone());
             }
         }
-        next.rules
-            .extend(entry.rules.iter().cloned().map(|mut rule| {
-                rule.auto_connect = false;
-                rule
-            }));
+        next.rules.extend(rules.iter().cloned().map(|mut rule| {
+            rule.auto_connect = false;
+            rule
+        }));
         self.persist(&next)?;
         *config = next;
-        deleted.pop();
+        match kind {
+            DeletionKind::Host => {
+                let (host, _) = deleted.hosts.pop().unwrap();
+                for batch in &mut deleted.forwards {
+                    batch.removed_hosts.remove(&host.id);
+                }
+            }
+            DeletionKind::Forward => {
+                deleted.forwards.pop();
+            }
+        }
         Ok(())
     }
     fn reconcile_hosts(&self, mut next: ssh_config::Discovery) -> Result<bool, String> {
@@ -1230,13 +1348,17 @@ pub struct PasswordStatus {
 #[tauri::command]
 pub fn password_status(
     state: tauri::State<Arc<AppState>>,
+    window: tauri::WebviewWindow,
     ids: Vec<String>,
-) -> Vec<PasswordStatus> {
-    state
-        .snapshot()
+) -> Result<Vec<PasswordStatus>, String> {
+    let scope = crate::workspace::scope(&window)?;
+    let snapshot = state.snapshot();
+    Ok(snapshot
         .hosts
         .iter()
-        .filter(|h| ids.contains(&h.id))
+        .filter(|h| {
+            ids.contains(&h.id) && (scope.main() || snapshot.added_host_ids.contains(&h.id))
+        })
         .map(|host| {
             let result = state.vault.read(host);
             PasswordStatus {
@@ -1253,15 +1375,20 @@ pub fn password_status(
                 }),
             }
         })
-        .collect()
+        .collect())
 }
 #[tauri::command]
-pub fn clear_password(state: tauri::State<Arc<AppState>>, id: String) -> Result<(), String> {
-    let host = state
-        .snapshot()
+pub fn clear_password(
+    state: tauri::State<Arc<AppState>>,
+    window: tauri::WebviewWindow,
+    id: String,
+) -> Result<(), String> {
+    let scope = crate::workspace::scope(&window)?;
+    let snapshot = state.snapshot();
+    let host = snapshot
         .hosts
         .into_iter()
-        .find(|h| h.id == id)
+        .find(|h| h.id == id && (scope.main() || snapshot.added_host_ids.contains(&id)))
         .ok_or(crate::native_message::plain("hostMissing"))?;
     state.vault.forget(&host)?;
     state.credential_errors.lock().unwrap().remove(&id);
@@ -1666,8 +1793,16 @@ pub async fn open_host_service(
     internal_vnc: bool,
 ) -> Result<(), String> {
     let snapshot = state.snapshot();
-    let service = snapshot.services.iter().find(|s| s.id == service_id).ok_or("serviceMissing")?;
-    if service.revision != revision || service.direct_protocol.is_some_and(|saved| saved != protocol) {
+    let service = snapshot
+        .services
+        .iter()
+        .find(|s| s.id == service_id)
+        .ok_or("serviceMissing")?;
+    if service.revision != revision
+        || service
+            .direct_protocol
+            .is_some_and(|saved| saved != protocol)
+    {
         return Err("staleAction".into());
     }
     let (_, host) = service.execution_target(&snapshot, None, Some(&host_id))?;
@@ -1798,12 +1933,20 @@ pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 #[tauri::command]
+pub fn host_has_active_work(state: tauri::State<Arc<AppState>>, id: String) -> bool {
+    state.host_busy_reason(&id).is_some()
+}
+#[tauri::command]
 pub async fn delete_host(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
     id: String,
     expected_rule_ids: Vec<String>,
+    stop_active: Option<bool>,
 ) -> Result<Snapshot, String> {
+    if stop_active == Some(true) {
+        state.stop_host_work(&id, &expected_rule_ids).await?;
+    }
     let mut workers = state.workers.lock().await;
     let mut ids = state.remove_host(&id, &expected_rule_ids)?;
     ids.push(format!("host-test:{id}"));
@@ -1880,10 +2023,11 @@ async fn clear_deleted_sessions(
 }
 #[tauri::command]
 pub fn undo_delete(
+    kind: DeletionKind,
     state: tauri::State<Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<Snapshot, String> {
-    state.restore_rule()?;
+    state.restore_deletion(kind)?;
     state.publish(&app);
     Ok(state.snapshot())
 }
@@ -2108,26 +2252,26 @@ mod tests {
             .collect();
         assert!(state.remove_rules(&["a".into(), "missing".into()]).is_err());
         assert_eq!(state.snapshot().rules.len(), 3);
-        assert_eq!(state.snapshot().undo_count, 0);
+        assert_eq!(state.snapshot().forward_undo_count, 0);
         std::fs::create_dir(state.path.with_extension("tmp")).unwrap();
         assert!(state.remove_rules(&["a".into(), "b".into()]).is_err());
         assert_eq!(state.snapshot().rules.len(), 3);
-        assert_eq!(state.snapshot().undo_count, 0);
+        assert_eq!(state.snapshot().forward_undo_count, 0);
         std::fs::remove_dir(state.path.with_extension("tmp")).unwrap();
         state
             .remove_rules(&["a".into(), "b".into(), "a".into()])
             .unwrap();
         assert_eq!(state.snapshot().rules.len(), 1);
         assert_eq!(state.snapshot().rules[0].id, "keep");
-        assert_eq!(state.snapshot().undo_count, 1);
+        assert_eq!(state.snapshot().forward_undo_count, 1);
         state.config.lock().unwrap().rules.push(Rule {
             id: "a".into(),
             ..Default::default()
         });
-        assert!(state.restore_rule().is_err());
-        assert_eq!(state.snapshot().undo_count, 1);
+        assert!(state.restore_deletion(DeletionKind::Forward).is_err());
+        assert_eq!(state.snapshot().forward_undo_count, 1);
         state.config.lock().unwrap().rules.retain(|r| r.id != "a");
-        state.restore_rule().unwrap();
+        state.restore_deletion(DeletionKind::Forward).unwrap();
         assert_eq!(state.snapshot().rules.len(), 3);
         assert!(state
             .snapshot()
@@ -2144,8 +2288,98 @@ mod tests {
                 .unwrap()
                 .auto_connect
         );
-        assert_eq!(state.snapshot().undo_count, 0);
+        assert_eq!(state.snapshot().forward_undo_count, 0);
     }
+    #[test]
+    fn undo_histories_keep_cascades_and_individual_forward_deletions_separate() {
+        let dir = tempfile::tempdir().unwrap();
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap();
+        let host = Host {
+            id: "host".into(),
+            ..Default::default()
+        };
+        {
+            let mut config = state.config.lock().unwrap();
+            config.hosts.push(host.clone());
+            for id in ["individual", "cascade"] {
+                config.rules.push(Rule {
+                    id: id.into(),
+                    host_id: host.id.clone(),
+                    auto_connect: true,
+                    ..Default::default()
+                });
+            }
+        }
+        state.remove_rule("individual").unwrap();
+        state.remove_host(&host.id, &["cascade".into()]).unwrap();
+        assert_eq!(
+            state.restore_deletion(DeletionKind::Forward).unwrap_err(),
+            crate::native_message::plain("restoreForwardHostFirst")
+        );
+        let deleted = state.snapshot();
+        assert_eq!(
+            (deleted.host_undo_count, deleted.forward_undo_count),
+            (1, 1)
+        );
+        assert!(deleted.rules.is_empty() && deleted.added_host_ids.is_empty());
+        state.restore_deletion(DeletionKind::Host).unwrap();
+        assert!(state.restore_deletion(DeletionKind::Host).is_err());
+        let restored = state.snapshot();
+        assert_eq!(
+            (restored.host_undo_count, restored.forward_undo_count),
+            (0, 1)
+        );
+        assert_eq!(restored.rules.len(), 1);
+        assert_eq!(restored.rules[0].id, "cascade");
+        state.restore_deletion(DeletionKind::Forward).unwrap();
+        assert!(state.restore_deletion(DeletionKind::Forward).is_err());
+        let restored = state.snapshot();
+        assert_eq!(restored.rules.len(), 2);
+        assert!(restored.rules.iter().all(|r| !r.auto_connect));
+    }
+
+    #[test]
+    fn forward_deletions_do_not_evict_or_restore_hosts() {
+        let dir = tempfile::tempdir().unwrap();
+        let state =
+            AppState::load_with_discovery(dir.path().join("connections.json"), Default::default())
+                .unwrap();
+        state.config.lock().unwrap().hosts.push(Host {
+            id: "host".into(),
+            ..Default::default()
+        });
+        state.remove_host("host", &[]).unwrap();
+        for n in 0..21 {
+            let id = format!("rule-{n}");
+            state.config.lock().unwrap().rules.push(Rule {
+                id: id.clone(),
+                ..Default::default()
+            });
+            state.remove_rule(&id).unwrap();
+        }
+        let deleted = state.snapshot();
+        assert_eq!(
+            (deleted.host_undo_count, deleted.forward_undo_count),
+            (1, 20)
+        );
+        state.restore_deletion(DeletionKind::Forward).unwrap();
+        assert_eq!(state.snapshot().rules[0].id, "rule-20");
+        assert!(state
+            .snapshot()
+            .added_host_ids
+            .iter()
+            .all(|id| id != "host"));
+        state.restore_deletion(DeletionKind::Host).unwrap();
+        let restored = state.snapshot();
+        assert!(restored.added_host_ids.iter().any(|id| id == "host"));
+        assert_eq!(
+            (restored.host_undo_count, restored.forward_undo_count),
+            (0, 19)
+        );
+    }
+
     #[tokio::test]
     async fn host_cascade_delete_checks_confirmation_and_cleans_only_related_sessions() {
         let dir = tempfile::tempdir().unwrap();
@@ -2180,7 +2414,7 @@ mod tests {
         assert!(state
             .remove_host("host", &["a".into(), "b".into()])
             .is_err());
-        assert_eq!(state.snapshot().undo_count, 0);
+        assert_eq!(state.snapshot().host_undo_count, 0);
         std::fs::remove_dir(state.path.with_extension("tmp")).unwrap();
         let mut tokens = Vec::new();
         for id in ["a", "b", "host-test:host", "keep"] {
@@ -2238,7 +2472,7 @@ mod tests {
         assert_eq!(state.trust.lock().unwrap().len(), 1);
         assert_eq!(state.snapshot().rules.len(), 1);
         assert_eq!(state.snapshot().hosts.len(), 1);
-        state.restore_rule().unwrap();
+        state.restore_deletion(DeletionKind::Host).unwrap();
         assert_eq!(state.snapshot().rules.len(), 3);
         assert_eq!(state.snapshot().hosts.len(), 2);
         assert!(state
@@ -2287,7 +2521,7 @@ mod tests {
         assert!(state.snapshot().added_host_ids.is_empty());
         assert!(state.snapshot().rules.is_empty());
         assert!(state.config.lock().unwrap().host_metadata.is_empty());
-        state.restore_rule().unwrap();
+        state.restore_deletion(DeletionKind::Host).unwrap();
         assert_eq!(state.snapshot().added_host_ids, vec![host.id.clone()]);
         assert_eq!(state.snapshot().hosts[0].name, "Added");
         assert!(!state.snapshot().rules[0].auto_connect);
@@ -2468,19 +2702,19 @@ mod tests {
         state.config.lock().unwrap().rules.push(rule.clone());
         state.remove_rule(&rule.id).unwrap();
         assert!(state.snapshot().rules.is_empty());
-        assert_eq!(state.snapshot().undo_count, 1);
+        assert_eq!(state.snapshot().forward_undo_count, 1);
         // Force an atomic-save failure with a directory at the temp path.
         std::fs::create_dir(state.path.with_extension("tmp")).unwrap();
-        assert!(state.restore_rule().is_err());
+        assert!(state.restore_deletion(DeletionKind::Forward).is_err());
         assert!(state.snapshot().rules.is_empty());
-        assert_eq!(state.snapshot().undo_count, 1);
+        assert_eq!(state.snapshot().forward_undo_count, 1);
         std::fs::remove_dir(state.path.with_extension("tmp")).unwrap();
-        state.restore_rule().unwrap();
+        state.restore_deletion(DeletionKind::Forward).unwrap();
         let restored = state.snapshot();
         assert_eq!(restored.rules.len(), 1);
         assert_eq!(restored.rules[0].id, rule.id);
         assert!(!restored.rules[0].auto_connect);
-        assert_eq!(restored.undo_count, 0);
+        assert_eq!(restored.forward_undo_count, 0);
         assert!(restored.runtimes.is_empty());
         assert!(state.workers.try_lock().unwrap().is_empty());
         let reloaded =

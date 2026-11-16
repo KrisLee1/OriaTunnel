@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "Verbindungsaufbau",
+    "credentialsRequired": "Warten auf Passwort oder Passphrase",
     "authenticating": "Authentifizierung",
     "verifying-host": "Fingerabdruck prüfen",
     "opening-pty": "PTY wird angefordert",

@@ -1,8 +1,7 @@
 import { formatNativeMessage } from "@/lib/native-message";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { EyeIcon, EyeClosedIcon } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
@@ -27,7 +26,7 @@ export function AuthenticationField({
   actions?: ReactNode;
   hideLabel?: boolean;
 }) {
-  const { t } = useTranslation("tunnel");
+  const { t, i18n } = useTranslation("tunnel");
   const id = useId();
   const inputId = `${id}-password`;
   const identity = JSON.stringify([
@@ -36,9 +35,8 @@ export function AuthenticationField({
     host.port,
     host.user,
     host.authMethod,
+    i18n.language,
   ]);
-  const [revealedFor, setRevealedFor] = useState<string | null>(null);
-  const revealed = revealedFor === identity;
   const [status, setStatus] = useState<bridge.PasswordStatus>();
   const [error, setError] = useState("");
   const [clearing, setClearing] = useState(false);
@@ -50,7 +48,6 @@ export function AuthenticationField({
     lifetime.current += 1;
     setStatus(undefined);
     setError("");
-    setRevealedFor(null);
     if (eligible && bridge.desktop)
       void bridge
         .passwordStatus([host.id])
@@ -89,36 +86,13 @@ export function AuthenticationField({
               : "password",
           )}
         </Label>
-        <div className="relative">
-          <Input
-            id={inputId}
-            type={revealed ? "text" : "password"}
-            className="pr-10"
-            autoComplete="off"
-            value={value}
-            placeholder={
-              status?.saved ? t("savedPasswordPlaceholder") : undefined
-            }
-            onChange={(e) => onChange(e.target.value)}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute top-0.5 right-0.5 text-muted-foreground"
-            aria-label={t(revealed ? "hidePassword" : "showPassword")}
-            title={t(revealed ? "hidePassword" : "showPassword")}
-            aria-controls={inputId}
-            aria-pressed={revealed}
-            onClick={() => setRevealedFor(revealed ? null : identity)}
-          >
-            {revealed ? (
-              <EyeIcon aria-hidden="true" />
-            ) : (
-              <EyeClosedIcon aria-hidden="true" />
-            )}
-          </Button>
-        </div>
+        <PasswordInput
+          key={identity}
+          id={inputId}
+          value={value}
+          placeholder={status?.saved ? t("savedPasswordPlaceholder") : undefined}
+          onChange={(e) => onChange(e.target.value)}
+        />
       </div>
       {eligible && status?.supported && (
         <>

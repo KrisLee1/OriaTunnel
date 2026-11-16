@@ -6,9 +6,14 @@ import { LoaderCircleIcon, MonitorOffIcon, RotateCwIcon } from "lucide-react";
 import { PageEmptyState } from "@/components/page-empty-state";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { keysym, pointerButtons, pointerPosition } from "./input";
+import {
+  keysym,
+  pointerButtons,
+  pointerPosition,
+  wheelPulseFilter,
+} from "./input";
 import { UPDATE_END, UPDATE_PART, VncFramebuffer } from "./framebuffer";
 import { readVncPacket } from "./read-packet";
 import { readRenderMode, useVncDisplayPreferences } from "./display-preferences";
@@ -18,10 +23,15 @@ import "./desktop.css";
 
 type Action =
   | { type: "key"; keysym: number; down: boolean }
-  | { type: "pointer"; x: number; y: number; buttons: number }
+  | { type: "pointer"; x: number; y: number; buttons: number; wheel?: number }
   | { type: "paste"; text: string; controlHeld: boolean }
   | { type: "password"; password: string; remember: boolean };
-type Session = { id: string; queue: Action[]; sending: boolean; reader: AbortController };
+type Session = {
+  id: string;
+  queue: { action: Action; move: boolean }[];
+  sending: boolean;
+  reader: AbortController;
+};
 export function VncDesktop() {
   return (
     <VncWorkspaces>
@@ -47,12 +57,13 @@ function Desktop() {
   const [vaultAvailable, setVaultAvailable] = useState(false);
   const [savedPassword, setSavedPassword] = useState(false);
   const clipboard = useRef<string | null>(null);
-  const copyTimer = useRef<number | undefined>(undefined);
+  const pendingCopy = useRef<((text: string | null) => void) | null>(null);
   const pasteRequest = useRef(0);
   const [manualClipboard, setManualClipboard] = useState<
     "copy" | "paste" | null
   >(null);
   const held = useRef(new Map<string, number>());
+  const commandKeys = useRef(new Map<string, { key: number; used: boolean }>());
   const pointer = useRef({ x: 0, y: 0, buttons: 0 });
   const session = useRef<Session | null>(null);
   const attempt = useRef(0);
@@ -68,6 +79,7 @@ function Desktop() {
       void invoke("vnc_end", { id: current.id }).catch(() => {});
     }
     held.current.clear();
+    commandKeys.current.clear();
     pointer.current = { x: 0, y: 0, buttons: 0 };
     clipboard.current = null;
     cancelClipboard();
@@ -104,14 +116,10 @@ function Desktop() {
     const current = session.current;
     if (!current) return;
     const last = current.queue.at(-1);
-    if (
-      move &&
-      last?.type === "pointer" &&
-      action.type === "pointer" &&
-      last.buttons === action.buttons
-    )
-      current.queue[current.queue.length - 1] = action;
-    else current.queue.push(action);
+    // Only motion can replace motion. Preserve the original position of a
+    // button press even when the first drag movement is already queued.
+    if (move && last?.move) last.action = action;
+    else current.queue.push({ action, move });
     if (current.queue.length > 512) {
       stop();
       setError(t("inputOverflow"));
@@ -122,7 +130,7 @@ function Desktop() {
     void (async () => {
       try {
         while (current.queue.length && session.current === current) {
-          const next = current.queue.shift()!;
+          const next = current.queue.shift()!.action;
           await invoke("vnc_input", { id: current.id, action: next });
         }
       } catch (e) {
@@ -140,6 +148,7 @@ function Desktop() {
     for (const key of held.current.values())
       send({ type: "key", keysym: key, down: false });
     held.current.clear();
+    commandKeys.current.clear();
     if (pointer.current.buttons) {
       pointer.current.buttons = 0;
       send({ type: "pointer", ...pointer.current });
@@ -163,21 +172,19 @@ function Desktop() {
   useEffect(() => {
     const screen = canvas.current;
     if (!screen || phase !== "connected") return;
+    const nextWheelPulse = wheelPulseFilter();
     const wheel = (e: WheelEvent) => {
       if (document.activeElement !== screen) return;
       e.preventDefault();
+      const mask = nextWheelPulse(e.deltaX, e.deltaY, e.deltaMode, e.timeStamp);
+      if (!mask) return;
       const point = pointerPosition(screen, size, e.clientX, e.clientY);
-      const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
-      const delta = horizontal ? e.deltaX : e.deltaY;
-      if (!delta) return;
-      const button = horizontal ? 32 : 8;
-      const mask = delta < 0 ? button : button * 2;
       send({
         type: "pointer",
         ...point,
-        buttons: pointer.current.buttons | mask,
+        buttons: pointer.current.buttons,
+        wheel: mask,
       });
-      send({ type: "pointer", ...point, buttons: pointer.current.buttons });
     };
     // Chromium can deliver motion before its next paint. Keep button changes
     // on pointerdown/up and retain pointermove on other engines.
@@ -244,7 +251,7 @@ function Desktop() {
           if (type === 6) setError(text);
           else {
             clipboard.current = text;
-            if (copyTimer.current !== undefined) void finishCopy();
+            pendingCopy.current?.(text);
           }
           continue;
         }
@@ -280,26 +287,83 @@ function Desktop() {
   }
   const connected = phase === "connected";
   function cancelClipboard() {
-    window.clearTimeout(copyTimer.current);
-    copyTimer.current = undefined;
+    pendingCopy.current?.(null);
     pasteRequest.current++;
   }
-  async function finishCopy() {
-    window.clearTimeout(copyTimer.current);
-    copyTimer.current = undefined;
+  async function copySelection(mac: boolean) {
+    pendingCopy.current?.(null);
     const current = session.current;
-    const text = clipboard.current;
-    if (!current || text === null || document.activeElement !== canvas.current)
-      return;
+    if (!current) return;
+    // Servers either offer a selection ahead of time or after receiving Ctrl+C.
+    const text = new Promise<string | null>((resolve) => {
+      const timer = window.setTimeout(
+        () => pendingCopy.current?.(clipboard.current),
+        clipboard.current === null ? 5000 : 1000,
+      );
+      pendingCopy.current = (value) => {
+        window.clearTimeout(timer);
+        pendingCopy.current = null;
+        resolve(value);
+      };
+    });
     try {
-      await navigator.clipboard.writeText(text);
+      if (
+        mac &&
+        navigator.clipboard?.write &&
+        typeof ClipboardItem !== "undefined"
+      ) {
+        // WebKit needs the write during the gesture, before the RFB reply arrives.
+        const contents = text.then((value) => {
+          if (value === null) throw new DOMException("Cancelled", "AbortError");
+          return new Blob([value], { type: "text/plain" });
+        });
+        // If WebKit rejects the write immediately it may never consume this promise.
+        void contents.catch(() => {});
+        await navigator.clipboard.write([
+          new ClipboardItem({ "text/plain": contents }),
+        ]);
+      } else {
+        const value = await text;
+        if (value !== null) await navigator.clipboard.writeText(value);
+      }
     } catch {
       if (
-        session.current === current &&
+        (await text) !== null &&
+        current === session.current &&
         document.activeElement === canvas.current
       )
         setManualClipboard("copy");
     }
+  }
+  function releaseCommand() {
+    for (const command of commandKeys.current.values()) command.used = true;
+    // macOS can dispatch Copy/Paste through the Edit menu without a letter keyup.
+    for (const [code, key] of held.current) {
+      if (key === 0xffeb || key === 0xffec) {
+        held.current.delete(code);
+        send({ type: "key", keysym: key, down: false });
+      }
+    }
+  }
+  function forwardCommand() {
+    for (const [code, command] of commandKeys.current) {
+      command.used = true;
+      if (!held.current.has(code)) {
+        held.current.set(code, command.key);
+        send({ type: "key", keysym: command.key, down: true });
+      }
+    }
+  }
+  function macCopy() {
+    releaseCommand();
+    void copySelection(true);
+    for (const [key, down] of [
+      [0xffe3, true],
+      [99, true],
+      [99, false],
+      [0xffe3, false],
+    ] as const)
+      send({ type: "key", keysym: key, down });
   }
   function pasteText(text: string) {
     if (!text) return;
@@ -323,6 +387,28 @@ function Desktop() {
         setManualClipboard("paste");
     }
   }
+  useEffect(() => {
+    if (phase !== "connected" || !navigator.platform.includes("Mac")) return;
+    // WebKit targets Edit menu events at the selection, often the document
+    // body. Only enable or consume them while the remote canvas has focus.
+    function edit(event: Event) {
+      if (document.activeElement !== canvas.current) return;
+      event.preventDefault();
+      if (event.type === "copy") {
+        macCopy();
+      } else if (event.type === "paste") {
+        releaseCommand();
+        pasteText(
+          (event as ClipboardEvent).clipboardData?.getData("text/plain") ?? "",
+        );
+      }
+    }
+    const events = ["beforecopy", "beforepaste", "copy", "paste"];
+    for (const name of events) document.addEventListener(name, edit, true);
+    return () => {
+      for (const name of events) document.removeEventListener(name, edit, true);
+    };
+  }, [phase]);
   const gesture = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (document.activeElement !== e.currentTarget) return;
     const point = {
@@ -473,11 +559,9 @@ function Desktop() {
               {endpoint}
             </span>
           </div>
-          <Input
+          <PasswordInput
             id="vnc-password"
             autoFocus
-            type="password"
-            autoComplete="off"
             aria-describedby="vnc-password-target"
             ref={secret}
           />
@@ -517,6 +601,7 @@ function Desktop() {
           onPointerDown={(e) => {
             e.preventDefault();
             e.currentTarget.focus();
+            forwardCommand();
             e.currentTarget.setPointerCapture(e.pointerId);
             gesture(e);
           }}
@@ -529,11 +614,34 @@ function Desktop() {
             }
           }}
           onPaste={(e) => {
+            if (navigator.platform.includes("Mac")) return;
             e.preventDefault();
             pasteText(e.clipboardData.getData("text/plain"));
           }}
           onKeyDown={(e) => {
+            const mac = navigator.platform.includes("Mac");
+            const command = mac && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
+            if (command && e.key.toLowerCase() === "v") {
+              releaseCommand();
+              // Let WebKit dispatch the user's paste with its clipboardData.
+              // A separate readText() can prompt for text copied in another app.
+              if (e.repeat) e.preventDefault();
+              return;
+            }
             e.preventDefault();
+            if (mac && e.key === "Meta") {
+              if (!e.repeat)
+                commandKeys.current.set(e.code, {
+                  key: keysym(e.key, e.location)!,
+                  used: false,
+                });
+              return;
+            }
+            if (command && e.code === "KeyC") {
+              if (!e.repeat) macCopy();
+              return;
+            }
+            forwardCommand();
             if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
               if (e.code === "KeyV") {
                 if (!e.repeat) void paste();
@@ -541,22 +649,34 @@ function Desktop() {
               }
               if (e.code === "KeyC") {
                 if (e.repeat) return;
-                // Some servers offer a selection before Ctrl+C, others only after receiving it.
-                window.clearTimeout(copyTimer.current);
-                copyTimer.current = window.setTimeout(
-                  finishCopy,
-                  clipboard.current === null ? 5000 : 1000,
-                );
+                void copySelection(mac);
               }
             }
             const key = held.current.get(e.code) || keysym(e.key, e.location);
             if (key) {
-              held.current.set(e.code, key);
               send({ type: "key", keysym: key, down: true });
+              if (
+                mac &&
+                e.metaKey &&
+                !["Shift", "Control", "Alt"].includes(e.key)
+              ) {
+                // AppKit may omit letter keyup for a Command chord.
+                send({ type: "key", keysym: key, down: false });
+              } else {
+                held.current.set(e.code, key);
+              }
             }
           }}
           onKeyUp={(e) => {
             e.preventDefault();
+            const command = commandKeys.current.get(e.code);
+            if (command) {
+              if (!command.used) {
+                held.current.set(e.code, command.key);
+                send({ type: "key", keysym: command.key, down: true });
+              }
+              commandKeys.current.delete(e.code);
+            }
             const key = held.current.get(e.code);
             if (key) {
               held.current.delete(e.code);

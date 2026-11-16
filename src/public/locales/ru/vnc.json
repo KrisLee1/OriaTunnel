@@ -27,6 +27,8 @@
   "chooseDefault": "Назначить клиентом VNC по умолчанию",
   "askEachTime": "Спрашивать каждый раз",
   "openVnc": "Открыть VNC",
+  "thisAppVnc": "VNC в этом приложении",
+  "systemDefaultVnc": "Системный VNC по умолчанию",
   "chooseClient": "Выберите клиент VNC",
   "justOnce": "Только сейчас",
   "always": "Всегда"

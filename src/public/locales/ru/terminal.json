@@ -87,6 +87,7 @@
   },
   "phase": {
     "connecting": "Подключение",
+    "credentialsRequired": "Ожидание пароля или парольной фразы",
     "authenticating": "Аутентификация",
     "verifying-host": "Проверьте отпечаток",
     "opening-pty": "Запрос PTY",

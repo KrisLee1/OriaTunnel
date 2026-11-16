@@ -433,6 +433,8 @@ pub enum Action {
         x: u16,
         y: u16,
         buttons: u8,
+        #[serde(default)]
+        wheel: u8,
     },
     Password {
         password: String,
@@ -481,10 +483,19 @@ pub async fn vnc_input(
             Input::Clipboard { text, keys }
         }
         Action::Key { keysym, down } => Input::Wire(key_packet(keysym, down).into()),
-        Action::Pointer { x, y, buttons } => {
+        Action::Pointer {
+            x,
+            y,
+            buttons,
+            wheel,
+        } => {
             let mut data = vec![5, buttons];
             data.extend(x.to_be_bytes());
             data.extend(y.to_be_bytes());
+            if matches!(wheel, 8 | 16 | 32 | 64) {
+                data.extend_from_within(..);
+                data[1] |= wheel;
+            }
             Input::Wire(data)
         }
     };
@@ -527,17 +538,37 @@ pub fn launch(app: &AppHandle, url: &str, host_id: String, internal: bool) -> Re
 }
 
 fn open_default(app: &AppHandle, url: &str) -> Result<(), String> {
-    use tauri_plugin_shell::ShellExt;
     let failed = |detail: String| {
         crate::native_message::message("openVncFailed", serde_json::json!({ "e": detail }))
     };
-    #[cfg(windows)]
-    windows_protocol_handler(windows::core::w!("vnc"))
-        .map_err(|error| failed(error.to_string()))?;
-    #[allow(deprecated)]
-    app.shell()
-        .open(url, None)
-        .map_err(|e| failed(e.to_string()))
+    #[cfg(target_os = "macos")]
+    {
+        // The detached shell launcher only reports whether /usr/bin/open spawned.
+        // Wait for Launch Services to accept or reject the URL.
+        let _ = app;
+        let result = std::process::Command::new("/usr/bin/open")
+            .arg(url)
+            .output()
+            .map_err(|error| failed(error.to_string()))?;
+        if result.status.success() {
+            Ok(())
+        } else {
+            Err(failed(
+                String::from_utf8_lossy(&result.stderr).trim().into(),
+            ))
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri_plugin_shell::ShellExt;
+        #[cfg(windows)]
+        windows_protocol_handler(windows::core::w!("vnc"))
+            .map_err(|error| failed(error.to_string()))?;
+        #[allow(deprecated)]
+        app.shell()
+            .open(url, None)
+            .map_err(|e| failed(e.to_string()))
+    }
 }
 
 #[cfg(windows)]
@@ -569,7 +600,7 @@ fn windows_protocol_handler(scheme: windows::core::PCWSTR) -> windows::core::Res
 }
 
 #[tauri::command]
-pub fn choose_default_vnc(app: AppHandle) -> Result<(), String> {
+pub async fn choose_default_vnc(app: AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     {
         use tauri_plugin_shell::ShellExt;
@@ -580,31 +611,65 @@ pub fn choose_default_vnc(app: AppHandle) -> Result<(), String> {
     }
     #[cfg(target_os = "macos")]
     {
-        use objc2_foundation::NSString;
-        #[link(name = "CoreServices", kind = "framework")]
-        extern "C" {
-            fn LSSetDefaultHandlerForURLScheme(
-                scheme: *const std::ffi::c_void,
-                bundle: *const std::ffi::c_void,
-            ) -> i32;
-        }
-        let scheme = NSString::from_str("vnc");
-        let bundle = NSString::from_str(&app.config().identifier);
-        let result = unsafe {
-            LSSetDefaultHandlerForURLScheme(
-                std::ptr::from_ref(&*scheme).cast(),
-                std::ptr::from_ref(&*bundle).cast(),
-            )
-        };
-        if result == 0 {
-            Ok(())
-        } else {
-            Err(format!("Launch Services error {result}"))
-        }
+        choose_macos_handler(&app).await
     }
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = app;
         Err("Unsupported platform".into())
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn choose_macos_handler(app: &AppHandle) -> Result<(), String> {
+    use objc2_foundation::{NSBundle, NSError, NSString};
+
+    let bundle = NSBundle::mainBundle();
+    if bundle.bundleIdentifier().as_deref() != Some(&*NSString::from_str(&app.config().identifier))
+    {
+        return Err(crate::native_message::plain("vncAppBundleRequired"));
+    }
+
+    if objc2::available!(macos = 12.0) {
+        let (send, receive) = tokio::sync::oneshot::channel();
+        {
+            let send = Mutex::new(Some(send));
+            let completed = block2::RcBlock::new(move |error: *mut NSError| {
+                // AppKit owns the optional NSError for the duration of the callback.
+                let result = unsafe { error.as_ref() }
+                    .map(|error| Err(error.localizedDescription().to_string()))
+                    .unwrap_or(Ok(()));
+                if let Some(sender) = send.lock().unwrap().take() {
+                    let _ = sender.send(result);
+                }
+            });
+            objc2_app_kit::NSWorkspace::sharedWorkspace()
+                .setDefaultApplicationAtURL_toOpenURLsWithScheme_completionHandler(
+                    &bundle.bundleURL(),
+                    &NSString::from_str("vnc"),
+                    Some(&completed),
+                );
+        }
+        return receive.await.map_err(|e| e.to_string())?;
+    }
+
+    // macOS 11 predates the URL-based NSWorkspace setter.
+    #[link(name = "CoreServices", kind = "framework")]
+    extern "C" {
+        fn LSSetDefaultHandlerForURLScheme(
+            scheme: *const std::ffi::c_void,
+            bundle: *const std::ffi::c_void,
+        ) -> i32;
+    }
+    let result = unsafe {
+        LSSetDefaultHandlerForURLScheme(
+            std::ptr::from_ref(&*NSString::from_str("vnc")).cast(),
+            std::ptr::from_ref(&*NSString::from_str(&app.config().identifier)).cast(),
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(format!("Launch Services error {result}"))
     }
 }

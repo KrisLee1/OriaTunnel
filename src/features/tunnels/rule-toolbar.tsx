@@ -1,9 +1,9 @@
+import { UndoDeleteButton } from "@/components/undo-delete-button";
 import {
   FileInputIcon,
   FileOutputIcon,
   PlayIcon,
   SquareIcon,
-  Undo2Icon,
   Trash2Icon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -120,19 +120,7 @@ export function RuleToolbar({
           {t("exportConfig")}
           <span className="rule-export-count">{selected || count}</span>
         </Button>
-        {undoCount > 0 && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            title={t("undoDelete")}
-            onClick={onUndo}
-          >
-            <Undo2Icon />
-            {t("undoDelete")}
-            <span className="rule-export-count">{undoCount}</span>
-          </Button>
-        )}
+        <UndoDeleteButton count={undoCount} disabled={disabled} onClick={onUndo} />
       </div>
     </div>
   );

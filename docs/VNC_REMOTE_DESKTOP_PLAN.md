@@ -1,6 +1,6 @@
 # VNC 远程桌面实施方案
 
-2026-11-16 · 当前公开版本为 0.2.0。第 6 节保留实施前的原型记录，第 7 节定义分阶段验收。开发版已进入 V4，已在 Windows x64 验证安装注册与画面性能，已交叉构建 Windows ARM64 安装包。实测数据与待验项见[项目状态](PROJECT_STATUS.md)。
+2026-11-16 · 当前公开版本为 0.2.0。第 6 节保留实施前的原型记录，第 7 节定义分阶段验收。Windows x64 已验证安装注册与画面性能，Windows ARM64 已交叉构建安装包。开发版已进入 V5，当前 Mac 的隔离验证与剩余验收项见[项目状态](PROJECT_STATUS.md)。
 
 ## 1. 产品范围
 
@@ -163,3 +163,15 @@ Windows V4 完成后，在独立 Mac 测试账户完成以下工作。
 1. 构建 Apple Silicon 和 Intel 应用包，核对 `CFBundleURLTypes` 的 `vnc` 声明。实测「设为系统默认 VNC」的系统确认、第三方客户端切换、冷启动及驻留唤起、升级与卸载。[Apple URL 处理器](https://developer.apple.com/documentation/coreservices/1447760-lssetdefaulthandlerforurlscheme)
 2. 在 WKWebView 上复核窗口外壳与菜单、系统快捷键、Retina 和适应窗口的点击定位。用真实系统剪贴板验证中英文多行双向往返、Latin-1 降级和权限拒绝后的手动操作。
 3. 从系统链接和应用内转发分别打开桌面，用隔离的 RFB、SSH 和 SFTP 服务复测键鼠、认证、工作面板、多窗口清理和后台传输，记录设备、系统版本、性能与兼容限制。
+
+本机回归脚本需要 macOS 12 或更新版本，以便通过 NSWorkspace 枚举 VNC 候选应用。请在仓库根目录执行以下命令。每轮使用独立标识的调试应用、临时数据目录、空 SSH 配置和回环服务。两次桌面测试应依次运行。
+
+```sh
+pnpm build
+cargo build --locked --manifest-path src-tauri/Cargo.toml --example terminal_fixture
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib --no-run
+node scripts/qa/vnc-macos.mjs --clipboard
+node scripts/qa/vnc-macos.mjs --intel
+```
+
+`--clipboard` 需要系统允许发送键盘事件，并让测试窗口保持前台。驱动在内存中暂存剪贴板项目，先验证远端中英文多行文本经系统复制、粘贴回到 RFB，再由独立进程写入不同文本，验证一次 Cmd+V 即送达一次，最后恢复原内容。默认运行仍会覆盖经典剪贴板和手动输入框。`--intel` 需要 Rust 的 `x86_64-apple-darwin` 目标，在 Apple Silicon 主机上还需要 Rosetta。每轮结果写入 `outputs/vnc-v5/native-*/result.json`。使用独立账户验收默认客户端时，仍需从未指定应用的系统链接验证确认、取消、第三方切换和卸载回退。

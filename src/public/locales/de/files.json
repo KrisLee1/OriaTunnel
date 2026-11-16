@@ -29,6 +29,7 @@
   "replace": "Dateien ersetzen",
   "verifyHost": "Host-Fingerabdruck prüfen",
   "trust": "Vertrauen und verbinden",
+  "credentialsRequired": "Warten auf Passwort oder Passphrase",
   "authentication": "Authentifizierung",
   "rename": "Umbenennen",
   "mkdir": "Neuer Ordner",

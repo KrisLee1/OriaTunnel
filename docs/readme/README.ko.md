@@ -15,12 +15,13 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 
 호스트와 포워딩 규칙을 저장하면 평소에는 화면에서 시작, 중지, 서비스 열기를 선택하면 됩니다. SSH 명령에 익숙하지 않은 사용자도 관리자나 동료가 준비한 설정을 가져와 자신의 인증 정보를 입력한 뒤 사용할 수 있습니다.
 
-현재 버전: **v0.2.0** · [버전 기록](#버전-기록)
+현재 버전: **v0.3.0** · [버전 기록](#버전-기록)
 
 **[📥 다운로드 및 설치](#다운로드-및-설치)** · [🚀 빠른 시작](#빠른-시작) · [📖 전체 사용자 가이드(중국어 간체)](../USAGE.md) · [🧭 포워딩 방식 선택](#포워딩-방식-선택)
 
 ## 주요 기능
 
+- **내장 VNC 뷰어** — 포워딩한 데스크톱을 별도 창에서 열고 전체 화면, 확대·축소, SSH 터미널 및 파일 전송을 사용할 수 있습니다.
 - 📁 **파일 탐색 및 전송 (0.2.0):** 로컬과 SSH 파일을 탐색하고 업로드, 다운로드, 호스트 간 전송, 백그라운드 대기열, 미리 보기 및 텍스트 편집을 이용할 수 있습니다.
 - 🔗 **여러 터널 관리:** 호스트별로 연결을 확인하고 규칙을 개별 또는 일괄 시작·중지할 수 있습니다.
 - 💻 **내장 SSH 터미널:** 여러 대화형 터미널 탭을 사용하거나, 입력 또는 지속적인 포그라운드 실행이 필요한 명령을 전용 터미널에서 실행하세요.
@@ -36,17 +37,17 @@ OriaTunnel은 Windows와 macOS용 SSH 터널 및 원격 서비스 관리 도구�
 ## 다운로드 및 설치
 
 
-[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
+[Releases 다운로드 페이지](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)에서 운영체제와 기기 아키텍처에 맞는 패키지를 선택하세요.
 
 - **Windows:** `.exe` 설치 프로그램을 다운로드하고 설치 마법사의 안내를 따르세요.
 - **macOS:** `.dmg`를 다운로드하여 연 다음 `OriaTunnel.app`을 **응용 프로그램** 폴더로 드래그하세요. `.zip`을 다운로드했다면 먼저 안에 있는 `.dmg`를 추출하세요.
 
 | 플랫폼 | 다운로드 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
 
 정보 창의 버전 업데이트에서 새 버전을 확인하고 다운로드 및 설치할 수 있습니다. 시작 시 확인은 끌 수 있습니다. 설치하면 SSH 연결이 끊어지므로 터미널 작업을 먼저 저장하세요. 처음 설치하거나 이전 개발 빌드를 사용 중이면 위 설치 프로그램을 사용하세요. [앱 업데이트(중국어)](../USAGE.md#应用更新)를 참고하세요.
 
@@ -108,6 +109,10 @@ OriaTunnel 설정 파일이 있다면 포워딩 페이지에서 가져온 뒤 �
 - [파일 전송, 미리 보기 및 편집 (0.2.0)](../USAGE.md#文件传输)
 
 ## 버전 기록
+
+### v0.3.0
+
+포워딩한 데스크톱을 별도 창에서 열고 전체 화면, 확대·축소, SSH 터미널 및 파일 전송을 사용할 수 있습니다. 기존 VNC 암호로 Mac 화면 공유에 연결할 수 있습니다. 고해상도 화면의 스크롤과 드래그가 개선되었으며 호스트와 포워딩 삭제를 각각 실행 취소할 수 있습니다.
 
 ### v0.2.0
 

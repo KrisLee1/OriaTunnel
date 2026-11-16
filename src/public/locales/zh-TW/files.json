@@ -29,6 +29,7 @@
   "replace": "取代檔案",
   "verifyHost": "核對主機指紋",
   "trust": "信任並連線",
+  "credentialsRequired": "等待輸入密碼或通行片語",
   "authentication": "身分驗證",
   "rename": "重新命名",
   "mkdir": "新增資料夾",

@@ -10,8 +10,8 @@ export async function port() {
   await new Promise((resolve) => listener.close(resolve));
   return value;
 }
-export async function until(read, description) {
-  const deadline = Date.now() + 20000;
+export async function until(read, description, timeout = 20000) {
+  const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     const result = await read();
     if (result) return result;

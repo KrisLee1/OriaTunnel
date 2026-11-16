@@ -12,6 +12,8 @@ mod jump_endpoint;
 mod long_running;
 #[cfg(target_os = "macos")]
 mod macos_material;
+#[cfg(target_os = "macos")]
+mod macos_windows;
 pub mod model;
 mod native_message;
 mod proxy_browser;
@@ -32,13 +34,23 @@ use std::sync::Arc;
 use tauri::Manager;
 #[derive(Default)]
 struct ExitState(Arc<std::sync::atomic::AtomicU8>);
+// Some(empty) also records that a URL launch occurred when all URLs were invalid.
+#[cfg(target_os = "macos")]
+#[derive(Default)]
+struct MacLaunchUrls(std::sync::Mutex<Option<Vec<vnc::Endpoint>>>);
+
 pub fn run() {
     let Ok(endpoint) = desktop::launch_endpoint() else {
         return;
     };
     let mut context = tauri::generate_context!();
     configure_webviews(context.config_mut(), cfg!(debug_assertions));
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .manage(MacLaunchUrls::default())
+        .plugin(macos_windows::plugin());
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ExitState::default())
@@ -54,10 +66,19 @@ pub fn run() {
                 .unwrap_or(directory);
             app.manage(native_message::NativeLanguageState::load(&directory));
             let path = directory.join("connections.json");
+            let protocol_launch = endpoint.is_some();
+            let targets = endpoint.into_iter();
+            #[cfg(target_os = "macos")]
+            let (protocol_launch, targets) = {
+                let links = app.state::<MacLaunchUrls>().0.lock().unwrap().take();
+                (
+                    protocol_launch || links.is_some(),
+                    targets.chain(links.into_iter().flatten()),
+                )
+            };
+            let targets: Vec<_> = targets.collect();
             // The per-user lock is held for the entire process, including shutdown cleanup.
-            let Some(instance) =
-                desktop::acquire(&directory, app.handle().clone(), endpoint.as_ref())?
-            else {
+            let Some((instance, listener)) = desktop::acquire(&directory, &targets)? else {
                 std::process::exit(0);
             };
             app.manage(instance);
@@ -76,11 +97,12 @@ pub fn run() {
             desktop::install_tray(app.handle())?;
             #[cfg(target_os = "macos")]
             desktop::install_application_menu(app.handle())?;
-            let protocol_launch = endpoint.is_some();
-            if let Some(endpoint) = endpoint {
+            desktop::listen(listener, app.handle().clone());
+            for endpoint in targets {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn_blocking(move || vnc::open(&handle, endpoint));
-            } else if !std::env::args().any(|arg| arg == "--background") {
+            }
+            if !protocol_launch && !std::env::args().any(|arg| arg == "--background") {
                 desktop::show(app.handle());
             }
             #[cfg(any(windows, target_os = "macos"))]
@@ -231,6 +253,7 @@ pub fn run() {
                 app::test_host,
                 app::stop_rule,
                 app::trust_host,
+                app::host_has_active_work,
                 app::delete_host,
                 app::hide_host,
                 app::delete_rule,
@@ -256,6 +279,8 @@ pub fn run() {
             let viewer: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
                 window::set_window_appearance,
                 workspace::vnc_workspace_watch,
+                app::password_status,
+                app::clear_password,
                 app::trust_host,
                 window::open_external_url,
                 app::file_api::file_snapshot,
@@ -308,16 +333,24 @@ pub fn run() {
         .run(|handle, event| {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { ref urls } = event {
-                for url in urls {
-                    if let Ok(endpoint) = vnc::Endpoint::parse(url.as_str()) {
+                let targets = urls
+                    .iter()
+                    .filter_map(|url| vnc::Endpoint::parse(url.as_str()).ok());
+                if handle.try_state::<Arc<app::AppState>>().is_none() {
+                    // AppKit delivers cold-start URL events before Tauri runs setup.
+                    handle
+                        .state::<MacLaunchUrls>()
+                        .0
+                        .lock()
+                        .unwrap()
+                        .get_or_insert_with(Vec::new)
+                        .extend(targets);
+                } else {
+                    for endpoint in targets {
                         let app = handle.clone();
                         tauri::async_runtime::spawn_blocking(move || vnc::open(&app, endpoint));
                     }
                 }
-            }
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = event {
-                desktop::show(handle);
             }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 let exit = &handle.state::<ExitState>().0;

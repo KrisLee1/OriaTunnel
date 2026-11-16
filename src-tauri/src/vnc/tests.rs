@@ -140,16 +140,19 @@ fn zrle_keeps_dictionary_across_rectangles_and_checks_palette_indices() {
         enc.compress_vec(tile, &mut encoded, FlushCompress::Sync)
             .unwrap();
         let mut output = vec![];
-        frame::zrle(&mut dec, &encoded, 3, 2, &mut output).map(|_| output)
+        frame::zrle(&mut dec, &encoded, [0, 0, 3, 2], &mut output).map(|_| {
+            let rgba = &output[9..];
+            (output[0], rgba.to_vec())
+        })
     };
-    assert_eq!(expand(&[1, 2, 3, 4]).unwrap(), [2, 3, 4, 255].repeat(6));
+    assert_eq!(expand(&[1, 2, 3, 4]).unwrap(), (12, vec![2, 3, 4, 255]));
     assert_eq!(
         expand(&[2, 1, 0, 0, 0, 2, 0, 0b01000000, 0b10000000]).unwrap(),
-        [1, 0, 0, 255, 0, 2, 0, 255, 1, 0, 0, 255, 0, 2, 0, 255, 1, 0, 0, 255, 1, 0, 0, 255]
+        (13, vec![1, 0, 0, 255, 0, 2, 0, 255, 0x40, 0x80])
     );
     assert_eq!(
         expand(&[128, 7, 6, 5, 5]).unwrap(),
-        [7, 6, 5, 255].repeat(6)
+        (2, [7, 6, 5, 255].repeat(6))
     );
     assert!(expand(&[130, 1, 2, 3, 4, 5, 6, 255]).is_err());
 }
@@ -181,11 +184,12 @@ async fn loopback_rfb_password_pixels_copyrect_keys_pointer_clipboard_and_discon
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
         let (mut s, _) = listener.accept().await.unwrap();
-        s.write_all(b"RFB 003.008\n").await.unwrap();
+        s.write_all(b"RFB 003.889\n").await.unwrap();
         let mut banner = [0; 12];
         s.read_exact(&mut banner).await.unwrap();
         assert_eq!(&banner, b"RFB 003.008\n");
-        s.write_all(&[2, 1, 2]).await.unwrap();
+        // Apple-specific types may precede classic VNC password authentication.
+        s.write_all(&[5, 30, 33, 36, 35, 2]).await.unwrap();
         assert_eq!(s.read_u8().await.unwrap(), 2);
         s.write_all(&std::array::from_fn::<_, 16, _>(|i| i as u8))
             .await
@@ -204,9 +208,9 @@ async fn loopback_rfb_password_pixels_copyrect_keys_pointer_clipboard_and_discon
         let mut init = vec![0, 2, 0, 1];
         init.extend([0; 20]);
         s.write_all(&init).await.unwrap();
-        let mut setup = [0; 54];
+        let mut setup = [0; 58];
         s.read_exact(&mut setup).await.unwrap();
-        assert_eq!(&setup[44..], &[3, 0, 0, 0, 0, 0, 0, 2, 0, 1]);
+        assert_eq!(&setup[48..], &[3, 0, 0, 0, 0, 0, 0, 2, 0, 1]);
         let mut update = vec![0, 0, 0, 2];
         update.extend([0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 2, 3, 0]);
         update.extend([0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]);

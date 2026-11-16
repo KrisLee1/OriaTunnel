@@ -76,6 +76,10 @@ export function VncHeader({
   const connected = phase === "connected";
   const [visible, setVisible] = useState(true);
   useEffect(() => {
+    if (!connected) {
+      setVisible(true);
+      return;
+    }
     let timer: number | undefined;
     let shown = true;
     let target = true;
@@ -106,7 +110,7 @@ export function VncHeader({
       show(reveal);
     }
     const leave = () => show(false);
-    show(false, 1400);
+    if (!document.querySelector(".vnc-floating-header:hover")) show(false, 1400);
     document.addEventListener("pointermove", track, { passive: true });
     document.documentElement.addEventListener("pointerleave", leave);
     window.addEventListener("blur", leave);
@@ -116,11 +120,13 @@ export function VncHeader({
       document.documentElement.removeEventListener("pointerleave", leave);
       window.removeEventListener("blur", leave);
     };
-  }, []);
+  }, [connected]);
   return (
     <WindowHeader
       className={
-        visible ? "vnc-floating-header is-visible" : "vnc-floating-header"
+        !connected || visible
+          ? "vnc-floating-header is-visible"
+          : "vnc-floating-header"
       }
       centerContent={
         <span className="vnc-target overlay" title={endpoint}>

@@ -533,20 +533,28 @@ impl Manager {
         }
         Ok(ids)
     }
-    pub fn busy_host(&self, id: &str) -> bool {
-        let routes: HashMap<_, _> = self
-            .sessions
-            .lock()
-            .unwrap()
+    pub fn host_activity(&self, id: &str) -> (Vec<String>, Vec<String>) {
+        let sessions = self.sessions.lock().unwrap();
+        let routed_sessions: std::collections::HashSet<_> = sessions
             .values()
-            .map(|s| (s.id.clone(), s.route.clone()))
+            .filter(|s| s.route.iter().any(|h| h == id))
+            .map(|s| s.id.clone())
             .collect();
-        self.sessions
+        let connected = sessions
+            .values()
+            .filter(|s| {
+                routed_sessions.contains(&s.id)
+                    && !matches!(s.phase.as_str(), "disconnected" | "credentialsRequired")
+            })
+            .map(|s| s.id.clone())
+            .collect();
+        drop(sessions);
+        let tasks = self
+            .tasks
             .lock()
             .unwrap()
             .values()
-            .any(|s| s.route.iter().any(|r| r == id) && s.phase != "disconnected")
-            || self.tasks.lock().unwrap().values().any(|t| {
+            .filter(|t| {
                 (t.active() || t.direct_pending)
                     && (t.host_id == id
                         || [&t.source_remote, &t.target_remote]
@@ -556,10 +564,43 @@ impl Manager {
                                 endpoint.host_id == id
                                     || endpoint.route.iter().any(|host| host == id)
                             })
-                        || routes
-                            .get(&t.session_id)
-                            .is_some_and(|r| r.iter().any(|h| h == id)))
+                        || routed_sessions.contains(&t.session_id))
             })
+            .map(|t| t.id.clone())
+            .collect();
+        (connected, tasks)
+    }
+    pub fn busy_host(&self, id: &str) -> bool {
+        let (sessions, tasks) = self.host_activity(id);
+        !sessions.is_empty() || !tasks.is_empty()
+    }
+    pub async fn stop_host_transfers(&self, host: &str) -> Result<()> {
+        let stop = async {
+            loop {
+                let (_, tasks) = self.host_activity(host);
+                if tasks.is_empty() {
+                    return Ok(());
+                }
+                for id in tasks {
+                    if let Some(control) = self.controls.lock().unwrap().get(&id) {
+                        control.pause.store(false, Ordering::SeqCst);
+                        control.cancel.cancel();
+                    } else if self
+                        .tasks
+                        .lock()
+                        .unwrap()
+                        .get(&id)
+                        .is_some_and(|t| t.direct_pending)
+                    {
+                        return Err("directUnknown".into());
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(30), stop)
+            .await
+            .map_err(|_| "hostUsedByFiles".to_owned())?
     }
     pub fn active_ids(&self) -> Vec<String> {
         let mut ids: Vec<String> = self

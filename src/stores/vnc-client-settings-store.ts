@@ -12,7 +12,7 @@ interface VncClientSettings {
 export const useVncClientSettings = create<VncClientSettings>()(
   persist(
     (set) => ({
-      client: "system",
+      client: "internal",
       remembered: false,
       rememberClient: (client) => set({ client, remembered: true }),
     }),
@@ -21,12 +21,15 @@ export const useVncClientSettings = create<VncClientSettings>()(
       partialize: ({ client, remembered }) => ({ client, remembered }),
       merge: (saved, current) => {
         const prefs = saved as Partial<VncClientSettings> | null;
-        if (prefs?.client !== "internal" && prefs?.client !== "system")
+        if (
+          prefs?.remembered !== true ||
+          (prefs.client !== "internal" && prefs.client !== "system")
+        )
           return current;
         return {
           ...current,
           client: prefs.client,
-          remembered: prefs.remembered === true,
+          remembered: true,
         };
       },
     },

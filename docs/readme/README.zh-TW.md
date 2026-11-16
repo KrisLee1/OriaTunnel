@@ -15,12 +15,13 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 儲存主機和轉送規則後，日常透過點選即可啟動、停止和開啟服務。不熟悉 SSH 指令的使用者，也可以匯入管理員或同事準備好的設定，補齊自己的驗證資訊後使用。
 
-目前版本：**v0.2.0** · [版本記錄](#版本記錄)
+目前版本：**v0.3.0** · [版本記錄](#版本記錄)
 
 **[📥 下載與安裝](#下載與安裝)** · [🚀 快速上手](#快速上手) · [📖 完整使用指南（簡體中文）](../USAGE.md) · [🧭 選擇轉送方式](#選擇轉送方式)
 
 ## 功能特色
 
+- **內建 VNC 遠端桌面** — 從轉發開啟獨立桌面視窗，可全螢幕顯示、縮放，並在視窗中使用 SSH 終端機與檔案傳輸。
 - 📁 **瀏覽與傳輸檔案（0.2.0）**：瀏覽本機與 SSH 主機、上傳、下載及主機間傳輸，管理背景佇列、預覽檔案並編輯文字。
 - 🔗 **管理多條通道**：依主機查看連線圖與轉送清單，個別或批次啟動、停止規則。
 - 💻 **內建 SSH 終端機**：開啟多分頁互動終端機，或在專用終端機執行需要互動或持續在前景執行的指令。
@@ -36,17 +37,17 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 ## 下載與安裝
 
 
-前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0)，選擇適合你的作業系統與裝置架構的套件。
+前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)，選擇適合你的作業系統與裝置架構的套件。
 
 - **Windows：**下載 `.exe` 安裝程式，依安裝精靈的指示完成安裝。
 - **macOS：**下載並開啟 `.dmg`，將 `OriaTunnel.app` 拖入「**應用程式（Applications）**」。若下載的是 `.zip`，請先解壓縮其中的 `.dmg`。
 
 | 平台 | 下載 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.2.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.2.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.2.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.2.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.2.0/OriaTunnel_0.2.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
 
 在「關於」的「版本更新」中檢查新版本，依提示下載並安裝；可關閉「啟動時檢查更新」。安裝會中斷目前的 SSH 連線，請先儲存終端中的工作。首次安裝或較早的開發版本請使用上方安裝套件。詳見[應用程式更新（簡體中文）](../USAGE.md#应用更新)。
 
@@ -108,6 +109,10 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 - [檔案傳輸、預覽與編輯（0.2.0）](../USAGE.md#文件传输)
 
 ## 版本記錄
+
+### v0.3.0
+
+從轉發開啟獨立桌面視窗，可全螢幕顯示、縮放，並在視窗中使用 SSH 終端機與檔案傳輸。 可用傳統 VNC 密碼連線至 Mac 螢幕共享，並改善高解析度桌面的捲動與拖曳。主機與轉發可分別復原刪除。
 
 ### v0.2.0
 
