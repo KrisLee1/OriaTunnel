@@ -110,11 +110,14 @@ The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, 
 
 ## Version history
 
-### v0.3.0
+### v0.3.0 · 2026-11-16
 
-Open a forwarded desktop in its own window, switch to full screen, adjust the zoom, or use the SSH terminal and file transfer panels. Connect to Mac Screen Sharing with a classic VNC password. Scrolling and dragging are smoother on high-resolution desktops. Hosts and forwards now have separate deletion histories for undo.
+- Added a built-in VNC viewer for SSH forwards and `vnc://` links, with full screen, zoom, keyboard and mouse input.
+- Transfer clipboard text in both directions. Paste local text into the remote desktop or copy remote text back to your computer.
+- Open the SSH terminal or the SFTP panel inside the VNC window.
+- Connect to Mac Screen Sharing with a classic VNC password. Scrolling and dragging are smoother on high-resolution desktops. Hosts and forwards now have separate deletion histories for undo.
 
-### v0.2.0
+### v0.2.0 · 2026-11-04
 
 - Added local/SSH file browsing, uploads, downloads, and host-to-host transfers with dockable panels, automatic/manual layouts, search, selection, and drag and drop.
 - Added background transfer queues, real progress, pause/resume/cancel, conflict handling, batch details, and connection-map status.
@@ -127,7 +130,7 @@ Open a forwarded desktop in its own window, switch to full screen, adjust the zo
 - Improved service associations, management, and the remote-service access experience.
 - Improved connection-map rendering performance and fixed card rendering issues.
 
-### v0.1.0 · Initial version · 2026-10-25
+### v0.1.0 · 2026-10-25
 
 - Visual SSH host and L / R / D tunnel management, multi-hop authentication, and connection diagnostics.
 - Reusable service templates, command actions, status and health checks, and combined service startup and forwarding.

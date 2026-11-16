@@ -110,11 +110,14 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 
 ## Historique des versions
 
-### v0.3.0
+### v0.3.0 · 2026-11-16
 
-Ouvrez le bureau distant depuis une redirection dans une fenêtre dédiée avec zoom, plein écran, terminal SSH et transfert de fichiers. Connectez-vous au partage d’écran du Mac avec un mot de passe VNC classique. Le défilement et le déplacement des fenêtres sont plus fluides en haute résolution. Les suppressions d’hôtes et de redirections peuvent être annulées séparément.
+- Ajout d’un client VNC intégré qui ouvre les redirections SSH et les liens `vnc://`, avec plein écran, zoom, clavier et souris.
+- Le presse-papiers permet de transférer du texte dans les deux sens entre le poste local et le bureau distant.
+- Le terminal SSH et le panneau SFTP sont accessibles dans la fenêtre VNC.
+- Connectez-vous au partage d’écran du Mac avec un mot de passe VNC classique. Le défilement et le déplacement des fenêtres sont plus fluides en haute résolution. Les suppressions d’hôtes et de redirections peuvent être annulées séparément.
 
-### v0.2.0
+### v0.2.0 · 2026-11-04
 
 - Ajout de la navigation dans les fichiers locaux/SSH, des envois, téléchargements et transferts entre hôtes, avec panneaux ancrables, dispositions automatiques/manuelles, recherche, sélection multiple et glisser-déposer.
 - Ajout des files de transfert en arrière-plan, de la progression réelle, de la pause/reprise/annulation, de la gestion des conflits, des détails par lot et de l’état dans la carte des connexions.
@@ -127,7 +130,7 @@ Ouvrez le bureau distant depuis une redirection dans une fenêtre dédiée avec 
 - Amélioration des associations et de la gestion des services, ainsi que de l’accès aux services distants.
 - Amélioration des performances de rendu de la carte des connexions et correction de l’affichage des cartes.
 
-### v0.1.0 · Première version · 2026-10-25
+### v0.1.0 · 2026-10-25
 
 - Gestion visuelle des hôtes SSH et des tunnels L / R / D, authentification à plusieurs relais et diagnostic des connexions.
 - Modèles réutilisables, commandes de service, vérifications d’état et de santé, démarrage du service avec connexion de la redirection.

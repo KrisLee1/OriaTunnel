@@ -110,11 +110,14 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 
 ## Versionsverlauf
 
-### v0.3.0
+### v0.3.0 · 2026-11-16
 
-Öffnen Sie den entfernten Desktop über eine Weiterleitung in einem eigenen Fenster. Dort stehen Vollbild, Zoom, SSH-Terminal und Dateiübertragung zur Verfügung. Die Mac-Bildschirmfreigabe unterstützt die Verbindung mit einem klassischen VNC-Passwort. Scrollen und Ziehen auf hochauflösenden Desktops wurden verbessert. Das Löschen von Hosts und Weiterleitungen lässt sich getrennt rückgängig machen.
+- Der neue integrierte VNC-Viewer öffnet SSH-Weiterleitungen und `vnc://`-Links und unterstützt Vollbild, Zoom sowie Tastatur- und Mauseingaben.
+- Text lässt sich über die Zwischenablage in beide Richtungen zwischen dem lokalen Rechner und dem entfernten Desktop übertragen.
+- SSH-Terminal und SFTP lassen sich im VNC-Fenster öffnen.
+- Die Mac-Bildschirmfreigabe unterstützt die Verbindung mit einem klassischen VNC-Passwort. Scrollen und Ziehen auf hochauflösenden Desktops wurden verbessert. Das Löschen von Hosts und Weiterleitungen lässt sich getrennt rückgängig machen.
 
-### v0.2.0
+### v0.2.0 · 2026-11-04
 
 - Lokale/SSH-Dateiverwaltung sowie Uploads, Downloads und Host-zu-Host-Übertragungen hinzugefügt, mit andockbaren Bereichen, automatischen/manuellen Layouts, Suche, Mehrfachauswahl und Drag-and-drop.
 - Hintergrundwarteschlangen, tatsächlichen Fortschritt, Pause/Fortsetzen/Abbrechen, Konfliktbehandlung, Stapeldetails und Status in der Verbindungsübersicht hinzugefügt.
@@ -127,7 +130,7 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 - Dienstzuordnungen, Verwaltung und der Zugriff auf entfernte Dienste wurden verbessert.
 - Die Darstellung der Verbindungsübersicht wurde beschleunigt und Darstellungsfehler bei Karten wurden behoben.
 
-### v0.1.0 · Erste Version · 2026-10-25
+### v0.1.0 · 2026-10-25
 
 - Visuelle Verwaltung von SSH-Hosts und L-/R-/D-Tunneln, mehrstufige Authentifizierung und Verbindungsdiagnose.
 - Wiederverwendbare Dienstvorlagen, Befehlsaktionen, Status- und Zustandsprüfungen sowie kombinierter Dienststart und Verbindungsaufbau.
