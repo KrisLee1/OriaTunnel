@@ -136,6 +136,7 @@ export function WorkspacePanel({
         visibility: open || present ? "visible" : "hidden",
         zIndex: top === panel.storageKey ? 35 : 34,
       }}
+      tabIndex={-1}
       inert={!open}
       aria-hidden={!open}
       aria-label={title}

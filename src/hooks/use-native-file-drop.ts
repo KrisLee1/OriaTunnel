@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { isViewerWindow } from '@/lib/viewer-window'
+import { getCurrentWebview, type DragDropEvent } from '@tauri-apps/api/webview'
 import { nativeDropPoint } from '@/lib/file-drop'
 
 export function useNativeFileDrop(
@@ -15,7 +16,7 @@ export function useNativeFileDrop(
     if (!enabled || !isTauri()) return
     let disposed = false
     let hasFiles = false
-    const stop = getCurrentWebview().onDragDropEvent(({payload}) => {
+    const handle = (payload: DragDropEvent) => {
       if (disposed) return
       if (payload.type === 'leave') { hasFiles = false; callbacks.current.onHover(false); return }
       if (payload.type === 'enter' || payload.type === 'drop') hasFiles = payload.paths.length > 0
@@ -24,7 +25,13 @@ export function useNativeFileDrop(
       const inside = hasFiles && !!ref.current && target === ref.current
       callbacks.current.onHover(inside && payload.type !== 'drop')
       if (inside && payload.type === 'drop') callbacks.current.onDrop(payload.paths, point)
-    })
+    }
+    if (isViewerWindow()) {
+      const listener = (event: Event) => handle((event as CustomEvent<DragDropEvent>).detail)
+      window.addEventListener("oria-workspace-drop",listener)
+      return () => {disposed=true;window.removeEventListener("oria-workspace-drop",listener);callbacks.current.onHover(false)}
+    }
+    const stop = getCurrentWebview().onDragDropEvent(({payload})=>handle(payload))
     return () => { disposed = true; callbacks.current.onHover(false); void stop.then(unlisten => unlisten()).catch(() => {}) }
   }, [enabled, ref])
 }

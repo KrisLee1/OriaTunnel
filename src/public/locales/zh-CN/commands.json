@@ -1,4 +1,5 @@
 {
+  "openNamedService": "打开 {{name}}",
   "title": "服务",
   "addService": "添加服务",
   "empty": "添加服务，自行配置远程命令按钮。",

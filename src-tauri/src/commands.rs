@@ -139,6 +139,8 @@ pub struct Action {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Service {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub direct_protocol: Option<crate::service::DirectProtocol>,
     #[serde(default)]
     pub port: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -250,7 +252,7 @@ impl Service {
         }
         if self.name.trim().is_empty()
             || self.name.len() > 256
-            || (self.actions.is_empty() && self.control.health_probe.is_none())
+            || (self.actions.is_empty() && self.control.health_probe.is_none() && self.port.is_none())
             || self.actions.len() > 32
             || self.rule_ids.len() > 256
             || self.host_ids.len() > 500
@@ -1099,6 +1101,7 @@ mod tests {
     #[test]
     fn service_validation_rejects_unbounded_and_ambiguous_actions() {
         let mut s = Service {
+            direct_protocol: None,
             host_ids: vec![],
             port: None,
             category: None,

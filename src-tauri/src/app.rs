@@ -79,6 +79,9 @@ pub struct AppState {
     power_missing: std::sync::atomic::AtomicBool,
 }
 impl AppState {
+    pub(crate) fn vnc_credential(&self, binding: &[u8]) -> crate::credentials::VncCredential {
+        self.vault.vnc(binding)
+    }
     #[cfg(test)]
     pub(crate) fn isolated(path: PathBuf) -> Self {
         Self::load_with_discovery(path, Default::default()).unwrap()
@@ -508,6 +511,7 @@ impl AppState {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let snapshot = self.snapshot();
         crate::desktop::update_tray(app, &snapshot);
+        crate::workspace::publish_hosts(app, &snapshot);
         let _ = app.emit("tunnel://snapshot", snapshot);
     }
     pub(crate) fn tray_service_activity(&self) -> crate::desktop::TrayServiceActivity {
@@ -677,8 +681,45 @@ impl AppState {
             Ok(())
         }
     }
-    pub fn interrupt_terminals(&self) {
-        self.terminals.cancel_all();
+    pub(crate) fn workspace_terminals(
+        &self,
+        scope: &crate::workspace::Scope,
+    ) -> Vec<crate::terminal::Session> {
+        self.terminals
+            .list()
+            .into_iter()
+            .filter(|s| scope.check(&s.id).is_ok())
+            .collect()
+    }
+    pub(crate) fn workspace_files(&self) -> crate::files::Snapshot {
+        self.files.snapshot()
+    }
+    pub(crate) fn close_workspace(&self, scope: &crate::workspace::Scope) {
+        for s in self
+            .terminals
+            .list()
+            .into_iter()
+            .filter(|s| scope.owns(&s.id))
+        {
+            let _ = self.terminals.detach(&s.id, &s.client_id);
+        }
+        if !scope.main() {
+            let ids: Vec<_> = self
+                .files
+                .sessions
+                .lock()
+                .unwrap()
+                .keys()
+                .filter(|id| scope.owns(id))
+                .cloned()
+                .collect();
+            for id in ids {
+                file_api::disconnect(self, &id);
+                self.files.sessions.lock().unwrap().remove(&id);
+                self.files.route_keys.lock().unwrap().remove(&id);
+            }
+            self.files.publish();
+        }
     }
     pub fn close_to_tray(&self) -> bool {
         self.config.lock().unwrap().close_to_tray
@@ -1572,8 +1613,8 @@ pub async fn open_service(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
     id: String,
+    internal_vnc: Option<bool>,
 ) -> Result<(), String> {
-    use tauri_plugin_shell::ShellExt;
     let workers = state.workers.lock().await;
     let worker = workers
         .get(&id)
@@ -1597,6 +1638,16 @@ pub async fn open_service(
         .as_ref()
         .ok_or(crate::native_message::plain("runningHostMissing"))?;
     let url = crate::service::service_url(rule, host, runtime)?;
+    drop(workers);
+    if rule.service_protocol == Some(crate::model::ServiceProtocol::Vnc) {
+        return crate::vnc::launch(&app, &url, rule.host_id.clone(), internal_vnc == Some(true));
+    }
+    open_service_url(&app, url)
+}
+
+#[allow(deprecated)]
+fn open_service_url(app: &tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
     app.shell().open(url, None).map_err(|e| {
         crate::native_message::message(
             "openServiceFailed",
@@ -1604,6 +1655,29 @@ pub async fn open_service(
         )
     })
 }
+#[tauri::command]
+pub async fn open_host_service(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    host_id: String,
+    service_id: String,
+    revision: String,
+    protocol: crate::service::DirectProtocol,
+    internal_vnc: bool,
+) -> Result<(), String> {
+    let snapshot = state.snapshot();
+    let service = snapshot.services.iter().find(|s| s.id == service_id).ok_or("serviceMissing")?;
+    if service.revision != revision || service.direct_protocol.is_some_and(|saved| saved != protocol) {
+        return Err("staleAction".into());
+    }
+    let (_, host) = service.execution_target(&snapshot, None, Some(&host_id))?;
+    let url = crate::service::host_service_url(host, service.port, protocol)?;
+    if protocol == crate::service::DirectProtocol::Vnc {
+        return crate::vnc::launch(&app, &url, host_id, internal_vnc);
+    }
+    open_service_url(&app, url)
+}
+
 #[tauri::command]
 pub async fn open_proxy_browser(
     state: tauri::State<'_, Arc<AppState>>,
@@ -1668,11 +1742,19 @@ pub async fn stop_rule(
 }
 #[tauri::command]
 pub fn trust_host(
+    window: tauri::WebviewWindow,
     state: tauri::State<Arc<AppState>>,
     id: String,
     run_id: String,
     fingerprint: String,
 ) -> Result<(), String> {
+    let scope = crate::workspace::scope(&window)?;
+    if !scope.main() && !(id.starts_with("terminal:") || id.starts_with("files:")) {
+        return Err("unauthorizedWindow".into());
+    }
+    if id.starts_with("terminal:") || id.starts_with("files:") {
+        scope.check(&id)?;
+    }
     let mut trust = state.trust.lock().unwrap();
     let pending = trust
         .get(&id)

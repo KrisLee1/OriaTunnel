@@ -27,6 +27,13 @@ export function installWebviewGuards(target: Document, production: boolean) {
   const options = { capture: true };
   const contextMenu = (event: MouseEvent) => event.preventDefault();
   const keyDown = (event: KeyboardEvent) => {
+    // The focused remote canvas handles these keys and prevents browser defaults.
+    if (
+      typeof Element !== "undefined" &&
+      event.target instanceof Element &&
+      event.target.matches("[data-vnc-screen]")
+    )
+      return;
     if (
       typeof Element !== "undefined" &&
       event.target instanceof Element &&

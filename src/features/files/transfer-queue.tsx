@@ -59,6 +59,7 @@ const groupIcons = {
 
 export function TransferQueue({
   tasks,
+  conflictIds,
   expanded,
   onToggle,
   onAction,
@@ -66,6 +67,7 @@ export function TransferQueue({
   orientation = "vertical",
 }: {
   tasks: Task[];
+  conflictIds?: string[];
   expanded: boolean;
   onToggle: () => void;
   onAction: (task: Task, action: string, folder?: TransferFolder) => void;
@@ -306,6 +308,7 @@ export function TransferQueue({
                   <TransferItem
                     key={task.id}
                     task={task}
+                    canResolve={!conflictIds || conflictIds.includes(task.id)}
                     onAction={(action, folder) =>
                       onAction(task, action, folder)
                     }

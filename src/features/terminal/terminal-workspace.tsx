@@ -75,12 +75,16 @@ const Context = createContext<WorkspaceApi | null>(null);
 export const useTerminalWorkspace = () => useContext(Context);
 export function OpenTerminalButton({
   hostId,
+  disabled,
   workspace = false,
   onOpen,
+  className,
 }: {
   hostId?: string;
+  disabled?: boolean;
   workspace?: boolean;
   onOpen?: () => void;
+  className?: string;
 }) {
   const api = useTerminalWorkspace();
   const { t } = useTranslation("terminal");
@@ -90,10 +94,10 @@ export function OpenTerminalButton({
       type="button"
       variant="ghost"
       size="icon-sm"
-      className="nodrag nopan"
+      className={["nodrag nopan", className].filter(Boolean).join(" ")}
       aria-label={t(workspace ? "workspace" : "open")}
       title={t(workspace ? "workspace" : "open")}
-      disabled={!bridge.desktop}
+      disabled={!bridge.desktop || disabled}
       onClick={() => {
         onOpen?.();
         api.openHost(hostId);
@@ -109,9 +113,17 @@ export function OpenTerminalButton({
 }
 export function TerminalWorkspaceProvider({
   data,
+  viewerSessions,
+  preferredHost,
+  onChooseHost,
   children,
 }: {
-  data: Snapshot;
+  data:
+    | Snapshot
+    | Pick<Snapshot, "hosts" | "addedHostIds" | "rules" | "services">;
+  viewerSessions?: TerminalSession[];
+  preferredHost?: string;
+  onChooseHost?: (id: string) => void;
   children: ReactNode;
 }) {
   const { t } = useTranslation("terminal");
@@ -170,12 +182,20 @@ export function TerminalWorkspaceProvider({
     [],
   );
   const fail = useCallback((message: string) => setError(message), []);
+  const viewer = viewerSessions !== undefined;
   useEffect(() => {
-    if (!bridge.desktop) return;
+    if (viewerSessions) merge(viewerSessions);
+  }, [merge, viewerSessions]);
+  useEffect(() => {
+    if (!bridge.desktop || viewer) return;
     let live = true;
-    const terminals = listen<TerminalSession[]>("terminal://sessions", (e) => {
-      if (live) merge(e.payload);
-    });
+    const terminals = listen<TerminalSession[]>(
+      "terminal://sessions",
+      (e) => {
+        if (live) merge(e.payload);
+      },
+      { target: "main" },
+    );
     const jobs = listen<CommandRun[]>("command://runs", (e) => {
       if (live) setCommands((old) => mergeRuns(old, e.payload));
     });
@@ -198,7 +218,7 @@ export function TerminalWorkspaceProvider({
       void terminals.then((off) => off()).catch(() => {});
       void jobs.then((off) => off()).catch(() => {});
     };
-  }, [merge]);
+  }, [merge, viewer]);
   const showCommand = useCallback(
     (run: CommandRun) => {
       automaticCommandAuth.current.add(run.id);
@@ -210,6 +230,7 @@ export function TerminalWorkspaceProvider({
     [acceptCommand],
   );
   const openHost = (hostId?: string) => {
+    if (expanded) panel.ref.current?.focus();
     setExpanded(true);
     setError("");
     if (hostId) {
@@ -219,8 +240,9 @@ export function TerminalWorkspaceProvider({
       if (!selected) setSelected(sessions[0]?.id || commandTabs[0]);
       return;
     }
+    if (viewer && preferredHost) return connectHost(preferredHost);
     setDraft({
-      hostId: hostId || addedHosts(data).find((h) => !h.hidden)?.id || "",
+      hostId: viewer ? "" : addedHosts(data).find((h) => !h.hidden)?.id || "",
       noEnvironment: true,
       fallback: false,
     });
@@ -232,7 +254,7 @@ export function TerminalWorkspaceProvider({
     trayOpen.current = openHost;
   });
   useEffect(() => {
-    if (!bridge.desktop) return;
+    if (!bridge.desktop || viewer) return;
     let live = true;
     const subscription = listen<{ hostId?: string } | null>(
       "tunnel://open-terminal",
@@ -244,7 +266,7 @@ export function TerminalWorkspaceProvider({
       live = false;
       void subscription.then((off) => off()).catch(() => {});
     };
-  }, []);
+  }, [viewer]);
   const launch = async (
     hostId: string,
     noEnvironment: boolean,
@@ -502,7 +524,10 @@ export function TerminalWorkspaceProvider({
             onClick={() => {
               setDraft({
                 hostId:
-                  selectedSession?.hostId || addedHosts(data)[0]?.id || "",
+                  selectedSession?.hostId ||
+                  preferredHost ||
+                  addedHosts(data)[0]?.id ||
+                  "",
                 noEnvironment: true,
                 fallback: false,
               });
@@ -706,29 +731,31 @@ export function TerminalWorkspaceProvider({
                   </TabsContent>
                 ))}
               </Suspense>
-              {selectedCommand && commandTabs.includes(selectedCommand.id) && (
-                <div className="terminal-command-panel">
-                  <CommandResult
-                    key={selectedCommand.id}
-                    data={data}
-                    autoPromptCredentials={automaticCommandAuth.current.has(
-                      selectedCommand.id,
-                    )}
-                    onCredentialsPrompt={() =>
-                      automaticCommandAuth.current.delete(selectedCommand.id)
-                    }
-                    onRerun={showCommand}
-                    run={selectedCommand}
-                    accept={acceptCommand}
-                    onError={fail}
-                    onCancel={() =>
-                      void bridge
-                        .cancelCommand(selectedCommand.id)
-                        .catch((e) => setError(String(e)))
-                    }
-                  />
-                </div>
-              )}
+              {"runtimes" in data &&
+                selectedCommand &&
+                commandTabs.includes(selectedCommand.id) && (
+                  <div className="terminal-command-panel">
+                    <CommandResult
+                      key={selectedCommand.id}
+                      data={data}
+                      autoPromptCredentials={automaticCommandAuth.current.has(
+                        selectedCommand.id,
+                      )}
+                      onCredentialsPrompt={() =>
+                        automaticCommandAuth.current.delete(selectedCommand.id)
+                      }
+                      onRerun={showCommand}
+                      run={selectedCommand}
+                      accept={acceptCommand}
+                      onError={fail}
+                      onCancel={() =>
+                        void bridge
+                          .cancelCommand(selectedCommand.id)
+                          .catch((e) => setError(String(e)))
+                      }
+                    />
+                  </div>
+                )}
             </div>
           </Tabs>
         ) : (
@@ -798,6 +825,11 @@ export function TerminalWorkspaceProvider({
                   hosts={addedHosts(data).filter((h) => !h.hidden)}
                   value={draft.hostId}
                   onChange={(hostId) => {
+                    if (viewer && hostId) {
+                      onChooseHost?.(hostId);
+                      void connectHost(hostId);
+                      return;
+                    }
                     setDraft({
                       ...draft,
                       hostId,
@@ -844,16 +876,18 @@ export function TerminalWorkspaceProvider({
                   />
                 ))}
               <ModalActions>
-                <Button
-                  type="submit"
-                  form="open-terminal-form"
-                  variant="primary-soft"
-                  disabled={busy || !route || !!route.diagnostics.length}
-                >
-                  {draft.profile
-                    ? t("execute", { ns: "commands" })
-                    : t("connect")}
-                </Button>
+                {(!viewer || draft.hostId) && (
+                  <Button
+                    type="submit"
+                    form="open-terminal-form"
+                    variant="primary-soft"
+                    disabled={busy || !route || !!route.diagnostics.length}
+                  >
+                    {draft.profile
+                      ? t("execute", { ns: "commands" })
+                      : t("connect")}
+                  </Button>
+                )}
               </ModalActions>
             </form>
           </Modal>

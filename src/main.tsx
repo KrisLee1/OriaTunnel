@@ -11,14 +11,27 @@ import { bootstrapAideTheme } from "./components/theme/theme-bootstrap";
 import { OriaAideThemeProvider } from "./components/theme/aide-theme-provider";
 import { App } from "./App";
 import { ApplicationIconSync } from "./components/settings/application-icon-sync";
+import { isViewerWindow } from "./lib/viewer-window";
+const viewer = isViewerWindow();
+const VncDesktop = React.lazy(() =>
+  import("./features/vnc/VncDesktop").then((m) => ({ default: m.VncDesktop })),
+);
 bootstrapAideTheme();
 installWebviewGuards(document, import.meta.env.PROD);
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <OriaAideThemeProvider>
       <MotionConfig reducedMotion="user">
-        <ApplicationIconSync />
-        <App />
+        {viewer ? (
+          <React.Suspense>
+            <VncDesktop />
+          </React.Suspense>
+        ) : (
+          <>
+            <ApplicationIconSync />
+            <App />
+          </>
+        )}
       </MotionConfig>
     </OriaAideThemeProvider>
   </React.StrictMode>,

@@ -6,6 +6,31 @@ import {
 } from "./service-target";
 import { newService, newAction } from "./command-model";
 import { emptyRule } from "@/features/tunnels/rule-model";
+import { directProtocol } from "./direct-protocol";
+
+describe("direct service launch", () => {
+  it.each([
+    ["VNC · TigerVNC", "desktop", 15901, "vnc"],
+    ["DSH", "inference", 3080, "http"],
+    ["Gitea", "development", 3000, "http"],
+    ["Website", "web", 8443, "https"],
+    ["PostgreSQL", "databases", 25432, "postgresql"],
+    ["MariaDB", "databases", 13306, "mysql"],
+    ["MongoDB", "databases", 37017, "mongodb"],
+    ["Valkey", "caches", 6380, "redis"],
+    ["Elasticsearch", "databases", 9200, "http"],
+    ["Custom database", "databases", 5656, null],
+  ] as const)("resolves %s without a forward", (name, category, port, protocol) => {
+    expect(directProtocol({ ...newService("host"), name, category, port }, [], "host")).toBe(protocol);
+  });
+  it("uses the selected host's linked protocol and honors an explicit override", () => {
+    const rule = { ...emptyRule("other"), id: "forward", serviceProtocol: "vnc" as const };
+    const service = { ...newService("host"), ruleIds: [rule.id], port: 3000 };
+    expect(directProtocol(service, [rule], "host")).toBe("http");
+    expect(directProtocol(service, [rule], "other")).toBe("vnc");
+    expect(directProtocol({ ...service, directProtocol: "https" }, [rule], "other")).toBe("https");
+  });
+});
 const data = {
   rules: [
     { ...emptyRule("host-a"), id: "a" },

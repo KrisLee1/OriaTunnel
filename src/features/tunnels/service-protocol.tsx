@@ -1,7 +1,20 @@
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, ScreenShareIcon } from "lucide-react";
+import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  useVncClientSettings,
+  type VncClient,
+} from "@/stores/vnc-client-settings-store";
 import type { Rule, Runtime, ServiceProtocol } from "@/types";
 
 export function ServiceProtocolPicker({
@@ -63,28 +76,121 @@ export function OpenServiceButton({
   rule: Rule;
   runtime?: Pick<Runtime, "status" | "configurationChanged">;
   desktop: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, internalVnc?: boolean) => void;
 }) {
   const { t } = useTranslation("tunnel");
+  const { t: vnc } = useTranslation("vnc");
   if (!rule.serviceProtocol) return null;
   const reason = desktop
     ? serviceUnavailableReason(rule, runtime)
     : "serviceDesktopOnly";
-  return (
-    <span
-      className="service-open-action nodrag nopan inline-flex"
-      title={t(reason || "openService")}
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={!!reason}
-        aria-label={`${t("openService")} ${rule.name}`}
-        onClick={() => onOpen(rule.id)}
+  const isVnc = rule.serviceProtocol === "vnc";
+  const label = isVnc ? vnc("openVnc") : t("openService");
+  function button(open: () => void, asks = false, trigger?: RefObject<HTMLButtonElement | null>) {
+    return (
+      <span
+        className="service-open-action nodrag nopan inline-flex"
+        title={reason ? t(reason) : label}
       >
-        <ExternalLinkIcon />
-      </Button>
-    </span>
+        <Button
+          ref={trigger}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={!!reason}
+          aria-label={`${label} ${rule.name}`}
+          aria-haspopup={asks ? "dialog" : undefined}
+          onClick={open}
+        >
+          {isVnc ? <ScreenShareIcon /> : <ExternalLinkIcon />}
+        </Button>
+      </span>
+    );
+  }
+  if (!isVnc) return button(() => onOpen(rule.id));
+  return (
+    <VncLauncher name={rule.name} disabled={!!reason} onOpen={(internal) => onOpen(rule.id, internal)}>
+      {button}
+    </VncLauncher>
+  );
+}
+
+export function VncLauncher({ name, disabled, onOpen, children }: {
+  name: string;
+  disabled: boolean;
+  onOpen: (internal: boolean) => void;
+  children: (open: () => void, asks: boolean, trigger: RefObject<HTMLButtonElement | null>) => ReactNode;
+}) {
+  const { t: vnc } = useTranslation("vnc");
+  const { client, remembered, rememberClient } = useVncClientSettings();
+  const [selection, setSelection] = useState<VncClient | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const group = useId();
+  function open() {
+    if (disabled) return;
+    if (remembered) onOpen(client === "internal");
+    else setSelection(client);
+  }
+  function confirm(always: boolean) {
+    if (!selection || disabled) return;
+    if (always) rememberClient(selection);
+    setSelection(null);
+    onOpen(selection === "internal");
+  }
+  return (
+    <>
+      {children(open, !remembered, trigger)}
+      {selection !== null && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelection(null);
+          }}
+        >
+          <DialogContent
+            closeLabel={vnc("modal.close", { ns: "common" })}
+            finalFocus={trigger}
+          >
+            <DialogHeader>
+              <DialogTitle>{vnc("chooseClient")}</DialogTitle>
+              <DialogDescription className="break-all">
+                {name}
+              </DialogDescription>
+            </DialogHeader>
+            <fieldset className="grid gap-2">
+              <legend className="sr-only">{vnc("client")}</legend>
+              {(["system", "internal"] as const).map((value) => (
+                <label
+                  key={value}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 has-checked:border-ring has-checked:bg-accent/30"
+                >
+                  <input
+                    type="radio"
+                    name={group}
+                    value={value}
+                    checked={selection === value}
+                    onChange={() => setSelection(value)}
+                    className="accent-primary"
+                  />
+                  {vnc(value === "system" ? "useSystem" : "useInternal")}
+                </label>
+              ))}
+            </fieldset>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={disabled}
+                onClick={() => confirm(true)}
+              >
+                {vnc("always")}
+              </Button>
+              <Button disabled={disabled} onClick={() => confirm(false)}>
+                {vnc("justOnce")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }

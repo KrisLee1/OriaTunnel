@@ -67,6 +67,7 @@ export type Task = {
 };
 export type TransferFolder = { source: string; side: "source" | "target" };
 export type Snapshot = {
+  conflictIds?: string[];
   revision: number;
   sessions: Session[];
   tasks: Task[];

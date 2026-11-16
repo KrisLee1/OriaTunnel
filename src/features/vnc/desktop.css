@@ -1,0 +1,95 @@
+.vnc-desktop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-top: 0;
+  overflow: hidden;
+}
+.vnc-floating-header {
+  z-index: 45;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+  transition:
+    transform 180ms var(--oria-ease-standard),
+    opacity 150ms ease-out;
+}
+.vnc-floating-header:is(
+  .is-visible,
+  :has(:focus-visible),
+  :has([aria-expanded="true"])
+) {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.vnc-floating-header button[aria-pressed="true"] {
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .vnc-floating-header {
+    transition: none;
+  }
+}
+.vnc-desktop > :is(.vnc-error, textarea):first-of-type {
+  margin-top: var(--aide-chrome-top);
+}
+.vnc-password {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  width: min(calc(100% - 2rem), 22rem);
+  gap: 1rem;
+  padding: 1.25rem;
+}
+.header-center > .vnc-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--radius-xl);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+@media (max-width: 400px) {
+  .header-center > .vnc-target {
+    padding-inline: 0.125rem;
+  }
+}
+.vnc-error {
+  padding: 0.5rem 0.85rem;
+  color: var(--destructive);
+  overflow-wrap: anywhere;
+}
+.vnc-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  container-type: size;
+  overscroll-behavior: contain;
+}
+.vnc-viewport[hidden] {
+  display: none;
+}
+body:has(.vnc-floating-header [data-viewer-fullscreen]) .vnc-viewport {
+  background: black;
+}
+.vnc-viewport canvas {
+  display: block;
+  flex: none;
+  align-self: flex-start;
+  margin: auto;
+  max-width: none;
+  height: auto;
+  touch-action: none;
+  outline-offset: -2px;
+}
+
+/* The negotiated framebuffer already includes the server cursor. Hide the
+   host pointer only while the canvas owns remote input. */
+.vnc-viewport canvas[data-hide-local-cursor="true"]:focus {
+  cursor: none;
+}

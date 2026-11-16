@@ -23,6 +23,8 @@ russh = { version = "=0.64.1", default-features = false, features = ["ring", "rs
 glob = "0.3"
 dirs = "6"
 uuid = { version = "1", features = ["v4"] }
+des = { version = "0.9", features = ["zeroize"] }
+flate2 = "1"
 zeroize = "1.9.1"
 sha2 = "0.10.9"
 russh-sftp = "=3.0.1"
@@ -41,10 +43,12 @@ plist = "1"
 security-framework = "3.7"
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = "0.39.1"
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_Storage_FileSystem"] }
 windows-sys = { version = "0.61.2", features = ["Win32_System_Power", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Security_Credentials"] }
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 tauri = { version = "2", features = ["test"] }
 tempfile = "3"
 rand = "0.10"

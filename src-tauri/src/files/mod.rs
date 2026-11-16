@@ -150,6 +150,8 @@ impl Task {
 }
 #[derive(Clone, Serialize)]
 pub struct Snapshot {
+    #[serde(rename = "conflictIds", skip_serializing_if = "Option::is_none")]
+    pub conflict_ids: Option<Vec<String>>,
     pub revision: u64,
     pub sessions: Vec<Session>,
     pub tasks: Vec<Task>,
@@ -245,6 +247,7 @@ impl Manager {
     }
     pub fn snapshot(&self) -> Snapshot {
         Snapshot {
+            conflict_ids: None,
             revision: self.revision.fetch_add(1, Ordering::SeqCst),
             sessions: self.sessions.lock().unwrap().values().cloned().collect(),
             tasks: self.tasks.lock().unwrap().values().rev().cloned().collect(),

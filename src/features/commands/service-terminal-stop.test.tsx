@@ -15,11 +15,13 @@ const state = vi.hoisted(() => ({
   busy: false,
   origin: "forward" as string | null,
   stop: vi.fn(),
+  openHostService: vi.fn().mockResolvedValue(undefined),
   items: new Map<string, { disabled: boolean; click: () => void }>(),
 }));
 vi.mock("@/lib/bridge", async (original) => ({
   ...(await original<typeof import("@/lib/bridge")>()),
   desktop: true,
+  openHostService: state.openHostService,
 }));
 vi.mock("@/features/terminal/terminal-workspace", () => ({
   OpenTerminalButton: () => null,
@@ -66,11 +68,13 @@ vi.mock("@/components/ui/dropdown-menu", () => {
       disabled,
       onClick,
     }: {
-      children: string;
+      children: ReactNode;
       disabled?: boolean;
       onClick: () => void;
     }) => {
-      state.items.set(children, { disabled: !!disabled, click: onClick });
+      const label = Array.isArray(children) ? children.find(c => typeof c === "string") : children;
+      if (typeof label !== "string") throw new Error("Service menu item is missing its label");
+      state.items.set(label, { disabled: !!disabled, click: onClick });
       return <button disabled={disabled}>{children}</button>;
     },
   };
@@ -118,6 +122,19 @@ const render = (value: RemoteService = service, ruleId = "forward") =>
     </PresetCommandProvider>,
   );
 describe("foreground service stop", () => {
+  it.each([["Gitea", "http"], ["PostgreSQL", "postgresql"]] as const)(
+    "opens %s by its service name, independently of command execution",
+    (name, protocol) => {
+      const value = { ...service, hostIds: ["host"], ruleIds: [], name, port: 25432, executionEnabled: false };
+      const html = render(value, "host:host");
+      const label = i18n.t("openNamedService", { ns: "commands", name });
+      const item = state.items.get(label)!;
+      expect(item.disabled).toBe(false);
+      expect(html).toContain("lucide-external-link");
+      item.click();
+      expect(state.openHostService).toHaveBeenCalledWith("host", value.id, value.revision, protocol, false);
+    },
+  );
   beforeEach(() => {
     state.running = true;
     state.busy = false;

@@ -7,6 +7,9 @@ pub(crate) fn local(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
         return Err("unauthorizedWindow".into());
     }
+    local_origin(window)
+}
+pub(crate) fn local_origin(window: &tauri::WebviewWindow) -> Result<(), String> {
     let url = window.url().map_err(|_| "unauthorizedWindow")?;
     let allowed = (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
         || (url.scheme() == "http"
@@ -654,6 +657,7 @@ mod tests {
     }
     fn service(host: &str) -> Service {
         Service {
+            direct_protocol: None,
             host_ids: if host.is_empty() {
                 vec![]
             } else {

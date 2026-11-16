@@ -44,9 +44,11 @@ import { TransferPaths } from "./transfer-paths";
 
 export function TransferItem({
   task,
+  canResolve = true,
   onAction,
 }: {
   task: Task;
+  canResolve?: boolean;
   onAction: (action: string, folder?: TransferFolder) => void;
 }) {
   const { t, i18n } = useTranslation("files");
@@ -233,6 +235,7 @@ export function TransferItem({
           ) : (
             <>
               {(!finished || task.phase === "failed") &&
+                (task.phase !== "conflict" || canResolve) &&
                 iconAction(
                   task.phase === "conflict"
                     ? "resolveConflict"

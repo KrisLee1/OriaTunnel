@@ -1,4 +1,5 @@
 import { SearchInput } from "@/components/ui/search-input";
+import { PageEmptyState } from "@/components/page-empty-state";
 import { formatUiError } from "@/lib/ui-message";
 import {
   serviceRules,
@@ -17,6 +18,8 @@ import {
 import { ConnectionColorPicker } from "@/features/tunnels/connection-color";
 import { ServicePicker, ServiceHostPicker } from "./service-picker";
 import { ServiceIconStrip } from "./service-icon-strip";
+import { VncLauncher } from "@/features/tunnels/service-protocol";
+import { directProtocol, directProtocols } from "./direct-protocol";
 import { ServiceRunningContext } from "./service-running-context";
 import { addedHosts } from "@/features/hosts/host-collection";
 import {
@@ -64,11 +67,20 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence } from "motion/react";
 import {
   ListChecksIcon,
+  MonitorIcon,
+  ExternalLinkIcon,
+  ScreenShareIcon,
+  ActivityIcon,
+  FileTextIcon,
+  RotateCwIcon,
+  SquareIcon,
+  TerminalIcon,
   SearchIcon,
   FileInputIcon,
   FileOutputIcon,
@@ -105,6 +117,7 @@ import { jumpHosts } from "@/features/tunnels/rule-model";
 import * as bridge from "@/lib/bridge";
 import type {
   CommandEvent,
+  DirectProtocol,
   CommandRun,
   Host,
   PresetAction,
@@ -189,6 +202,11 @@ export function ServicesPage() {
     </ScrollArea>
   );
 }
+const commandIcons = {
+  start: PlayIcon, stop: SquareIcon, restart: RotateCwIcon,
+  status: ActivityIcon, logs: FileTextIcon, custom: TerminalIcon,
+};
+
 export const ServiceCommandsButton = memo(function ServiceCommandsButton({
   hostId,
   ruleId,
@@ -207,9 +225,12 @@ export const ServiceCommandsButton = memo(function ServiceCommandsButton({
   );
   if (!services.length) return null;
   const targetId = ruleId || (hostId ? hostServiceTarget(hostId) : undefined);
+  const vncForward = ruleId && ui.data.rules.some((r) => r.id === ruleId && r.serviceProtocol === "vnc");
   return (
     <div className="service-command-icons inline-flex flex-wrap items-center gap-1 nodrag nopan">
       {services.map((service) => {
+        const protocol = directProtocol(service, ui.data.rules, hostId);
+        const unavailable = !service.port ? "servicePort" : !protocol ? "serviceSelectProtocol" : null;
         const foreground = workspace?.foregroundSession(service, targetId);
         const running = ui.running(service, targetId);
         const color = running
@@ -232,11 +253,12 @@ export const ServiceCommandsButton = memo(function ServiceCommandsButton({
             (a) => a.kind === "start" && a.mode === "terminal",
           ) &&
             !service.actions.some((a) => a.kind === "stop"));
-        return (
+        const menu = (open?: () => void, asks?: boolean, trigger?: RefObject<HTMLButtonElement | null>) => (
           <DropdownMenu key={service.id}>
             <DropdownMenuTrigger
               render={
                 <Button
+                  ref={trigger}
                   type="button"
                   size={showName ? "sm" : "icon-sm"}
                   variant="ghost"
@@ -247,7 +269,7 @@ export const ServiceCommandsButton = memo(function ServiceCommandsButton({
                 />
               }
             >
-              {icon}
+              {vncForward ? <MonitorIcon style={{ color }} /> : icon}
               {showName && <span>{service.name}</span>}
             </DropdownMenuTrigger>
             <DropdownMenuContent className="min-w-48" align="end">
@@ -258,15 +280,19 @@ export const ServiceCommandsButton = memo(function ServiceCommandsButton({
                 </DropdownMenuLabel>
                 {service.actions
                   .filter((a) => !(foreground && a.kind === "stop"))
-                  .map((action) => (
-                    <DropdownMenuItem
-                      key={action.id}
-                      disabled={ui.disabled(service, targetId)}
-                      onClick={() => ui.execute(service, action, targetId)}
-                    >
-                      {action.label}
-                    </DropdownMenuItem>
-                  ))}
+                  .map((action) => {
+                    const Icon = commandIcons[action.kind];
+                    return (
+                      <DropdownMenuItem
+                        key={action.id}
+                        disabled={ui.disabled(service, targetId)}
+                        onClick={() => ui.execute(service, action, targetId)}
+                      >
+                        <Icon aria-hidden="true" />
+                        {action.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 {terminalStop && (
                   <DropdownMenuItem
                     disabled={!bridge.desktop || !foreground || workspace?.busy}
@@ -274,16 +300,52 @@ export const ServiceCommandsButton = memo(function ServiceCommandsButton({
                       void workspace?.stopService(service, targetId)
                     }
                   >
+                    <SquareIcon aria-hidden="true" />
                     {t("kind.stop")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuGroup>
+              {hostId && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>{t("open", { ns: "files" })}</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      disabled={!!unavailable}
+                      title={unavailable ? t(unavailable, { ns: "tunnel" }) : undefined}
+                      aria-haspopup={asks ? "dialog" : undefined}
+                      onClick={open}
+                    >
+                      {protocol === "vnc" ? <ScreenShareIcon aria-hidden="true" /> : <ExternalLinkIcon aria-hidden="true" />}
+                      {t("openNamedService", { name: service.name })}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => ui.open({ hostId, ruleId })}>
+                <Settings2Icon aria-hidden="true" />
                 {t("manageServices")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        );
+        if (!hostId || !protocol) return menu();
+        const launch = (internal = false) => {
+          void bridge.openHostService(hostId, service.id, service.revision, protocol, internal).catch((e) =>
+            toast.add({ title: formatUiError(String(e), t), type: "error" }),
+          );
+        };
+        if (protocol !== "vnc") return menu(() => launch());
+        return (
+          <VncLauncher
+            key={service.id}
+            name={service.name}
+            disabled={!bridge.desktop || !service.port}
+            onOpen={launch}
+          >
+            {menu}
+          </VncLauncher>
         );
       })}
     </div>
@@ -1165,29 +1227,23 @@ export function PresetCommandProvider({
           </div>
         )}
         {!visibleServices.length && (
-          <div className="empty">
-            <ListChecksIcon size={36} strokeWidth={1} aria-hidden="true" />
-            <h2>
-              {t(
-                services.length ? "emptyResult" : "services",
-                services.length ? { ns: "tunnel" } : {},
-              )}
-            </h2>
-            {!services.length && (
-              <>
-                <p>{t("empty")}</p>
-                <Button
-                  type="button"
-                  variant="primary-soft"
-                  disabled={!bridge.desktop || busy}
-                  onClick={createService}
-                >
-                  <PlusIcon aria-hidden="true" />
-                  {t("addService")}
-                </Button>
-              </>
+          <PageEmptyState
+            className="min-h-70"
+            icon={<ListChecksIcon />}
+            title={t(services.length ? "templates.noResults" : "services")}
+            description={!services.length && t("empty")}
+            action={!services.length && (
+              <Button
+                type="button"
+                variant="primary-soft"
+                disabled={!bridge.desktop || busy}
+                onClick={createService}
+              >
+                <PlusIcon aria-hidden="true" />
+                {t("addService")}
+              </Button>
             )}
-          </div>
+          />
         )}
         <div className="service-page-groups">
           {serviceGroups.map((group) => (
@@ -1687,12 +1743,17 @@ export function ServiceEditor({
 }) {
   const { t } = useTranslation("commands");
   const id = useId();
+  const protocolOptions = [
+    { value: "auto", label: t("authAuto", { ns: "tunnel" }) },
+    ...Object.entries(directProtocols).map(([value, label]) => ({ value, label })),
+  ];
   const [draft, setDraft] = useState<RemoteService>(() => ({
     ...service,
     hostIds: serviceHostIds(service, data),
     category: serviceCategory(service),
   }));
   const [templateOpen, setTemplateOpen] = useState(false);
+  const hasServiceTarget = !!(draft.port || draft.actions.length || draft.control?.healthProbe);
   const actionLabels = Object.fromEntries(
     commandKinds.map((kind) => [kind, t(`kind.${kind}`)]),
   ) as Record<PresetAction["kind"], string>;
@@ -1719,7 +1780,7 @@ export function ServiceEditor({
         id={`${id}-form`}
         onSubmit={(e) => {
           e.preventDefault();
-          if (draft.actions.length || draft.control?.healthProbe)
+          if (hasServiceTarget)
             onSave({
               ...draft,
               actions: draft.actions.map((action) => {
@@ -1807,6 +1868,23 @@ export function ServiceEditor({
             }
           />
         </label>
+        <div className="field">
+          <span>{t("serviceProtocol", { ns: "tunnel" })}</span>
+          <Select
+            value={draft.directProtocol ?? "auto"}
+            items={protocolOptions}
+            onValueChange={(value) => {
+              if (value) setDraft({ ...draft, directProtocol: value === "auto" ? null : value as DirectProtocol });
+            }}
+          >
+            <SelectTrigger aria-label={t("serviceProtocol", { ns: "tunnel" })}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {protocolOptions.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <ConnectionIconPicker
           fieldLabel={t("serviceIcon")}
           initialCategory="service"
@@ -2075,7 +2153,7 @@ export function ServiceEditor({
             form={`${id}-form`}
             variant="primary-soft"
             disabled={
-              busy || (!draft.actions.length && !draft.control?.healthProbe)
+              busy || !hasServiceTarget
             }
           >
             {t("save")}

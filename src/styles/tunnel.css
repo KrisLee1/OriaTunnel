@@ -748,22 +748,6 @@ body,
 .trust-actions {
   margin-top: 4px;
 }
-.empty {
-  height: 280px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
-  color: var(--oria-color-muted-fg);
-}
-.empty h2 {
-  font-size: 16px;
-  color: var(--oria-color-fg);
-}
-.empty p {
-  font-size: 12px;
-}
 .search-field {
   max-width: 440px;
   display: flex;

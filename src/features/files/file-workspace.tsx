@@ -127,16 +127,26 @@ import "./files.css";
 const Context = createContext<{ open: (host?: string) => void; count: number }>(
   { open: () => {}, count: 0 },
 );
-export function OpenFilesButton({ hostId }: { hostId?: string }) {
+export const useFileWorkspace = () => useContext(Context);
+export function OpenFilesButton({
+  hostId,
+  disabled,
+  className,
+}: {
+  hostId?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
   const c = useContext(Context);
   const { t } = useTranslation("files");
   return (
     <Button
       variant="ghost"
       size="icon-sm"
+      className={className}
       title={t("title")}
       aria-label={t("title")}
-      disabled={!isTauri()}
+      disabled={!isTauri() || disabled}
       onClick={() => c.open(hostId)}
     >
       <FolderSync />
@@ -156,9 +166,15 @@ type ModalAction = {
 };
 export function FileWorkspaceProvider({
   data,
+  viewerSnapshot,
+  preferredHost,
+  onChooseHost,
   children,
 }: {
-  data: AppSnapshot;
+  data: Pick<AppSnapshot, "hosts" | "addedHostIds">;
+  viewerSnapshot?: Snapshot;
+  preferredHost?: string;
+  onChooseHost?: (id: string) => void;
   children: ReactNode;
 }) {
   const { t } = useTranslation("files");
@@ -200,6 +216,7 @@ export function FileWorkspaceProvider({
   );
   const savedDirectories = useRef<Record<string, string>>({});
   const connectionGeneration = useRef({ local: 0, remote: 0 });
+  const pendingRemote = useRef<number | null>(null);
   const authSide = useRef<"local" | "remote">("remote");
   const dirs = useRef<{ local: Directory | null; remote: Directory | null }>({
       local: null,
@@ -217,7 +234,20 @@ export function FileWorkspaceProvider({
   );
   const stateRef = useRef(snapshot);
   stateRef.current = snapshot;
-  const conflict = useTransferConflict(snapshot.tasks);
+  const conflictTasks = useMemo(
+    () =>
+      snapshot.conflictIds
+        ? snapshot.tasks.filter((task) =>
+            snapshot.conflictIds!.includes(task.id),
+          )
+        : snapshot.tasks,
+    [snapshot.tasks, snapshot.conflictIds],
+  );
+  const conflict = useTransferConflict(conflictTasks);
+  const viewer = viewerSnapshot !== undefined;
+  useEffect(() => {
+    if (viewerSnapshot) setSnapshot(viewerSnapshot);
+  }, [viewerSnapshot, setSnapshot]);
   const showError = useCallback(
     (message: string) => {
       if (message)
@@ -261,6 +291,7 @@ export function FileWorkspaceProvider({
       side: "local" | "remote" = "remote",
     ) => {
       const generation = ++connectionGeneration.current[side];
+      if (side === "remote") pendingRemote.current = generation;
       if (side === "local") {
         setSourceHost(id);
         setSourceSid(null);
@@ -278,18 +309,24 @@ export function FileWorkspaceProvider({
         if (side === "local") setSourceSid(session);
         else setSid(session);
       });
+      if (side === "remote" && pendingRemote.current === generation)
+        pendingRemote.current = null;
     },
     [perform],
   );
   useEffect(() => {
     mounted.current = true;
-    if (!isTauri()) return;
+    if (!isTauri() || viewer) return;
     let live = true;
     const stops: Promise<() => void>[] = [];
     stops.push(
-      listen<Snapshot>("files://snapshot", (e) => {
-        if (live) setSnapshot(e.payload);
-      }),
+      listen<Snapshot>(
+        "files://snapshot",
+        (e) => {
+          if (live) setSnapshot(e.payload);
+        },
+        { target: "main" },
+      ),
     );
     stops.push(listen("tunnel://open-files", () => setOpen(true)));
     void Promise.all(stops)
@@ -303,7 +340,7 @@ export function FileWorkspaceProvider({
       mounted.current = false;
       stops.forEach((p) => void p.then((stop) => stop()));
     };
-  }, []);
+  }, [viewer]);
   const current = snapshot.sessions.find((s) => s.id === sid);
   const sourceCurrent = snapshot.sessions.find((s) => s.id === sourceSid);
   const connected = current?.phase === "connected";
@@ -340,7 +377,18 @@ export function FileWorkspaceProvider({
   useEffect(() => setRefresh((n) => n + 1), [completeCount]);
   const show = useCallback(
     (id?: string) => {
+      if (open) panel.ref.current?.focus();
       setOpen(true);
+      if (!id && viewer) {
+        if (
+          pendingRemote.current !== null ||
+          (sid &&
+            (!current ||
+              !["failed", "disconnected", "closed"].includes(current.phase)))
+        )
+          return;
+        id = host || preferredHost;
+      }
       if (id) {
         const existing = stateRef.current.sessions.find(
           (s) => s.hostId === id && s.phase === "connected",
@@ -351,7 +399,7 @@ export function FileWorkspaceProvider({
         } else void connect(id);
       }
     },
-    [connect],
+    [connect, preferredHost, host, open, panel.ref, viewer, sid, current],
   );
   const transfer = useCallback(
     async (ids: string[], target: string) => {
@@ -489,6 +537,7 @@ export function FileWorkspaceProvider({
           queue={
             <TransferQueue
               tasks={snapshot.tasks}
+              conflictIds={snapshot.conflictIds}
               expanded={queue}
               orientation={fileLayout.orientation.outer}
               onToggle={() => changeQueue(!queue)}
@@ -544,6 +593,11 @@ export function FileWorkspaceProvider({
                     excludeHost={left ? host : sourceHost}
                     status={status}
                     onChange={(id) => {
+                      if (viewer && id) {
+                        if (!left) onChooseHost?.(id);
+                        void connect(id, {}, [], side);
+                        return;
+                      }
                       connectionGeneration.current[side]++;
                       if (left) {
                         setSourceHost(id);

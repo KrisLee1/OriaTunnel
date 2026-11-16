@@ -75,6 +75,8 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 - [组件索引](ui/components/index.md)。通用组件从 `src/components/ui` 引用，不能在页面重建菜单/模态框等基础行为。
 - 原版窗口壳在 `src/components/window`，外观/主题在 `src/components/theme`。样式基础在 `src/styles/globals.css`，SSH 专属布局在 `src/styles/tunnel.css`。
 - WindowHeader 外侧两组随设置交换并镜像；fixedLeftActions/fixedRightActions 保持物理位置；centerContent 可交互并相对窗口居中。
+- VNC 独立窗口的 [VncHeader](../src/features/vnc/VncHeader.tsx) 组合相同五区，窗口标签决定原生操作的归属。桌面通过共享存储同步主题与控件偏好。顶栏悬浮在完整画布上方，指针到达顶部立即展开，移开 700 毫秒后收起，期间返回即可取消收起。缩小、适应窗口、放大可直接操作，VNC 的原最大化按钮切换全屏／还原，双击顶栏空白处切换最大化／还原，菜单和键盘聚焦时保持展开。全屏时，远端画面外的等比留白为纯黑，退出全屏后恢复窗口背景。画布独立处理 Ctrl+C/V 并在失焦时释放远端按键。密码表单居中显示一个提示，Checkbox 允许用户按目标记住密码；WebView 只收到保存状态。
+- [VncWorkspaces](../src/features/vnc/VncWorkspaces.tsx) 在桌面窗口挂载共享终端、文件 Provider 与 Toast。宽窗沿用主窗口的文件、终端按钮，窄窗通过「更多」打开同一面板。Rust 通过当前窗口的专用通道推送已添加主机、该窗口的交互会话和共享传输队列。点击面板先恢复当前窗口已有的会话；首次打开时直接连接关联的 SSH 主机。外部链接缺少唯一匹配时，选定主机即连接，选择在当前窗口的两个面板间共享。画布和面板分别处理焦点内的键盘事件。
 - 主导航与设置中的外观模式、窗口控件样式/位置统一复用 TabsList 的 soft 变体，使用和两侧操作相同的 overlay 胶囊（默认 34px）与 28px 按钮高度；隐藏下划线，各项按文字内容自然宽度排列、不均分；选中项参照启动按钮 primary-soft，使用半透明 primary 底色和 primary 文字（浅色 10%/深色 20%，悬停 20%/30%）、无可见边框；内圆角按外圆角减去 2px 内边距和外框宽度计算，顶栏操作胶囊内按钮使用相同规则，不叠加普通 Tabs 的实色背景。样式集中在 globals.css，保留 Base UI 键盘导航、焦点与禁用状态。底部运行状态和应用名作为整组水平居中。
 - 主机页与日志页的工具栏用共享 Separator 竖线区分筛选与分组；日志「仅警告」属于筛选侧，分割线随分组控件整体换行，避免单独悬空。
 - 日志列表由 `activity-list.tsx`/`activity-window.ts` 在既有 ScrollArea 中窗口化：分组标题 40px、两行记录含间距 84px，视口上下各预渲染 3 屏，不延迟滚动范围更新。当前 Rust 最近 1,000 条记录先完整筛选再分组，前端按 120 项分批展开，距底部 2 屏通过滚动与 IntersectionObserver 提前触发；保留已展开批次及手动加载入口。此为当前内存窗口的渐进展示，不新增磁盘历史查询。分组使用可折叠、可聚焦按钮，筛选/分组变化重置范围和滚动位置。
@@ -120,7 +122,8 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 - 图标选择及显示复用 `src/features/tunnels/connection-icon.tsx`：字段名默认「图标 / Icon」，服务传入「服务图标」与默认服务分页；可展开的通用/服务品牌/Emoji 分页，双语搜索、默认色点及单个自定义 emoji/符号；76 个 Lucide 通用图标、27 个本地服务品牌图标与 72 个 emoji 的名称和标识由 `connection-icon-catalog.json` 统一维护，Rust 内嵌同一清单校验。展开和收起均有 220ms 高度/透明度过渡，减少动态效果时立即完成。品牌 path 固定来源与许可见 `src/assets/README.md`，无运行时网络加载；列表与连接图共用 ConnectionIcon，内置图标跟随指定连接色（默认主题 primary），emoji 保留原色；配置持久化/导入导出保留 icon，仅改图标不重连。
 - 业务弹窗的 `ModalTitleActions` 将就地声明的动作放入标题后的独立插槽，按钮不进入可访问标题文本；窄屏可换行。操作区使用 `ModalActions`，经 Modal 内部 footer 插槽置于滚动正文之外；取消/保存、主机编辑、导入导出、删除确认、批量认证和指纹操作均固定底部。提交按钮必须通过 `form` 关联正文表单 ID，保留原生校验及 Enter 提交；单主机认证的记住密码与连接按钮一起固定，跳板逐主机选项仍在正文。独立渲染无 Modal 时操作区保持原地，设置卡片内的就地保存操作不迁出所属分组。
 - 连接色板与列表色点复用 `src/features/tunnels/connection-color.tsx`：依次为主题色、蓝/绿/粉/橙/紫/青/红/灰八种预设、原生自定义颜色入口；选中色有外圈，所有色块支持键盘焦点与可访问名称，窄屏自动换行。列表名称前的色点始终显示规则颜色，跟随主题时使用 accent；运行状态仍由独立状态文字表示。
-- 服务协议选择复用 `ui/toggle.tsx` 的 Base UI Toggle/ToggleGroup，HTTP/HTTPS/VNC 默认不选、单选且再次点击取消，按内容自然宽度；D 禁用。`service-protocol.tsx` 组合选择器与打开服务按钮，打开图标置于卡片 IP 路径行末靠右。Rust 根据保存的协议、运行中规则快照及监听状态生成固定协议 URL，HTTP/S 交给系统浏览器、VNC 交给系统客户端；协议只作元数据，配置导入导出保留且不触发重连。
+- 服务协议选择复用 `ui/toggle.tsx` 的 Base UI Toggle/ToggleGroup，HTTP/HTTPS/VNC 默认不选、单选且再次点击取消，按内容自然宽度；D 禁用。`service-protocol.tsx` 组合选择器与打开服务按钮，打开图标置于卡片 IP 路径行末靠右。Rust 根据保存的协议、运行中规则快照及监听状态生成固定协议 URL。HTTP/S 交给系统浏览器；VNC 只显示一个桌面图标。未记住客户端时，Dialog 提供系统默认与应用内两个单选项，以及「此次」「总是」两个操作。协议只作元数据，配置导入导出保留且不触发重连。
+- [VncClientSetting](../src/components/settings/vnc-client-setting.tsx) 复用 Item、Select 和 Button。分两行排列客户端选择器和系统关联按钮。选择器与卡片弹窗的「总是」共用本机偏好，「此次」只用弹窗内的临时选择。
 - D 转发的 `proxy-browser.tsx` 复用 Button/DropdownMenu 提供「打开代理浏览器」菜单，在连接图路径行及转发列表操作组选择 Edge/Chrome/Firefox；三个浏览器均显示本地打包的 16px 彩色品牌 SVG，原色不随主题变化，文字沿用菜单主题色。仅 Rust 监听状态且配置未变化时可用。`open_proxy_browser` 只接收规则 ID 与浏览器枚举，Rust 重验工作会话并在 Windows/macOS 的固定安装路径查找浏览器。macOS 使用 /usr/bin/open -n -a <App> --args 经 LaunchServices 启动，避免裸 Firefox 进程继承调用方隐私限制；参数逐项传递，不经 Shell。Edge/Chrome 按浏览器/规则/运行代次隔离目录并传递 SOCKS5/回环代理参数；Firefox 每次启动再独立建目录，写入专用 user.js，配置 SOCKS5、远端 DNS、空绕过列表、允许回环代理及禁止代理失败直连，使用 no-remote/profile 打开空白窗口。均不显示终端、不改系统代理或日常浏览器配置。不支持 Safari，不读写系统网络代理。
 - 转发列表项统一为两行 Grid：上行名称/状态与实时指标，下行路径；标题区不占满剩余宽度，实时指标以固定 12px 间距紧随状态，长名称仍可收缩省略；右侧操作按钮组与复选框均跨两行垂直居中。12px 内边距，操作均为 28px，详情/编辑/复制/删除用带名称和提示的图标按钮。长名称与路径省略显示并保留完整 title，指标与操作对齐，不按运行态额外增加第三行。
 - 连接图卡片中的每条转发与列表共用 `rule-actions.tsx`（不内置服务或终端入口）：详情、编辑、CopyPlus 从此转发新建、危险色删除及原有启停。连接图服务命令入口位于端点路径行右侧，在打开服务图标之前，底部操作组不重复显示；列表通过 serviceActions 插槽将服务入口放在删除之前（详情、编辑、从此转发新建、服务、删除、启停），DOM 与键盘焦点顺序一致。地址行操作组共用 nodrag/nopan，空组隐藏。转发方式左对齐、收发累计流量在同一行右对齐，下方端点路径，再下方独立操作组；流量不额外占行。所有按钮置于 nodrag/nopan 区域，沿用 App 的详情、草稿和删除确认流程；复制仍清空 ID/监听端口并关闭自动连接。
@@ -152,6 +155,8 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 
 转发列表与主机列表为空时，在空状态说明下显示对应的「图标 + 文字」添加按钮，复用顶栏的新建转发/主机发现入口。主机搜索或筛选无结果时不显示此添加动作；浏览器预览和请求处理中禁用按钮。
 
+主机、转发、服务列表和 VNC 连接状态页通过 `PageEmptyState` 组合 shadcn `Empty` 的图标、标题、说明和操作区域。VNC 断开后，目标地址仅在顶栏显示。页面中央显示断开状态及可用的错误原因，有目标地址时提供重连按钮。
+
 主机发现弹窗使用原生复选框多选，搜索保留已选项，全选只作用于当前筛选结果；通过 `add_discovered_hosts` 一次保存整组选中项，添加后回到列表，不自动打开详情。从转发表单进入时将第一台所选主机回填到草稿，其他所选主机同样加入已添加集合。
 
 连接测试、单条及批量启动对自动/私钥/代理认证先提交空凭据，由 Rust 尝试私钥、代理及已保存密码；只有显式密码路线才预先询问。Rust 新运行代次返回认证失败后才请求补充密码/私钥口令，网络、配置和指纹错误不会触发凭据弹窗，纯代理路线保留原错误。主机认证标签优先采用 Rust `authMethodUsed`，未认证时用已配置的私钥/代理显示偏好，不修改 Auto 的后端回退策略。
@@ -167,6 +172,8 @@ React 19、TypeScript、Vite、Tailwind 4、ORIA THEME、shadcn/ui/Base UI、Luc
 画布 Card 仅向 memo 化内容层传入 id、稳定 data 和本机拖动标记；React Flow 坐标更新不重建主机内容及服务菜单。服务事实内容相同时保留原数组引用，仍由 Rust 计算过期与运行状态。
 
 ServiceIconStrip 内的代理服务按钮不继承 IP 路径行的自动边距；无高度差时收起必须直接退出换行状态，不能仅依赖 Motion 完成回调。
+
+主机卡片的服务菜单将「打开」单独分组，操作显示「打开 {{服务名}}」，使用该主机的地址及服务端口直连。所有可操作的菜单项使用前置图标。服务编辑器允许只配置端口，并可指定服务协议。HTTP/HTTPS 交给浏览器，数据库 URI 交给系统关联的客户端，VNC 复用「此次 / 总是」选择。VNC 转发卡片的服务命令使用 Monitor，打开 VNC 使用 ScreenShare；转发打开入口仍依赖该规则正在监听。
 
 本机 LocalAddForward 的 size 必须与父卡片使用同一布局尺寸；背景与隐藏液滴的首帧几何从 size 初始化，随后保留 DOM ResizeObserver，隐藏时的零尺寸不作为有效测量。
 

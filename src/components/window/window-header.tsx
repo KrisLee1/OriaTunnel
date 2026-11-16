@@ -7,6 +7,7 @@ import {
   type WindowControlMode,
 } from "@/components/window/window-control"
 import { cn } from "@/lib/utils"
+import { isViewerWindow, viewerWindowAction } from "@/lib/viewer-window"
 import {
   resolveWindowControlPosition,
   resolveWindowControlStyle,
@@ -32,6 +33,7 @@ export function WindowHeader({
   onClose,
   controlMode = "full",
   density = "default",
+  className,
 }: {
   children?: ReactNode
   fixedLeftActions?: ReactNode
@@ -41,10 +43,12 @@ export function WindowHeader({
   onClose?: () => void | Promise<void>
   controlMode?: WindowControlMode
   density?: "default" | "compact"
+  className?: string
 }) {
   const position = useWindowControlSettingsStore((state) => state.position)
   const style = useWindowControlSettingsStore((state) => state.style)
   const resolvedStyle = resolveWindowControlStyle(style)
+  const viewer = isViewerWindow()
   const resolvedPosition = resolveWindowControlPosition(style, position, resolvedStyle)
   const headerRef = useRef<HTMLElement>(null)
   const [safeInset, setSafeInset] = useState(180)
@@ -71,8 +75,13 @@ export function WindowHeader({
     return () => window.removeEventListener("storage", handleStorage)
   }, [])
 
+  // The viewer uses caller-bound native commands for its marked drag surfaces.
+  const viewerDragSurface = (target: EventTarget) =>
+    viewer && target instanceof HTMLElement && target.dataset.tauriDragRegion === "false"
+
   const handleTitlebarDoubleClick = (event: MouseEvent<HTMLElement>) => {
-    if (controlMode !== "full" || event.target !== event.currentTarget) return
+    if (controlMode !== "full") return
+    if (!viewerDragSurface(event.target) && event.target !== event.currentTarget) return
 
     void maximizeWindow()
   }
@@ -103,13 +112,13 @@ export function WindowHeader({
   }
   const featureActions = actionCapsule(children, undefined, true)
   const leftControls = (
-    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-tauri-drag-region data-window-header-side="left">
+    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-tauri-drag-region={!viewer} data-window-header-side="left">
       {resolvedPosition === "left" ? windowControl : featureActions}
       {actionCapsule(fixedLeftActions, "left")}
     </div>
   )
   const rightControls = (
-    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-tauri-drag-region data-window-header-side="right">
+    <div className="flex h-fit w-fit shrink-0 items-center gap-1" data-tauri-drag-region={!viewer} data-window-header-side="right">
       {actionCapsule(fixedRightActions, "right")}
       {resolvedPosition === "left" ? featureActions : windowControl}
     </div>
@@ -118,11 +127,18 @@ export function WindowHeader({
   const header = (
     <header
       ref={headerRef}
-      data-tauri-drag-region
+      data-tauri-drag-region={!viewer}
+      onMouseDown={viewer ? event => {
+        if (event.button === 0 && event.detail === 1 && viewerDragSurface(event.target)) {
+          event.preventDefault()
+          void viewerWindowAction("startDragging")
+        }
+      } : undefined}
       onDoubleClick={handleTitlebarDoubleClick}
       className={cn(
         "app-titlebar absolute inset-x-0 top-0 flex select-none justify-between rounded-t-(--window-rounded)",
         density === "compact" ? "h-8 px-1" : "h-(--aide-chrome-top) px-1 py-1",
+        className,
       )}
     >
       {leftControls}

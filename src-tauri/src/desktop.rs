@@ -1,4 +1,4 @@
-//! Per-user process ownership and tray lifecycle. IPC can only request window activation.
+//! Per-user process ownership and tray lifecycle. IPC activates a window or presents a validated VNC address.
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
@@ -570,7 +570,28 @@ pub fn show(app: &tauri::AppHandle) {
         let _ = window.set_focus();
     }
 }
-pub fn acquire(directory: &Path, app: tauri::AppHandle) -> std::io::Result<Option<Instance>> {
+pub fn launch_endpoint() -> Result<Option<crate::vnc::Endpoint>, String> {
+    let mut args = std::env::args_os().skip(1);
+    let Some(value) = args.next() else {
+        return Ok(None);
+    };
+    let value = value.to_string_lossy();
+    if !value
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("vnc:"))
+    {
+        return Ok(None);
+    }
+    if args.next().is_some() {
+        return Err("Invalid VNC arguments".into());
+    }
+    crate::vnc::Endpoint::parse(&value).map(Some)
+}
+pub fn acquire(
+    directory: &Path,
+    app: tauri::AppHandle,
+    endpoint: Option<&crate::vnc::Endpoint>,
+) -> std::io::Result<Option<Instance>> {
     std::fs::create_dir_all(directory)?;
     let file = OpenOptions::new()
         .create(true)
@@ -593,7 +614,14 @@ pub fn acquire(directory: &Path, app: tauri::AppHandle) -> std::io::Result<Optio
                         &([127, 0, 0, 1], port).into(),
                         Duration::from_millis(100),
                     ) {
-                        let _ = stream.write_all(b"show");
+                        if let Some(target) = endpoint {
+                            let data = format!("vnc://{}", target.address());
+                            stream.write_all(b"vnc:")?;
+                            stream.write_all(&(data.len() as u16).to_be_bytes())?;
+                            stream.write_all(data.as_bytes())?;
+                        } else {
+                            stream.write_all(b"show")?;
+                        }
                         return Ok(None);
                     }
                 }
@@ -612,8 +640,32 @@ pub fn acquire(directory: &Path, app: tauri::AppHandle) -> std::io::Result<Optio
         for mut stream in listener.incoming().flatten() {
             let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
             let mut message = [0; 4];
-            if stream.read_exact(&mut message).is_ok() && &message == b"show" {
-                show(&app);
+            if stream.read_exact(&mut message).is_err() {
+                continue;
+            }
+            match &message {
+                b"show" => show(&app),
+                b"vnc:" => {
+                    let mut len = [0; 2];
+                    if stream.read_exact(&mut len).is_err() {
+                        continue;
+                    }
+                    let len = u16::from_be_bytes(len) as usize;
+                    if len > 512 {
+                        continue;
+                    }
+                    let mut data = vec![0; len];
+                    if stream.read_exact(&mut data).is_err() {
+                        continue;
+                    }
+                    if let Some(target) = std::str::from_utf8(&data)
+                        .ok()
+                        .and_then(|s| crate::vnc::Endpoint::parse(s).ok())
+                    {
+                        let _ = crate::vnc::open(&app, target);
+                    }
+                }
+                _ => {}
             }
         }
     });

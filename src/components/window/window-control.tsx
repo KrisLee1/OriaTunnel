@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { isViewerWindow, viewerWindowAction } from "@/lib/viewer-window"
 
 import type {
   ResolvedWindowControlStyle,
@@ -25,15 +26,18 @@ function isDesktopRuntime() {
 }
 
 export function closeWindow() {
+  if (isViewerWindow()) return viewerWindowAction("close").then(() => {})
   return isDesktopRuntime() ? getCurrentWindow().close() : Promise.resolve()
 }
 
 export function minimizeWindow() {
+  if (isViewerWindow()) return viewerWindowAction("minimize")
   return isDesktopRuntime() ? getCurrentWindow().minimize() : Promise.resolve()
 }
 
 /** Toggle maximize/restore and return the resulting state. */
 export async function maximizeWindow() {
+  if (isViewerWindow()) return viewerWindowAction("toggleMaximize")
   if (!isDesktopRuntime()) return false
 
   const appWindow = getCurrentWindow()
@@ -42,19 +46,31 @@ export async function maximizeWindow() {
 }
 
 function useWindowState(appWindow: TauriWindow | null, trackNativeWindowState: boolean) {
-  const [isMaximized, setIsMaximized] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [isActive, setIsActive] = useState(() =>
     typeof document === "undefined" ? true : document.hasFocus(),
   )
 
   useEffect(() => {
-    if (!appWindow || !trackNativeWindowState) {
+    if (!appWindow || !trackNativeWindowState || isViewerWindow()) {
       const syncBrowserFocus = () => setIsActive(document.hasFocus())
+      let disposed = false
+      const syncSize = () => {
+        if (trackNativeWindowState && isViewerWindow()) {
+          void viewerWindowAction("isFullscreen").then(value => {
+            if (!disposed) setExpanded(value)
+          })
+        }
+      }
+      syncSize()
+      window.addEventListener("resize", syncSize)
       window.addEventListener("focus", syncBrowserFocus)
       window.addEventListener("blur", syncBrowserFocus)
       document.addEventListener("visibilitychange", syncBrowserFocus)
 
       return () => {
+        disposed = true
+        window.removeEventListener("resize", syncSize)
         window.removeEventListener("focus", syncBrowserFocus)
         window.removeEventListener("blur", syncBrowserFocus)
         document.removeEventListener("visibilitychange", syncBrowserFocus)
@@ -68,7 +84,7 @@ function useWindowState(appWindow: TauriWindow | null, trackNativeWindowState: b
       const [stopResized, stopFocusChanged, maximized, focused] = await Promise.all([
         appWindow.onResized(() => {
           void appWindow.isMaximized().then((value) => {
-            if (!disposed) setIsMaximized(value)
+            if (!disposed) setExpanded(value)
           })
         }),
         appWindow.onFocusChanged(({ payload }) => {
@@ -85,7 +101,7 @@ function useWindowState(appWindow: TauriWindow | null, trackNativeWindowState: b
       }
 
       disposers.push(stopResized, stopFocusChanged)
-      setIsMaximized(maximized)
+      setExpanded(maximized)
       setIsActive(focused)
     }
 
@@ -97,7 +113,7 @@ function useWindowState(appWindow: TauriWindow | null, trackNativeWindowState: b
     }
   }, [appWindow, trackNativeWindowState])
 
-  return { isActive, isMaximized, setIsMaximized }
+  return { isActive, expanded, setExpanded }
 }
 
 export function WindowControl({
@@ -115,7 +131,7 @@ export function WindowControl({
 }) {
   const { t } = useTranslation()
   const [appWindow] = useState(() => (isDesktopRuntime() ? getCurrentWindow() : null))
-  const { isActive, isMaximized, setIsMaximized } = useWindowState(
+  const { isActive, expanded, setExpanded } = useWindowState(
     appWindow,
     mode === "full",
   )
@@ -139,15 +155,19 @@ export function WindowControl({
     return () => cancelAnimationFrame(frame)
   }, [isActive])
 
-  const handleMaximize = async () => {
+  const viewer = isViewerWindow()
+  const toggleExpanded = async () => {
     if (!appWindow) return
-    setIsMaximized(await maximizeWindow())
+    const next = viewer ? await viewerWindowAction("toggleFullscreen") : await maximizeWindow()
+    setExpanded(next)
   }
 
   const labels = {
     close: t("windowControls.actions.close"),
     minimize: t("windowControls.actions.minimize"),
-    maximize: t(isMaximized ? "windowControls.actions.restore" : "windowControls.actions.maximize"),
+    expand: expanded
+      ? t("windowControls.actions.restore")
+      : viewer ? t("fullscreen", { ns: "vnc" }) : t("windowControls.actions.maximize"),
   }
 
   if (style === "windows") {
@@ -158,6 +178,7 @@ export function WindowControl({
       <div
         ref={controlsRef}
         data-window-active={isActive}
+          data-viewer-fullscreen={(viewer && mode === "full" && expanded) || undefined}
         className={cn(
           "flex h-fit w-fit items-center rounded-xl p-0.5",
           mode === "full" && "overlay",
@@ -193,12 +214,12 @@ export function WindowControl({
               type="button"
               variant="ghost"
               size="icon-sm"
-              onClick={() => void handleMaximize()}
-              aria-label={labels.maximize}
-              title={labels.maximize}
+              onClick={() => void toggleExpanded()}
+              aria-label={labels.expand}
+              title={labels.expand}
               className={buttonRadiusClassName}
             >
-              {isMaximized ? (
+              {expanded ? (
                 <CopyIcon className={cn(iconClassName, "rotate-90")} />
               ) : (
                 <SquareIcon className={iconClassName} />
@@ -221,6 +242,7 @@ export function WindowControl({
     <div
       ref={controlsRef}
       data-window-active={isActive}
+        data-viewer-fullscreen={(viewer && mode === "full" && expanded) || undefined}
       className={cn(
         "group/window-controls flex h-fit w-fit items-center gap-2 rounded-xl p-2",
         mode === "full" && "overlay",
@@ -259,15 +281,15 @@ export function WindowControl({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => void handleMaximize()}
-            aria-label={labels.maximize}
-            title={labels.maximize}
+            onClick={() => void toggleExpanded()}
+            aria-label={labels.expand}
+            title={labels.expand}
             className={cn(
               lightClassName,
               isActive ? "border-green-500/50! bg-green-400!" : inactiveClassName,
             )}
           >
-            {isMaximized ? (
+            {expanded ? (
               <ChevronsRightLeftIcon className={cn(iconClassName, "rotate-45")} />
             ) : (
               <ChevronsLeftRightIcon className={cn(iconClassName, "rotate-45")} />

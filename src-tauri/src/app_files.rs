@@ -16,7 +16,7 @@ pub struct Connect {
 fn bind(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let app = app.clone();
     state.files.set_changed(Arc::new(move |snapshot| {
-        let _ = app.emit("files://snapshot", snapshot);
+        crate::workspace::publish_files(&app, snapshot);
     }));
 }
 #[tauri::command]
@@ -24,15 +24,19 @@ pub fn file_snapshot(
     state: tauri::State<Arc<AppState>>,
     window: tauri::WebviewWindow,
 ) -> Result<files::Snapshot, String> {
-    command_api::local(&window)?;
-    Ok(state.files.snapshot())
+    let scope = crate::workspace::scope(&window)?;
+    Ok(crate::workspace::files_for(
+        &window,
+        &scope,
+        state.files.snapshot(),
+    ))
 }
 #[tauri::command]
 pub fn file_clear_history(
     state: tauri::State<Arc<AppState>>,
     window: tauri::WebviewWindow,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    command_api::local_origin(&window)?;
     state.files.clear_history();
     Ok(())
 }
@@ -43,13 +47,16 @@ pub async fn file_connect(
     window: tauri::WebviewWindow,
     request: Connect,
 ) -> Result<String, String> {
-    command_api::local(&window)?;
+    let scope = crate::workspace::scope(&window)?;
     let _guard = state.workers.lock().await;
     state.allow_launch()?;
     if request.secrets.len() > 32 || request.secrets.values().any(|s| s.len() > 65536) {
         return Err("invalidRequest".into());
     }
     let snapshot = state.snapshot();
+    if !scope.main() && !snapshot.added_host_ids.contains(&request.host_id) {
+        return Err("hostMissing".into());
+    }
     let host = snapshot
         .hosts
         .iter()
@@ -68,8 +75,30 @@ pub async fn file_connect(
     }
     let mut route = resolve_jumps(&snapshot.hosts, &host)?;
     route.push(host.clone());
-    let id = format!("files:{}", uuid::Uuid::new_v4());
-    let cancel = CancellationToken::new();
+    let id = scope.session_id("files");
+    let cancel = if scope.main() {
+        CancellationToken::new()
+    } else {
+        scope.lifetime.child_token()
+    };
+    let manager = state.files.clone();
+    let sid = id.clone();
+    let active: sessions::Active = Arc::new(move || {
+        manager
+            .sessions
+            .lock()
+            .unwrap()
+            .get(&sid)
+            .is_some_and(|s| s.phase != "disconnected")
+    });
+    let (hops, observer) = sessions::credentials(
+        state.inner().clone(),
+        app.clone(),
+        &route,
+        &request.secrets,
+        &request.remember_host_ids,
+        active.clone(),
+    )?;
     state
         .files
         .session_cancels
@@ -96,24 +125,12 @@ pub async fn file_connect(
         .lock()
         .unwrap()
         .insert(id.clone(), crate::service_control::identity(&route));
-    let manager = state.files.clone();
-    let sid = id.clone();
-    let active: sessions::Active = Arc::new(move || {
-        manager
-            .sessions
-            .lock()
-            .unwrap()
-            .get(&sid)
-            .is_some_and(|s| s.phase != "disconnected")
-    });
-    let (hops, observer) = sessions::credentials(
-        state.inner().clone(),
-        app.clone(),
-        &route,
-        &request.secrets,
-        &request.remember_host_ids,
-        active.clone(),
-    )?;
+    if cancel.is_cancelled() {
+        disconnect(&state, &id);
+        state.files.sessions.lock().unwrap().remove(&id);
+        state.files.route_keys.lock().unwrap().remove(&id);
+        return Err("cancelled".into());
+    }
     let manager = state.files.clone();
     let sid = id.clone();
     let notify: tunnel::Notify =
@@ -173,10 +190,11 @@ pub async fn file_connect(
             let raw = RawSftpSession::new(channel.into_stream());
             raw.set_timeout(15);
             let version = raw.init().await.map_err(|_| "sftpUnavailable".to_owned())?;
+            let mut remotes = task_state.files.remotes.lock().unwrap();
             if cancel.is_cancelled() {
                 return Err("cancelled".into());
             }
-            task_state.files.remotes.lock().unwrap().insert(
+            remotes.insert(
                 sid.clone(),
                 Fs::Remote(Arc::new(Remote {
                     raw,
@@ -210,8 +228,16 @@ pub async fn file_list(
     session: Option<String>,
     path: String,
 ) -> Result<files::Directory, String> {
-    command_api::local(&window)?;
-    state.files.directory(session, path).await
+    let scope = crate::workspace::scope(&window)?;
+    scope.check_optional(session.as_deref())?;
+    let dir = state.files.directory(session.clone(), path).await?;
+    if !scope.main() && scope.lifetime.is_cancelled() {
+        if let Some(id) = session {
+            state.files.release_refs(&id);
+        }
+        return Err("staleSession".into());
+    }
+    Ok(dir)
 }
 #[tauri::command]
 pub async fn file_sources(
@@ -219,7 +245,7 @@ pub async fn file_sources(
     window: tauri::WebviewWindow,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    command_api::local(&window)?;
+    command_api::local_origin(&window)?;
     state.files.ref_paths(paths).await
 }
 #[tauri::command]
@@ -231,8 +257,11 @@ pub async fn file_submit(
     sources: Vec<String>,
     target: String,
 ) -> Result<String, String> {
-    command_api::local(&window)?;
+    let scope = crate::workspace::scope(&window)?;
     state.allow_launch()?;
+    for id in sources.iter().chain(std::iter::once(&target)) {
+        scope.check_optional(state.files.entry(id)?.session.as_deref())?;
+    }
     bind(state.inner(), &app);
     state.files.submit(request_id, sources, target).await
 }
@@ -245,8 +274,13 @@ pub async fn file_control(
     session: Option<String>,
     source_session: Option<String>,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    let scope = crate::workspace::scope(&window)?;
     state.allow_launch()?;
+    scope.check_optional(session.as_deref())?;
+    scope.check_optional(source_session.as_deref())?;
+    if ["skip", "keep", "replace"].contains(&action.as_str()) {
+        check_conflict(&state, &window, &scope, &id)?;
+    }
     state
         .files
         .control_between(&id, &action, session, source_session)
@@ -262,8 +296,11 @@ pub async fn file_resolve_conflict(
     session: Option<String>,
     source_session: Option<String>,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    let scope = crate::workspace::scope(&window)?;
     state.allow_launch()?;
+    scope.check_optional(session.as_deref())?;
+    scope.check_optional(source_session.as_deref())?;
+    check_conflict(&state, &window, &scope, &id)?;
     if !["skip", "keep", "replace"].contains(&policy.as_str()) {
         return Err("invalidRequest".into());
     }
@@ -272,23 +309,44 @@ pub async fn file_resolve_conflict(
         .control_scoped(&id, &policy, session, source_session, apply_all)
         .await
 }
+fn check_conflict(
+    state: &AppState,
+    window: &tauri::WebviewWindow,
+    scope: &crate::workspace::Scope,
+    id: &str,
+) -> Result<(), String> {
+    let view = crate::workspace::files_for(window, scope, state.files.snapshot());
+    if view
+        .conflict_ids
+        .unwrap_or_default()
+        .iter()
+        .any(|task| task == id)
+    {
+        Ok(())
+    } else {
+        Err("staleSession".into())
+    }
+}
 #[tauri::command]
 pub fn file_disconnect(
     state: tauri::State<Arc<AppState>>,
     window: tauri::WebviewWindow,
     id: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
-    if let Some(c) = state.files.session_cancels.lock().unwrap().remove(&id) {
+    crate::workspace::scope(&window)?.check(&id)?;
+    disconnect(&state, &id);
+    Ok(())
+}
+pub(super) fn disconnect(state: &AppState, id: &str) {
+    if let Some(c) = state.files.session_cancels.lock().unwrap().remove(id) {
         c.cancel();
     }
-    state.files.remotes.lock().unwrap().remove(&id);
-    state.files.release_refs(&id);
-    state.trust.lock().unwrap().remove(&id);
+    state.files.remotes.lock().unwrap().remove(id);
+    state.files.release_refs(id);
+    state.trust.lock().unwrap().remove(id);
     state
         .files
-        .session_change(&id, |s| s.phase = "disconnected".into());
-    Ok(())
+        .session_change(id, |s| s.phase = "disconnected".into());
 }
 #[tauri::command]
 pub async fn file_mutate(
@@ -298,13 +356,13 @@ pub async fn file_mutate(
     id: String,
     name: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    check_entry(&state, &window, &id)?;
     state.allow_launch()?;
     state.files.mutate(&action, &id, &name).await
 }
 #[tauri::command]
 pub async fn file_pick(window: tauri::WebviewWindow, folder: bool) -> Result<Vec<String>, String> {
-    command_api::local(&window)?;
+    command_api::local_origin(&window)?;
     tokio::task::spawn_blocking(move || {
         let d = rfd::FileDialog::new();
         let paths = if folder {
@@ -331,7 +389,7 @@ pub async fn file_reveal(
     window: tauri::WebviewWindow,
     id: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    command_api::local_origin(&window)?;
     let e = state.files.entry(&id)?;
     if e.session.is_some() {
         return Err("invalidRequest".into());
@@ -361,7 +419,7 @@ pub async fn file_open_target(
     window: tauri::WebviewWindow,
     id: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    command_api::local_origin(&window)?;
     let path = state.files.local_target(&id)?;
     open_transfer_directory(&path).await
 }
@@ -373,7 +431,7 @@ pub async fn file_open_transfer_folder(
     source: String,
     side: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    command_api::local_origin(&window)?;
     let path = state.files.local_transfer_folder(&id, &source, &side)?;
     open_transfer_directory(&path).await
 }
@@ -404,13 +462,16 @@ async fn open_transfer_directory(path: &str) -> Result<(), String> {
     }
     Ok(())
 }
+fn check_entry(state: &AppState, window: &tauri::WebviewWindow, id: &str) -> Result<(), String> {
+    crate::workspace::scope(window)?.check_optional(state.files.entry(id)?.session.as_deref())
+}
 #[tauri::command]
 pub async fn file_read_text(
     state: tauri::State<'_, Arc<AppState>>,
     window: tauri::WebviewWindow,
     id: String,
 ) -> Result<files::TextDocument, String> {
-    command_api::local(&window)?;
+    check_entry(&state, &window, &id)?;
     state.allow_launch()?;
     let _slot = state
         .files
@@ -429,7 +490,7 @@ pub async fn file_write_text(
     expected: String,
     text: String,
 ) -> Result<files::TextDocument, files::TextSaveError> {
-    command_api::local(&window).map_err(files::TextSaveError::from)?;
+    check_entry(&state, &window, &id).map_err(files::TextSaveError::from)?;
     state.allow_launch().map_err(files::TextSaveError::from)?;
     let _slot = state
         .files
@@ -447,7 +508,7 @@ pub async fn file_preview(
     id: String,
     expanded: bool,
 ) -> Result<tauri::ipc::Response, String> {
-    command_api::local(&window)?;
+    check_entry(&state, &window, &id)?;
     let _slot = state
         .files
         .preview_slots

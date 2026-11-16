@@ -19,6 +19,7 @@ import {
   WINDOWS_WINDOW_APPEARANCE,
 } from "@/components/theme/window-appearance"
 import { setWorkWindowAppearance, setWindowAppearance } from "@/lib/bridge"
+import { isViewerWindow } from "@/lib/viewer-window"
 import {
   WINDOW_APPEARANCE_SETTINGS_STORAGE_KEY,
   useWindowAppearanceSettingsStore,
@@ -31,7 +32,7 @@ const AIDE_THEME_SYNC_EVENT = "tunnel://theme-settings-changed"
 const AIDE_THEME_LOCAL_SYNC_EVENT = "tunnel:theme-settings-changed"
 
 function isDesktopRuntime() {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window && !isViewerWindow()
 }
 
 function activeThemeSnapshot(state: PersistedThemeStateV1): ActiveThemeSnapshotV1 | null {

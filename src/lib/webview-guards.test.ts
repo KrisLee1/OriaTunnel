@@ -15,6 +15,10 @@ describe("production WebView interaction", () => {
     class TestElement extends EventTarget {
       insideTerminal = true;
       insideMenu = false;
+      remoteCanvas = false;
+      matches(selector: string) {
+        return this.remoteCanvas && selector === "[data-vnc-screen]";
+      }
       closest(selector: string) {
         return (this.insideTerminal && selector === "[data-ssh-terminal]") ||
           (this.insideMenu && selector === "[data-ssh-terminal-menu]")
@@ -50,6 +54,9 @@ describe("production WebView interaction", () => {
       );
       expect(send("keydown", "F10", { shiftKey: true })).toBe(false);
       expect(send("keydown", "u", { ctrlKey: true })).toBe(true);
+      target.remoteCanvas = true;
+      expect(send("keydown", "F12")).toBe(false);
+      target.remoteCanvas = false;
       expect(send("keydown", "F12")).toBe(true);
       expect(send("keydown", "i", { ctrlKey: true, shiftKey: true })).toBe(
         true,

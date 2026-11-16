@@ -1,4 +1,5 @@
 {
+  "openNamedService": "{{name}} を開く",
   "title": "サービス",
   "addService": "サービスを追加",
   "empty": "サービスを追加し、リモートコマンドのボタンを設定します。",

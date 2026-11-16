@@ -108,7 +108,11 @@ pub fn package_with_services(
             .iter()
             .filter(|id| hosts.iter().any(|h| h["id"].as_str() == Some(id)))
             .collect();
-        profiles.push(json!({"id":service.id,"name":service.name,"category":service.category,"color":service.color,"icon":service.icon,"port":service.port,"executionHostId":"","hostIds":host_ids,"ruleIds":links,"noLocalEnvironment":service.no_local_environment,"actions":service.actions,"control":service.control}));
+        let mut profile = json!({"id":service.id,"name":service.name,"category":service.category,"color":service.color,"icon":service.icon,"port":service.port,"executionHostId":"","hostIds":host_ids,"ruleIds":links,"noLocalEnvironment":service.no_local_environment,"actions":service.actions,"control":service.control});
+        if let Some(protocol) = service.direct_protocol {
+            profile["directProtocol"] = json!(protocol);
+        }
+        profiles.push(profile);
     }
     value["version"] = json!(2);
     value["hosts"] = json!(hosts);

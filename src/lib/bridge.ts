@@ -2,6 +2,7 @@ import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import type {
   WindowAppearance,
   Snapshot,
+  DirectProtocol,
   Host,
   Rule,
   BatchResult,
@@ -70,7 +71,11 @@ export const saveHostMetadata = (host: Host) =>
     name: host.name,
     tags: host.tags,
   });
-export const openService = (id: string) => invoke<void>("open_service", { id });
+export const openService = (id: string, internalVnc?: boolean) =>
+  invoke<void>("open_service", { id, internalVnc });
+export const openHostService = (hostId: string, serviceId: string, revision: string, protocol: DirectProtocol, internalVnc = false) =>
+  invoke<void>("open_host_service", { hostId, serviceId, revision, protocol, internalVnc });
+export const chooseDefaultVnc = () => invoke<void>("choose_default_vnc");
 export type ProxyBrowser = "edge" | "chrome" | "firefox";
 export const openProxyBrowser = (
   id: string,

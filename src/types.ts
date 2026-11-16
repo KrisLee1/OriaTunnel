@@ -52,6 +52,7 @@ export interface ConnectionOptions {
   keepaliveMax: number;
 }
 export type ServiceProtocol = "http" | "https" | "vnc";
+export type DirectProtocol = ServiceProtocol | "postgresql" | "mysql" | "mongodb" | "redis" | "rediss";
 export type RuleIcon = { kind: "builtin" | "emoji"; value: string };
 export interface Rule {
   icon: RuleIcon | null;
@@ -190,6 +191,7 @@ export interface PresetAction {
   timeoutSecs: number; successCodes: number[]; confirm: boolean;
 }
 export interface RemoteService {
+  directProtocol?: DirectProtocol | null;
   hostIds?: string[];
   port?: number | null;
   category?: string | null;

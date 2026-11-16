@@ -1,4 +1,4 @@
-//! Service launch URLs come only from saved rules and authoritative listening state.
+//! Resolve launch URLs from saved hosts and services, or from active forwards.
 use crate::model::{ForwardKind, Host, Rule, Runtime, ServiceProtocol};
 use std::net::IpAddr;
 
@@ -30,6 +30,40 @@ fn authority(host: &str) -> Result<String, String> {
         return Err(crate::native_message::plain("serviceAddress"));
     }
     Ok(host.into())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DirectProtocol {
+    Http,
+    Https,
+    Vnc,
+    Postgresql,
+    Mysql,
+    Mongodb,
+    Redis,
+    Rediss,
+}
+
+pub fn host_service_url(
+    host: &Host,
+    port: Option<u16>,
+    protocol: DirectProtocol,
+) -> Result<String, String> {
+    let port = port
+        .filter(|p| *p != 0)
+        .ok_or_else(|| crate::native_message::plain("servicePort"))?;
+    let scheme = match protocol {
+        DirectProtocol::Http => "http",
+        DirectProtocol::Https => "https",
+        DirectProtocol::Vnc => "vnc",
+        DirectProtocol::Postgresql => "postgresql",
+        DirectProtocol::Mysql => "mysql",
+        DirectProtocol::Mongodb => "mongodb",
+        DirectProtocol::Redis => "redis",
+        DirectProtocol::Rediss => "rediss",
+    };
+    Ok(format!("{scheme}://{}:{port}/", authority(&host.address)?))
 }
 
 pub fn service_url(rule: &Rule, host: &Host, runtime: &Runtime) -> Result<String, String> {
@@ -83,6 +117,22 @@ pub fn service_url(rule: &Rule, host: &Host, runtime: &Runtime) -> Result<String
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direct_service_uses_the_saved_service_port_and_a_valid_host() {
+        let mut host = Host {
+            address: "2001:db8::1".into(),
+            port: 22,
+            ..Default::default()
+        };
+        assert_eq!(
+            host_service_url(&host, Some(25432), DirectProtocol::Postgresql).unwrap(),
+            "postgresql://[2001:db8::1]:25432/"
+        );
+        assert!(host_service_url(&host, None, DirectProtocol::Vnc).is_err());
+        assert!(host_service_url(&host, Some(0), DirectProtocol::Http).is_err());
+        host.address = "server.invalid/path".into();
+        assert!(host_service_url(&host, Some(8443), DirectProtocol::Https).is_err());
+    }
     fn fixture() -> (Rule, Host, Runtime) {
         (
             Rule {

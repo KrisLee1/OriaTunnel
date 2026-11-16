@@ -78,5 +78,12 @@ describe("service selection and launch affordance", () => {
     expect(render(false, runtime)).toContain("disabled");
     expect(render(true, runtime)).not.toContain('disabled=""');
     expect(render(true, runtime)).toContain("Web fixture");
+    rule.serviceProtocol = "vnc";
+    const vnc = render(true, runtime);
+    expect(vnc).toContain("lucide-screen-share");
+    expect(vnc.match(/<button /g)).toHaveLength(1);
+    expect(vnc).toContain('aria-haspopup="dialog"');
+    expect(vnc).not.toContain('disabled=""');
+    expect(render(true).match(/ disabled=""/g)).toHaveLength(1);
   });
 });

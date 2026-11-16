@@ -1,5 +1,7 @@
 import type { AppearanceMode } from "@oriatheme/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
+import { invoke } from "@tauri-apps/api/core"
+import { isViewerWindow } from "@/lib/viewer-window"
 
 import type { WindowAppearance } from "@/types"
 import type { WindowAppearanceOverrides } from "@/stores/window-appearance-settings-store"
@@ -145,7 +147,9 @@ export async function applyNativeWindowAppearance(appearance: AppearanceMode): P
   if (!("__TAURI_INTERNALS__" in window)) return
 
   try {
-    await getCurrentWindow().setTheme(nativeThemeForAppearance(appearance))
+    const theme = nativeThemeForAppearance(appearance)
+    if (isViewerWindow()) await invoke("vnc_window_theme", { theme })
+    else await getCurrentWindow().setTheme(theme)
   } catch {
     // Native window themes are unavailable in the browser preview.
   }

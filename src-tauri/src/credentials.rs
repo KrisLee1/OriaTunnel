@@ -29,6 +29,13 @@ pub fn binding(host: &Host) -> String {
     hash(&serde_json::to_vec(&(&host.address, host.port, &host.user, &host.auth_method)).unwrap())
 }
 impl Vault {
+    pub fn vnc(&self, binding: &[u8]) -> VncCredential {
+        VncCredential(format!(
+            "OriaTunnel/vnc/v1/{}/{}",
+            self.scope,
+            hash(binding)
+        ))
+    }
     pub fn new(path: &Path) -> Self {
         Self {
             scope: hash(path.to_string_lossy().as_bytes()),
@@ -94,6 +101,41 @@ impl Vault {
         let mut epochs = self.epochs.lock().unwrap();
         *epochs.entry(host.id.clone()).or_default() += 1;
         platform::delete(&self.target(host))
+    }
+}
+
+#[derive(Clone)]
+pub struct VncCredential(String);
+static VNC_WRITES: Mutex<()> = Mutex::new(());
+
+impl VncCredential {
+    pub fn read(&self) -> Result<Option<Zeroizing<String>>, String> {
+        platform::read(&self.0)?
+            .map(|bytes| {
+                std::str::from_utf8(&bytes)
+                    .map(|s| Zeroizing::new(s.to_owned()))
+                    .map_err(|_| crate::native_message::plain("savedPasswordInvalid"))
+            })
+            .transpose()
+    }
+    pub fn save(&self, password: &str) -> Result<(), String> {
+        let _guard = VNC_WRITES.lock().unwrap();
+        platform::write(&self.0, password.as_bytes())
+    }
+    pub fn forget(&self) -> Result<(), String> {
+        let _guard = VNC_WRITES.lock().unwrap();
+        platform::delete(&self.0)
+    }
+    pub fn forget_rejected(&self, rejected: &str) -> Result<(), String> {
+        let _guard = VNC_WRITES.lock().unwrap();
+        if self
+            .read()?
+            .as_ref()
+            .is_some_and(|p| p.as_str() == rejected)
+        {
+            platform::delete(&self.0)?;
+        }
+        Ok(())
     }
 }
 

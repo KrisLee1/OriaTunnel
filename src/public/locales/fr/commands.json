@@ -1,4 +1,5 @@
 {
+  "openNamedService": "Ouvrir {{name}}",
   "title": "Services",
   "addService": "Ajouter un service",
   "empty": "Ajoutez un service et définissez vos boutons de commande.",

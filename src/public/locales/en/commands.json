@@ -1,4 +1,5 @@
 {
+  "openNamedService": "Open {{name}}",
   "title": "Services",
   "addService": "Add service",
   "empty": "Add a service and define your remote command buttons.",

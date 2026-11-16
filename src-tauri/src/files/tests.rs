@@ -474,6 +474,29 @@ async fn setup_with_direct(
     reject: bool,
     direct: Option<Arc<direct_tests::Fixture>>,
 ) -> (Fs, tokio::task::JoinHandle<()>) {
+    let (port, job) = start_fixture(root, reject, direct).await;
+    connect_fixture(port, job).await
+}
+
+// The native WebView test uses the same root-confined SFTP implementation as the library tests.
+#[tokio::test]
+#[ignore = "serve a temporary loopback SFTP root for scripts/qa/vnc-workspaces.mjs"]
+async fn serve_workspace_fixture() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join(".delay-first-write"), b"").unwrap();
+    let (port, job) = start_fixture(root.path().into(), false, None).await;
+    println!("ISOLATED_SFTP_PORT={port}");
+    tokio::task::spawn_blocking(|| std::io::stdin().read_line(&mut String::new()))
+        .await
+        .unwrap()
+        .unwrap();
+    job.abort();
+}
+async fn start_fixture(
+    root: PathBuf,
+    reject: bool,
+    direct: Option<Arc<direct_tests::Fixture>>,
+) -> (u16, tokio::task::JoinHandle<()>) {
     use server::Server as _;
     let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = socket.local_addr().unwrap().port();
@@ -497,6 +520,12 @@ async fn setup_with_direct(
     let job = tokio::spawn(async move {
         let _ = server.run_on_socket(cfg, &socket).await;
     });
+    (port, job)
+}
+async fn connect_fixture(
+    port: u16,
+    job: tokio::task::JoinHandle<()>,
+) -> (Fs, tokio::task::JoinHandle<()>) {
     let notify: crate::tunnel::Notify = Arc::new(|_| {});
     let connection = crate::tunnel::connect(
         vec![crate::tunnel::HopRequest {

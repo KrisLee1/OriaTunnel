@@ -33,6 +33,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
 import { PageTransition, useEntranceMotion } from "./components/ui/motion";
+import { PageEmptyState } from "./components/page-empty-state";
 import {
   ReactFlow,
   Background,
@@ -94,6 +95,7 @@ import {
 import { addedHosts, hostFilterStatus } from "./features/hosts/host-collection";
 import { RuleToolbar } from "./features/tunnels/rule-toolbar";
 import { OpenServiceButton } from "./features/tunnels/service-protocol";
+import { VncClientSetting } from "./components/settings/vnc-client-setting";
 import {
   OpenProxyBrowserButton,
   ProxyServiceButtons,
@@ -734,8 +736,8 @@ export function App() {
                     creation={canvasCreation}
                     onCreationPlaced={() => setCanvasCreation(null)}
                     onStart={start}
-                    onOpenService={(id) =>
-                      void action(() => bridge.openService(id))
+                    onOpenService={(id, internalVnc) =>
+                      void action(() => bridge.openService(id, internalVnc))
                     }
                     onOpenProxyBrowser={(id, browser, serviceId) =>
                       void action(() =>
@@ -828,9 +830,11 @@ export function App() {
                     onUndo={() => void action(bridge.undoDelete)}
                   />
                   {!data.rules.length ? (
-                    <Empty
+                    <PageEmptyState
+                      className="min-h-70"
+                      icon={<GraphStarIcon />}
                       title={t("noRules")}
-                      body={t("emptyBody")}
+                      description={t("emptyBody")}
                       action={
                         <Button
                           type="button"
@@ -1162,6 +1166,11 @@ export function App() {
                 <AppearanceSettings />
                 <h3>{t("window")}</h3>
                 <WindowSettings />
+                <h3>VNC</h3>
+                <VncClientSetting
+                  desktop={bridge.desktop}
+                  onChooseDefault={() => void action(bridge.chooseDefaultVnc)}
+                />
                 <h3>{t("discovery")}</h3>
                 <HostSourceSettings
                   data={data}
@@ -1818,24 +1827,6 @@ export function App() {
   );
 }
 
-function Empty({
-  title,
-  body,
-  action,
-}: {
-  title: string;
-  body?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="empty">
-      <GraphStarIcon size={36} strokeWidth={1} />
-      <h2>{title}</h2>
-      {body && <p>{body}</p>}
-      {action}
-    </div>
-  );
-}
 function RunButton({
   runtime,
   start,
@@ -1943,9 +1934,11 @@ function Hosts({
         onGrouping={setGrouping}
       />
       {!list.length ? (
-        <Empty
+        <PageEmptyState
+          className="min-h-70"
+          icon={<ServerIcon />}
           title={t(data.hosts.length ? "emptyResult" : "noHosts")}
-          body={t("noHostsBody")}
+          description={!data.hosts.length && t("noHostsBody")}
           action={
             !data.hosts.length && (
               <Button
@@ -2198,7 +2191,7 @@ type CardData = {
   ) => void;
   onAdd: (placement: PortPlacement) => void;
   canAdd: boolean;
-  onOpenService: (id: string) => void;
+  onOpenService: (id: string, internalVnc?: boolean) => void;
   onPortMove: (
     id: string,
     value: PortPlacement | null,
@@ -2569,7 +2562,7 @@ function useCardActions(actions: CardActions) {
       onHostEdit: (host) => latest.current.onHostEdit(host),
       onHostAddForward: (id) => latest.current.onHostAddForward(id),
       onAdd: (placement) => latest.current.onAdd(placement),
-      onOpenService: (id) => latest.current.onOpenService(id),
+      onOpenService: (id, internalVnc) => latest.current.onOpenService(id, internalVnc),
       onOpenProxyBrowser: (id, browser, serviceId) =>
         latest.current.onOpenProxyBrowser(id, browser, serviceId),
       onStart: (id) => latest.current.onStart(id),
@@ -2608,7 +2601,7 @@ function TunnelCanvas({
   canAdd: boolean;
   creation: CanvasCreation | null;
   onCreationPlaced: () => void;
-  onOpenService: (id: string) => void;
+  onOpenService: (id: string, internalVnc?: boolean) => void;
   onOpenProxyBrowser: (
     id: string,
     browser: bridge.ProxyBrowser,

@@ -128,6 +128,8 @@ struct PortableRule {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PortableService {
     #[serde(default)]
+    direct_protocol: Option<crate::service::DirectProtocol>,
+    #[serde(default)]
     port: Option<u16>,
     #[serde(default)]
     host_ids: Vec<String>,
@@ -149,6 +151,7 @@ struct PortableService {
 impl PortableService {
     fn definition(&self) -> crate::commands::Service {
         crate::commands::Service {
+            direct_protocol: self.direct_protocol,
             port: self.port,
             category: self.category.clone(),
             color: self.color.clone(),
@@ -1357,6 +1360,7 @@ mod tests {
         value["services"][0]["ruleIds"] = serde_json::json!([]);
         value["services"][0]["hostIds"] = serde_json::json!(["host"]);
         value["services"][0]["port"] = serde_json::json!(3689);
+        value["services"][0]["directProtocol"] = serde_json::json!("postgresql");
         let plan = parsed(&value)
             .unwrap()
             .prepare(
@@ -1396,6 +1400,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(exported["services"][0]["port"], 3689);
+        assert_eq!(exported["services"][0]["directProtocol"], "postgresql");
         assert_eq!(
             exported["services"][0]["hostIds"][0],
             snapshot.services[0].host_ids[0]

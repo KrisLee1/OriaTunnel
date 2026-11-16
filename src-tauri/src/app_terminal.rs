@@ -31,8 +31,8 @@ pub fn terminal_sessions(
     state: tauri::State<Arc<AppState>>,
     window: tauri::WebviewWindow,
 ) -> Result<Vec<Session>, String> {
-    command_api::local(&window)?;
-    Ok(state.terminals.list())
+    let scope = crate::workspace::scope(&window)?;
+    Ok(state.workspace_terminals(&scope))
 }
 #[tauri::command]
 pub async fn open_terminal(
@@ -41,13 +41,14 @@ pub async fn open_terminal(
     window: tauri::WebviewWindow,
     request: Open,
 ) -> Result<Session, String> {
-    command_api::local(&window)?;
-    launch(state.inner().clone(), app, request).await
+    let scope = crate::workspace::scope(&window)?;
+    launch(state.inner().clone(), app, request, scope).await
 }
 async fn launch(
     state: Arc<AppState>,
     app: tauri::AppHandle,
     request: Open,
+    scope: crate::workspace::Scope,
 ) -> Result<Session, String> {
     let _launch = state.workers.lock().await;
     state.allow_launch()?;
@@ -66,9 +67,17 @@ async fn launch(
         &request.service_id,
         &request.action_id,
     )? {
+        scope.check(&session.id)?;
         return Ok(session);
     }
     let snapshot = state.snapshot();
+    if !scope.main()
+        && (!snapshot.added_host_ids.contains(&request.host_id)
+            || request.service_id.is_some()
+            || request.rule_id.is_some())
+    {
+        return Err("invalidSession".into());
+    }
     let host = snapshot
         .hosts
         .iter()
@@ -137,7 +146,7 @@ async fn launch(
     let mut route = resolve_jumps(&snapshot.hosts, &host)?;
     route.push(host.clone());
     let frozen = route.clone();
-    let id = format!("terminal:{}", uuid::Uuid::new_v4());
+    let id = scope.session_id("terminal");
     let active_manager = state.terminals.clone();
     let active_id = id.clone();
     let active: sessions::Active = Arc::new(move || {
@@ -194,13 +203,16 @@ async fn launch(
         rows: request.rows,
     };
     let (summary, cancel, input) = state.terminals.register(summary)?;
+    if scope.lifetime.is_cancelled() {
+        cancel.cancel();
+    }
     let Some(input) = input else {
         return Ok(summary);
     };
     let changed_state = state.clone();
     let changed_app = app.clone();
     let changed: terminal::Changed = Arc::new(move || {
-        let _ = changed_app.emit("terminal://sessions", changed_state.terminals.list());
+        crate::workspace::publish_terminals(&changed_app, changed_state.terminals.list());
         crate::desktop::update_service_tray(&changed_app);
     });
     let manager = state.terminals.clone();
@@ -303,7 +315,7 @@ async fn launch(
     let mut workers = state.terminal_workers.lock().await;
     workers.retain(|_, job| !job.is_finished());
     workers.insert(id, join);
-    let _ = app.emit("terminal://sessions", state.terminals.list());
+    crate::workspace::publish_terminals(&app, state.terminals.list());
     crate::desktop::update_service_tray(&app);
     Ok(summary)
 }
@@ -315,7 +327,7 @@ pub fn attach_terminal(
     client_id: String,
     on_event: Channel<Frame>,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.attach(&id, &client_id, on_event)
 }
 #[tauri::command]
@@ -326,7 +338,7 @@ pub fn ack_terminal(
     client_id: String,
     sequence: u64,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.ack(&id, &client_id, sequence)
 }
 #[tauri::command]
@@ -338,7 +350,7 @@ pub fn terminal_input(
     sequence: u64,
     bytes: Vec<u8>,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.input(&id, &client_id, sequence, bytes)
 }
 #[tauri::command]
@@ -350,7 +362,7 @@ pub fn resize_terminal(
     cols: u32,
     rows: u32,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.resize(&id, &client_id, cols, rows)
 }
 #[tauri::command]
@@ -360,7 +372,7 @@ pub async fn close_terminal(
     id: String,
     client_id: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.cancel(&id, &client_id)?;
     if let Some(job) = state.terminal_workers.lock().await.remove(&id) {
         job.await.map_err(|_| "cleanup")?;
@@ -374,7 +386,7 @@ pub fn detach_terminal(
     id: String,
     client_id: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.detach(&id, &client_id)
 }
 #[tauri::command]
@@ -384,7 +396,7 @@ pub fn forget_terminal(
     id: String,
     client_id: String,
 ) -> Result<(), String> {
-    command_api::local(&window)?;
+    crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.forget(&id, &client_id)
 }
 
@@ -412,7 +424,9 @@ mod tests {
             }),
         );
         assert_eq!(state.active_work_ids().await, vec!["terminal:test"]);
-        state.interrupt_terminals();
+        let windows = crate::workspace::Workspaces::default();
+        windows.reset("main", false);
+        state.close_workspace(&windows.reset("main", false).unwrap());
         cancel.cancelled().await;
         let preparing = {
             let state = state.clone();

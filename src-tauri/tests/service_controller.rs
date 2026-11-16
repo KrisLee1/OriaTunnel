@@ -42,6 +42,7 @@ fn action(id: &str, kind: &str, command: &str) -> Action {
 }
 fn service() -> Service {
     Service {
+        direct_protocol: None,
         category: None,
         color: None,
         icon: None,

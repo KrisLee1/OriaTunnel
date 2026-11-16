@@ -5,6 +5,7 @@
     "targets": ["nsis"],
     "windows": {
       "nsis": {
+        "installerHooks": "vnc-installer.nsh",
         "installerIcon": "icons/installer-icon.ico",
         "compression": "zlib",
         "languages": [
