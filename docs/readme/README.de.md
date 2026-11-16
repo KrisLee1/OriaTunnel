@@ -112,10 +112,10 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 
 ### v0.3.0 · 2026-11-16
 
-- Der neue integrierte VNC-Viewer öffnet SSH-Weiterleitungen und `vnc://`-Links und unterstützt Vollbild, Zoom sowie Tastatur- und Mauseingaben.
-- Text lässt sich über die Zwischenablage in beide Richtungen zwischen dem lokalen Rechner und dem entfernten Desktop übertragen.
-- SSH-Terminal und SFTP lassen sich im VNC-Fenster öffnen.
-- Die Mac-Bildschirmfreigabe unterstützt die Verbindung mit einem klassischen VNC-Passwort. Scrollen und Ziehen auf hochauflösenden Desktops wurden verbessert. Das Löschen von Hosts und Weiterleitungen lässt sich getrennt rückgängig machen.
+- **VNC-Remotedesktop.** Der integrierte Viewer öffnet SSH-Weiterleitungen und `vnc://`-Links. Er unterstützt Tastatur und Maus, Zoom, Vollbild und die Mac-Bildschirmfreigabe mit VNC-Passwort.
+- **Text in der Zwischenablage.** Fügen Sie lokalen Text auf dem entfernten Desktop ein oder übernehmen Sie dort kopierten Text auf Ihren Rechner.
+- **Terminal und Dateiübertragung.** Öffnen Sie ein SSH-Terminal und übertragen Sie Dateien per SFTP im selben VNC-Fenster. Bereits beauftragte Übertragungen laufen nach dem Schließen des Fensters weiter.
+- **Hosts und Weiterleitungen.** Beim Löschen eines aktiven Hosts können Sie entscheiden, ob dessen Verbindungen beendet werden. Für Hosts und Weiterleitungen lassen sich pro Sitzung jeweils die letzten 20 Löschvorgänge rückgängig machen.
 
 ### v0.2.0 · 2026-11-04
 

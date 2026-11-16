@@ -112,10 +112,10 @@ The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, 
 
 ### v0.3.0 · 2026-11-16
 
-- Added a built-in VNC viewer for SSH forwards and `vnc://` links, with full screen, zoom, keyboard and mouse input.
-- Transfer clipboard text in both directions. Paste local text into the remote desktop or copy remote text back to your computer.
-- Open the SSH terminal or the SFTP panel inside the VNC window.
-- Connect to Mac Screen Sharing with a classic VNC password. Scrolling and dragging are smoother on high-resolution desktops. Hosts and forwards now have separate deletion histories for undo.
+- **VNC remote desktop.** Open the built-in viewer from an SSH forward or a `vnc://` link. Control the desktop with your keyboard and mouse, zoom or go full screen, and connect to Mac Screen Sharing with a VNC password.
+- **Two-way text clipboard.** Paste local text into the remote desktop or bring text copied on the remote computer back to yours.
+- **Terminal and file transfers.** Open an SSH terminal and upload or download files over SFTP in the same VNC window. Transfers already submitted continue after you close the window.
+- **Hosts and forwards.** Choose whether to stop active connections before deleting a host. Undo up to 20 recent deletions each for hosts and forwards during the current session.
 
 ### v0.2.0 · 2026-11-04
 

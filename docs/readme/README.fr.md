@@ -112,10 +112,10 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 
 ### v0.3.0 · 2026-11-16
 
-- Ajout d’un client VNC intégré qui ouvre les redirections SSH et les liens `vnc://`, avec plein écran, zoom, clavier et souris.
-- Le presse-papiers permet de transférer du texte dans les deux sens entre le poste local et le bureau distant.
-- Le terminal SSH et le panneau SFTP sont accessibles dans la fenêtre VNC.
-- Connectez-vous au partage d’écran du Mac avec un mot de passe VNC classique. Le défilement et le déplacement des fenêtres sont plus fluides en haute résolution. Les suppressions d’hôtes et de redirections peuvent être annulées séparément.
+- **Bureau distant VNC.** Ouvrez le client intégré depuis une redirection SSH ou un lien `vnc://`. Pilotez le bureau au clavier et à la souris, zoomez ou passez en plein écran. Le partage d’écran du Mac est accessible avec un mot de passe VNC.
+- **Presse-papiers bidirectionnel.** Collez du texte local sur le bureau distant ou récupérez le texte copié sur l’ordinateur distant.
+- **Terminal et transfert de fichiers.** Ouvrez un terminal SSH et envoyez ou téléchargez des fichiers par SFTP dans la même fenêtre VNC. Les transferts déjà lancés continuent après sa fermeture.
+- **Hôtes et redirections.** Choisissez d’arrêter les connexions actives avant de supprimer un hôte. Vous pouvez annuler les 20 dernières suppressions de la session pour les hôtes et pour les redirections séparément.
 
 ### v0.2.0 · 2026-11-04
 
