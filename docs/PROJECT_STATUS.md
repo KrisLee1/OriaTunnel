@@ -1,10 +1,14 @@
 # OriaTunnel 项目状态
 
-0.3.0 发布候选已包含内置 VNC 桌面、窗口内 SSH 终端与文件传输、认证重试，以及主机与转发分别撤销删除。[本版更新说明](releases/v0.3.0.md)
+当前正式版为 [v0.3.0](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)，于 2026-11-16 23:40（北京时间）公开并设为 Latest。[本版更新说明](releases/v0.3.0.md)
+
+## 0.3.0 发布（2026-11-16）
+
+Windows x64、Windows ARM64、macOS Apple Silicon 和 macOS Intel 的安装包与签名更新包均来自 `d42168586b83817f763c9ad165b36194da883117`。四个平台通过[质量检查](https://github.com/KrisLee1/OriaTunnel/actions/runs/43885161311)。两种 macOS 安装包均已签名和公证。[四平台发布构建](https://github.com/KrisLee1/OriaTunnel/actions/runs/43885301530)
+
+[正式发布工作流](https://github.com/KrisLee1/OriaTunnel/actions/runs/43898806797)重新下载并验证了草稿资产。发布后从公开入口核对了 17 个文件、四份构建收据和更新清单，四个平台的更新下载地址、签名、文件大小与 SHA-256 和发布记录一致。应用内更新与 GitHub Release 使用同一份中文更新说明。本次未在已安装的 0.2.0 客户端执行升级替换。
 
 本机发布预检通过 374 项前端测试、生产构建、9 项发布脚本测试、独立验签工具测试、182 项 Rust 库测试和 35 项回环集成测试。Rust 格式、严格 Clippy 和 29 份 Markdown 文档校验均通过。库测试按发布工作流跳过 3 项系统凭据库测试，另有 1 项单独启动的夹具。
-
-上一正式版本：[v0.2.0](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.2.0) 已于 2026-11-04 公开并设为 Latest。
 
 ## SSH 主机与转发的撤销删除（2026-11-16）
 

@@ -1,6 +1,6 @@
 # VNC 远程桌面实施方案
 
-2026-11-16 · 当前公开版本为 0.2.0。第 6 节保留实施前的原型记录，第 7 节定义分阶段验收。Windows x64 已验证安装注册与画面性能，Windows ARM64 已交叉构建安装包。开发版已进入 V5，当前 Mac 的隔离验证与剩余验收项见[项目状态](PROJECT_STATUS.md)。
+2026-11-16 · 内置 VNC 远程桌面已随 [v0.3.0](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0) 发布。第 6 节保留实施前的原型记录，第 7 节定义分阶段验收。Windows x64 已验证安装注册与画面性能，Windows ARM64 已交叉构建安装包。V5 的 macOS 隔离验证与剩余验收项见[项目状态](PROJECT_STATUS.md)。
 
 ## 1. 产品范围
 
