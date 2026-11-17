@@ -84,12 +84,13 @@ Auch ein Server mit gemeinsam genutzter IP-Adresse und nur einem zugewiesenen SS
 
 ## Bildschirmansichten
 
-Helle und dunkle Ansichten von Verbindungsübersicht, Weiterleitungen, Diensten, Hosts, Protokollen und SSH-Terminal. Die Bilder verwenden isolierte Beispieldaten ohne echte Server oder Zugangsdaten.
+Die hellen und dunklen Ansichten zeigen die Oberfläche mit Beispieldaten aus der OriaTunnel-Demo in OriaMadeWeb.
 
-| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Verbindungsübersicht"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/terminal-dark.png"><img src="../assets/screenshots/terminal-light.png" alt="SSH-Terminal"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/terminal-dark.png"><img src="../assets/screenshots/terminal-light.png" alt="Befehlssammlung im Terminal"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/vnc-dark.png"><img src="../assets/screenshots/vnc-light.png" alt="VNC-Remotedesktop"></picture> |
 | :---: | :---: |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/files-dark.png"><img src="../assets/screenshots/files-light.png" alt="Dateiübertragungen"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Verbindungsübersicht"></picture> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Weiterleitungen"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/services-dark.png"><img src="../assets/screenshots/services-light.png" alt="Dienste"></picture> |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH-Hosts"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Protokolle"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH-Hosts"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Aktivitätsprotokoll"></picture> |
 
 ## Benutzerdokumentation
 

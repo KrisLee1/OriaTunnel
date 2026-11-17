@@ -84,23 +84,15 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 
 ## 界面预览
 
-连接图、转发、服务、主机、日志和 SSH 终端的浅色／深色演示图，来自官网交互演示，使用独立示例数据，不包含真实服务器或凭据。
+以下功能界面取自 OriaMadeWeb 的 OriaTunnel 演示，使用示例数据，随阅读主题切换浅色或深色。
 
 **[前往 OriaTunnel 官网查看动态预览](https://oriamade.com/zh-CN/oria-tunnel#workspace)**
 
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/connection-map-dark.png"><img src="docs/assets/screenshots/connection-map-light.png" alt="连接图"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/terminal-dark.png"><img src="docs/assets/screenshots/terminal-light.png" alt="SSH 终端"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/terminal-dark.png"><img src="docs/assets/screenshots/terminal-light.png" alt="智能终端命令库"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/vnc-dark.png"><img src="docs/assets/screenshots/vnc-light.png" alt="VNC 远程桌面"></picture> |
 | :---: | :---: |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/files-dark.png"><img src="docs/assets/screenshots/files-light.png" alt="文件传输队列"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/connection-map-dark.png"><img src="docs/assets/screenshots/connection-map-light.png" alt="连接图"></picture> |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/forwards-dark.png"><img src="docs/assets/screenshots/forwards-light.png" alt="转发列表"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/services-dark.png"><img src="docs/assets/screenshots/services-light.png" alt="服务列表"></picture> |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/files-dark.png"><img src="docs/assets/screenshots/files-light.png" alt="文件传输"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/logs-dark.png"><img src="docs/assets/screenshots/logs-light.png" alt="日志"></picture> |
-
-### 文件传输
-
-本机与 SSH 主机的文件工作区、后台传输队列和布局预览。
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/files-dark.png">
-  <img src="docs/assets/screenshots/files-light.png" alt="文件传输工作区与后台队列">
-</picture>
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/hosts-dark.png"><img src="docs/assets/screenshots/hosts-light.png" alt="SSH 主机"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/logs-dark.png"><img src="docs/assets/screenshots/logs-light.png" alt="活动日志"></picture> |
 
 ## 使用文档
 
