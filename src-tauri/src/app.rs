@@ -2788,7 +2788,8 @@ mod tests {
                 .unwrap(),
         );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
+        let listener = Arc::new(listener);
+        let worker_listener = Arc::downgrade(&listener);
         let token = CancellationToken::new();
         let cancelled = token.clone();
         let finish = Arc::new(tokio::sync::Notify::new());
@@ -2813,10 +2814,10 @@ mod tests {
         assert!(state.update_installing());
         assert_eq!(state.allow_launch().unwrap_err(), "updateInstalling");
         assert!(!preparing.is_finished());
-        assert!(tokio::net::TcpListener::bind(address).await.is_err());
+        assert!(worker_listener.upgrade().is_some());
         finish.notify_one();
         preparing.await.unwrap().unwrap();
-        let _listener = tokio::net::TcpListener::bind(address).await.unwrap();
+        assert!(worker_listener.upgrade().is_none());
         assert!(state.active_work_ids().await.is_empty());
         state.finish_update_attempt();
         assert!(state.allow_launch().is_ok());

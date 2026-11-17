@@ -86,13 +86,16 @@ async fn wait_session(
     .await
     .expect("terminal lifecycle")
 }
-async fn wait_text(bytes: &Arc<Mutex<Vec<u8>>>, start: usize, text: &str) {
+async fn wait_text(bytes: &Arc<Mutex<Vec<u8>>>, start: usize, text: &str) -> usize {
     tokio::time::timeout(
         Duration::from_secs(if cfg!(windows) { 25 } else { 10 }),
         async {
             loop {
-                if String::from_utf8_lossy(&bytes.lock().unwrap()[start..]).contains(text) {
-                    return;
+                if let Some(offset) = bytes.lock().unwrap()[start..]
+                    .windows(text.len())
+                    .position(|window| window == text.as_bytes())
+                {
+                    return start + offset;
                 }
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
@@ -104,7 +107,7 @@ async fn wait_text(bytes: &Arc<Mutex<Vec<u8>>>, start: usize, text: &str) {
             "missing {text:?}: {:?}",
             String::from_utf8_lossy(&bytes.lock().unwrap())
         )
-    });
+    })
 }
 fn consume(manager: Arc<Manager>, id: &str) -> (Arc<Mutex<Vec<u8>>>, tokio::task::JoinHandle<()>) {
     let (tx, mut rx) = mpsc::unbounded_channel();
@@ -513,7 +516,15 @@ async fn shell_editor_runs_commands_and_changes_real_directory_on_loopback() {
         };
         wait_text(&bytes, 0, "]6973;editor;ready;0;").await;
         send(b"#oria commands 1 cHJpbnRm\n");
-        wait_text(&bytes, 0, "matches;1;cHJpbnRmA").await;
+        let prefix = "]6973;editor;matches;1;";
+        let start = wait_text(&bytes, 0, prefix).await + prefix.len();
+        let end = wait_text(&bytes, start, "\x07").await;
+        let matches = data_encoding::BASE64
+            .decode(&bytes.lock().unwrap()[start..end])
+            .unwrap();
+        assert!(matches
+            .split(|&byte| byte == 0)
+            .any(|name| name == b"printf"));
         send(b"#oria run 2 bWtkaXIgJ0EgQic=\n"); // Request release of the editor.
         wait_text(&bytes, 0, "release;2;").await;
         let mark = bytes.lock().unwrap().len();
