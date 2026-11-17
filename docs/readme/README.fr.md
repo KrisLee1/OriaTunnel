@@ -15,7 +15,7 @@ OriaTunnel est un outil de bureau de gestion des tunnels SSH et des services dis
 
 Enregistrez vos hôtes et règles de redirection, puis démarrez, arrêtez et ouvrez vos services depuis l’interface. Sans connaître les commandes SSH, vous pouvez aussi importer une configuration préparée par un administrateur ou un collègue et renseigner vos propres informations d’authentification.
 
-Version actuelle : **v0.3.0** · [Historique des versions](#historique-des-versions)
+Version actuelle : **v0.4.0** · [Historique des versions](#historique-des-versions)
 
 **[📥 Télécharger et installer](#télécharger-et-installer)** · [🚀 Prise en main](#prise-en-main) · [📖 Guide utilisateur complet (chinois simplifié)](../USAGE.md) · [🧭 Choisir un mode de redirection](#choisir-un-mode-de-redirection)
 
@@ -37,17 +37,17 @@ Version actuelle : **v0.3.0** · [Historique des versions](#historique-des-versi
 ## Télécharger et installer
 
 
-Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
+Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
 
 - **Windows :** téléchargez le programme d’installation `.exe` et suivez l’assistant d’installation.
 - **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
 
 | Plateforme | Téléchargement |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
 
 Vérifiez les mises à jour dans **À propos → Mise à jour**, puis téléchargez et installez la nouvelle version. La vérification au démarrage peut être désactivée. L’installation interrompt les connexions SSH ; enregistrez d’abord votre travail dans le terminal. Pour une première installation ou une ancienne version de développement, utilisez les programmes ci-dessus. Voir les [mises à jour de l’application (chinois)](../USAGE.md#应用更新).
 
@@ -99,7 +99,7 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 - [Utiliser une configuration existante](../USAGE.md#使用现成配置)
 - [Modèles et actions de service](../USAGE.md#预设远程命令)
 - [Vérifications d’état et de santé, démarrage et connexion](../USAGE.md#服务状态健康检查与启动并连接)
-- [Terminal SSH interactif](../USAGE.md#ssh-交互终端)
+- [Terminal SSH interactif](../USAGE.md#本地与-ssh-交互终端)
 - [Ajouter et gérer les hôtes SSH (chinois)](../USAGE.md#添加和管理-ssh-主机)
 - [Créer et gérer les redirections (chinois)](../USAGE.md#创建和管理转发)
 - [L : accéder aux services distants (chinois)](../USAGE.md#场景一访问服务器上的网页或数据库l) · [R : accéder aux services locaux (chinois)](../USAGE.md#场景二让服务器访问本机开发服务r) · [D : proxy SOCKS5 (chinois)](../USAGE.md#场景三通过-ssh-代理访问多个服务d)
@@ -109,6 +109,12 @@ Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la ge
 - [Transfert, aperçu et modification de fichiers (0.2.0)](../USAGE.md#文件传输)
 
 ## Historique des versions
+
+### v0.4.0 · 2026-11-17
+
+- Dans Bash, Zsh et PowerShell local sous Windows, → accepte la suggestion en fin de ligne, Tab affiche les complétions et ↑ ouvre l’historique. Cliquez sur un élément du chemin pour changer de dossier en conservant la commande en cours de saisie.
+- Enregistrez vos commandes avec des mots-clés pour les retrouver dans une autre session. Maj+Entrée insère un saut de ligne. À l’exécution de la commande suivante, les longues sorties précédentes se replient dans un aperçu défilant.
+- Ouvrez un terminal local ou une session SSH depuis le panneau du terminal. Une confirmation précède la fermeture d’un onglet où une commande est en cours. Le dossier cible est mis en évidence pendant le glisser-déposer.
 
 ### v0.3.0 · 2026-11-16
 

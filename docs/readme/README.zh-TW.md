@@ -15,7 +15,7 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 
 儲存主機和轉送規則後，日常透過點選即可啟動、停止和開啟服務。不熟悉 SSH 指令的使用者，也可以匯入管理員或同事準備好的設定，補齊自己的驗證資訊後使用。
 
-目前版本：**v0.3.0** · [版本記錄](#版本記錄)
+目前版本：**v0.4.0** · [版本記錄](#版本記錄)
 
 **[📥 下載與安裝](#下載與安裝)** · [🚀 快速上手](#快速上手) · [📖 完整使用指南（簡體中文）](../USAGE.md) · [🧭 選擇轉送方式](#選擇轉送方式)
 
@@ -37,17 +37,17 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 ## 下載與安裝
 
 
-前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)，選擇適合你的作業系統與裝置架構的套件。
+前往 [Releases 下載頁面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0)，選擇適合你的作業系統與裝置架構的套件。
 
 - **Windows：**下載 `.exe` 安裝程式，依安裝精靈的指示完成安裝。
 - **macOS：**下載並開啟 `.dmg`，將 `OriaTunnel.app` 拖入「**應用程式（Applications）**」。若下載的是 `.zip`，請先解壓縮其中的 `.dmg`。
 
 | 平台 | 下載 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
 
 在「關於」的「版本更新」中檢查新版本，依提示下載並安裝；可關閉「啟動時檢查更新」。安裝會中斷目前的 SSH 連線，請先儲存終端中的工作。首次安裝或較早的開發版本請使用上方安裝套件。詳見[應用程式更新（簡體中文）](../USAGE.md#应用更新)。
 
@@ -99,7 +99,7 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 - [使用現成設定](../USAGE.md#使用现成配置)
 - [服務範本與操作](../USAGE.md#预设远程命令)
 - [狀態、健康檢查與啟動並連線](../USAGE.md#服务状态健康检查与启动并连接)
-- [SSH 互動終端機](../USAGE.md#ssh-交互终端)
+- [SSH 互動終端機](../USAGE.md#本地与-ssh-交互终端)
 - [新增與管理 SSH 主機（簡體中文）](../USAGE.md#添加和管理-ssh-主机)
 - [建立與管理轉送（簡體中文）](../USAGE.md#创建和管理转发)
 - [L：存取遠端服務（簡體中文）](../USAGE.md#场景一访问服务器上的网页或数据库l) · [R：存取本機服務（簡體中文）](../USAGE.md#场景二让服务器访问本机开发服务r) · [D：SOCKS5 代理（簡體中文）](../USAGE.md#场景三通过-ssh-代理访问多个服务d)
@@ -109,6 +109,12 @@ OriaTunnel 是適用於 Windows 和 macOS 的 SSH 通道與遠端服務管理工
 - [檔案傳輸、預覽與編輯（0.2.0）](../USAGE.md#文件传输)
 
 ## 版本記錄
+
+### v0.4.0 · 2026-11-17
+
+- 在 Bash、Zsh 與 Windows 本機 PowerShell 中，按 → 接受行尾建議、Tab 查看補全候選、↑ 瀏覽歷史指令。點選路徑即可切換目錄並保留草稿。
+- 常用指令可加上關鍵字存入指令庫，跨工作階段取用。按 Shift+Enter 可換行編輯。執行下一個指令時，先前的長輸出會收合成可捲動的預覽。
+- 從終端面板開啟本機或 SSH 工作階段。關閉仍有前景指令執行的分頁時會要求確認，拖放檔案時會醒目標示目標資料夾。
 
 ### v0.3.0 · 2026-11-16
 

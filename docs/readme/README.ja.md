@@ -15,7 +15,7 @@ OriaTunnel は、Windows と macOS 向けの SSH トンネル・リモートサ�
 
 ホストと転送ルールを保存すれば、日常の開始・停止やサービスへのアクセスは画面から操作できます。SSH コマンドに詳しくない方も、管理者や同僚が用意した設定を読み込み、自分の認証情報を設定して利用できます。
 
-現在のバージョン：**v0.3.0** · [更新履歴](#更新履歴)
+現在のバージョン：**v0.4.0** · [更新履歴](#更新履歴)
 
 **[📥 ダウンロードとインストール](#ダウンロードとインストール)** · [🚀 クイックスタート](#クイックスタート) · [📖 詳しいユーザーガイド（中国語・簡体字）](../USAGE.md) · [🧭 転送方式を選ぶ](#転送方式を選ぶ)
 
@@ -37,17 +37,17 @@ OriaTunnel は、Windows と macOS 向けの SSH トンネル・リモートサ�
 ## ダウンロードとインストール
 
 
-[Releases のダウンロードページ](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)で、お使いの OS とデバイスのアーキテクチャに合ったパッケージを選択してください。
+[Releases のダウンロードページ](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0)で、お使いの OS とデバイスのアーキテクチャに合ったパッケージを選択してください。
 
 - **Windows：** `.exe` インストーラーをダウンロードし、インストールウィザードに従って進めてください。
 - **macOS：** `.dmg` をダウンロードして開き、`OriaTunnel.app` を **アプリケーション**フォルダーにドラッグしてください。`.zip` をダウンロードした場合は、先に中の `.dmg` を展開してください。
 
 | プラットフォーム | ダウンロード |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
 
 「このアプリについて」のバージョン更新から確認し、ダウンロードしてインストールできます。起動時の確認は無効にできます。インストール時に SSH 接続が切断されるため、端末での作業を先に保存してください。初回導入や古い開発版には上記のインストーラーを使用してください。[アプリの更新（中国語）](../USAGE.md#应用更新)を参照してください。
 
@@ -99,7 +99,7 @@ OriaTunnel の設定ファイルがある場合は、転送ページから読み
 - [既存の設定を使う](../USAGE.md#使用现成配置)
 - [サービステンプレートと操作](../USAGE.md#预设远程命令)
 - [状態・ヘルスチェックと起動後の接続](../USAGE.md#服务状态健康检查与启动并连接)
-- [SSH 対話型ターミナル](../USAGE.md#ssh-交互终端)
+- [SSH 対話型ターミナル](../USAGE.md#本地与-ssh-交互终端)
 - [SSH ホストの追加と管理（中国語）](../USAGE.md#添加和管理-ssh-主机)
 - [転送の作成と管理（中国語）](../USAGE.md#创建和管理转发)
 - [L：リモートのサービスにアクセス（中国語）](../USAGE.md#场景一访问服务器上的网页或数据库l) · [R：ローカルのサービスにアクセス（中国語）](../USAGE.md#场景二让服务器访问本机开发服务r) · [D：SOCKS5 プロキシ（中国語）](../USAGE.md#场景三通过-ssh-代理访问多个服务d)
@@ -109,6 +109,12 @@ OriaTunnel の設定ファイルがある場合は、転送ページから読み
 - [ファイル転送・プレビュー・編集（0.2.0）](../USAGE.md#文件传输)
 
 ## 更新履歴
+
+### v0.4.0 · 2026-11-17
+
+- Bash、Zsh、Windows のローカル PowerShell では、→ で行末の候補を採用し、Tab で補完候補、↑ で履歴を表示できます。パスをクリックすると、入力中のコマンドを残したままディレクトリを移動できます。
+- よく使うコマンドをキーワード付きで保存し、別のセッションで呼び出せます。Shift+Enter で改行して編集できます。次のコマンドを実行すると、直前の長い出力はスクロール可能なプレビューに折りたたまれます。
+- 端末パネルからローカル端末と SSH セッションを開けます。コマンドの実行中にタブを閉じると確認が表示され、ファイルのドラッグ中は移動先のフォルダーが強調されます。
 
 ### v0.3.0 · 2026-11-16
 

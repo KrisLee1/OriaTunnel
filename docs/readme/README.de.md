@@ -15,7 +15,7 @@ OriaTunnel ist ein Desktop-Werkzeug zur Verwaltung von SSH-Tunneln und entfernte
 
 Speichern Sie Hosts und Weiterleitungsregeln und nutzen Sie die Oberfläche zum Starten, Stoppen und Öffnen von Diensten. Auch ohne SSH-Befehlskenntnisse können Sie eine vorbereitete Konfiguration importieren und Ihre eigenen Authentifizierungsdaten ergänzen.
 
-Aktuelle Version: **v0.3.0** · [Versionsverlauf](#versionsverlauf)
+Aktuelle Version: **v0.4.0** · [Versionsverlauf](#versionsverlauf)
 
 **[📥 Herunterladen und installieren](#herunterladen-und-installieren)** · [🚀 Schnellstart](#schnellstart) · [📖 Vollständiges Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) · [🧭 Weiterleitungsart wählen](#weiterleitungsart-wählen)
 
@@ -37,17 +37,17 @@ Aktuelle Version: **v0.3.0** · [Versionsverlauf](#versionsverlauf)
 ## Herunterladen und installieren
 
 
-Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
+Besuchen Sie die [Releases-Downloadseite](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0) und wählen Sie das Paket für Ihr Betriebssystem und die Prozessorarchitektur Ihres Geräts.
 
 - **Windows:** Laden Sie das `.exe`-Installationsprogramm herunter und folgen Sie dem Installationsassistenten.
 - **macOS:** Laden Sie die `.dmg`-Datei herunter, öffnen Sie sie und ziehen Sie `OriaTunnel.app` in den Ordner **Programme (Applications)**. Wenn Sie eine `.zip`-Datei herunterladen, entpacken Sie zuerst die darin enthaltene `.dmg`-Datei.
 
 | Plattform | Download |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
 
 Unter **Über → Versionsaktualisierung** können Sie Updates prüfen, herunterladen und installieren. Die Prüfung beim Start ist abschaltbar. Die Installation trennt SSH-Verbindungen; speichern Sie vorher Ihre Terminalarbeit. Für die Erstinstallation oder ältere Entwicklungsbuilds verwenden Sie die obigen Installationspakete. Siehe [App-Updates (Chinesisch)](../USAGE.md#应用更新).
 
@@ -99,7 +99,7 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 - [Vorbereitete Konfiguration nutzen](../USAGE.md#使用现成配置)
 - [Dienstvorlagen und Aktionen](../USAGE.md#预设远程命令)
 - [Status- und Zustandsprüfungen sowie Start und Verbindung](../USAGE.md#服务状态健康检查与启动并连接)
-- [Interaktives SSH-Terminal](../USAGE.md#ssh-交互终端)
+- [Interaktives SSH-Terminal](../USAGE.md#本地与-ssh-交互终端)
 - [SSH-Hosts hinzufügen und verwalten (Chinesisch)](../USAGE.md#添加和管理-ssh-主机)
 - [Weiterleitungen erstellen und verwalten (Chinesisch)](../USAGE.md#创建和管理转发)
 - [L: Auf entfernte Dienste zugreifen (Chinesisch)](../USAGE.md#场景一访问服务器上的网页或数据库l) · [R: Auf lokale Dienste zugreifen (Chinesisch)](../USAGE.md#场景二让服务器访问本机开发服务r) · [D: SOCKS5-Proxy (Chinesisch)](../USAGE.md#场景三通过-ssh-代理访问多个服务d)
@@ -109,6 +109,12 @@ Das [vollständige Benutzerhandbuch (vereinfachtes Chinesisch)](../USAGE.md) bes
 - [Dateiübertragung, Vorschau und Bearbeitung (0.2.0)](../USAGE.md#文件传输)
 
 ## Versionsverlauf
+
+### v0.4.0 · 2026-11-17
+
+- In Bash, Zsh und der lokalen Windows PowerShell übernimmt → den Vorschlag am Zeilenende. Tab zeigt Ergänzungen und ↑ den Verlauf. Per Klick auf einen Pfadabschnitt wechseln Sie das Verzeichnis, ohne Ihre Eingabe zu verlieren.
+- Speichern Sie Befehle mit Stichwörtern und rufen Sie sie auch in anderen Sitzungen ab. Umschalt+Eingabe fügt einen Zeilenumbruch ein. Beim nächsten Befehl wird die vorherige lange Ausgabe zu einer scrollbaren Vorschau eingeklappt.
+- Öffnen Sie lokale Terminals und SSH-Sitzungen im Terminalbereich. Vor dem Schließen eines Tabs mit laufendem Vordergrundbefehl erscheint eine Rückfrage. Beim Ziehen von Dateien wird der Zielordner hervorgehoben.
 
 ### v0.3.0 · 2026-11-16
 

@@ -15,7 +15,7 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 
 如果你需要通过 SSH 使用多台服务器上的多个服务，可以把主机和转发规则保存下来，日常通过点击启动、停止和打开服务。不熟悉 SSH 命令的使用者，也可以导入他人准备好的配置，补全自己的认证信息后使用。
 
-当前版本：**v0.3.0** · [版本记录](#版本记录)
+当前版本：**v0.4.0** · [版本记录](#版本记录)
 
 **[📥 下载与安装](#下载与安装)** · [🚀 快速上手](#快速上手) · [📖 完整使用指南](docs/USAGE.md)
 
@@ -24,7 +24,7 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 - **内置 VNC 远程桌面** — 从转发打开独立桌面窗口，可全屏、缩放，并在窗口中使用 SSH 终端和文件传输。
 - 📁 **浏览与传输文件（0.2.0）**：浏览本机和 SSH 主机，上传、下载及主机间传输，管理后台队列，预览文件并编辑文本。
 - 🔗 **管理多条隧道**：按主机查看连接图和转发列表，独立或批量启动、停止规则。
-- 💻 **随时打开 SSH 终端**：通过已添加的主机打开多标签交互终端，也可在专用终端运行需要交互或持续前台运行的服务命令。
+- 💻 **本地与 SSH 智能终端**。在多个标签中切换会话，用补全、目录导航和命令库编写命令，按命令查看或折叠输出。
 - **把常用服务操作变成按钮**：保存启动、停止、重启、状态和日志等命令，从关联转发执行；可从内置模板开始配置。
 - **按需检查并连接服务**：配置状态与健康检查，在支持的非交互启动流程中执行「启动并连接」，查看每一步的实际结果。
 - **覆盖常见 SSH 转发场景**：本地转发 L、远程转发 R、动态 SOCKS5 代理 D，支持有序多跳 ProxyJump。
@@ -37,17 +37,17 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 ## 下载与安装
 
 
-前往 [Releases 下载页面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.3.0)，选择适合操作系统和设备架构的安装包。
+前往 [Releases 下载页面](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0)，选择适合操作系统和设备架构的安装包。
 
 - **Windows**：下载 `.exe` 安装程序，双击后按向导完成安装。
 - **macOS**：下载 `.dmg`，打开后将 `OriaTunnel.app` 拖入「应用程序」文件夹。如果下载的是 `.zip`，先解压出其中的 `.dmg` 再打开。
 
 | 平台 | 下载 |
 | --- | --- |
-| Windows x64 | [OriaTunnel_0.3.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.3.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.3.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.3.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.3.0/OriaTunnel_0.3.0_x64.dmg) |
+| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
+| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
+| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
+| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
 
 在「关于」的「版本更新」中检查新版本，按提示下载并安装；可关闭「启动时检查更新」。安装会中断当前 SSH 连接，请先保存终端中的工作。首次安装或较早开发构建请使用上方安装包。详见[应用更新](docs/USAGE.md#应用更新)。
 
@@ -112,12 +112,21 @@ OriaTunnel 是面向 Windows 和 macOS 的 SSH 隧道与远程服务管理工具
 - [L：访问远端服务](docs/USAGE.md#场景一访问服务器上的网页或数据库l) · [R：访问本机服务](docs/USAGE.md#场景二让服务器访问本机开发服务r) · [D：SOCKS5 代理](docs/USAGE.md#场景三通过-ssh-代理访问多个服务d)
 - [配置导入与导出](docs/USAGE.md#配置导入与导出)
 - [服务模板与命令按钮](docs/USAGE.md#预设远程命令) · [状态、健康检查与启动并连接](docs/USAGE.md#服务状态健康检查与启动并连接)
-- [SSH 交互终端](docs/USAGE.md#ssh-交互终端) · [VNC 远程桌面](docs/USAGE.md#vnc-远程桌面)
+- [SSH 交互终端](docs/USAGE.md#本地与-ssh-交互终端) · [VNC 远程桌面](docs/USAGE.md#vnc-远程桌面)
 - [后台运行、重连与自动启动](docs/USAGE.md#后台运行重连与自动启动)
 - [状态与排错](docs/USAGE.md#查看状态与排查问题)
 - [文件传输、预览与编辑（0.2.0）](docs/USAGE.md#文件传输)
 
 ## 版本记录
+
+### v0.4.0 · 2026-11-17
+
+- **命令补全**。在 Bash、Zsh 或 Windows 本地 PowerShell 中输入命令时，按 → 接受行尾建议，按 Tab 查看补全候选，按 ↑ 找回历史命令。
+- **目录切换**。点击当前路径中的上级目录即可返回，点击末级目录可选择子目录。Windows 本地终端还能通过「此电脑」切换盘符。切换后可继续编辑原来的命令草稿。
+- **命令库**。按 ↓ 为常用命令添加关键词并保存。在其他会话输入关键词即可找回，选中后回填到输入行，核对后再执行。
+- **多行输入**。按 Shift+Enter 换行，在同一处编辑整段命令，完成后按 Enter 执行。
+- **长输出折叠**。当前命令的输出默认展开。执行下一条命令后，上一条的长输出收为可滚动预览，可随时展开，也可从命令菜单复制已保留的输出。
+- **交互优化**。从终端面板即可新建本地或 SSH 会话。关闭仍在运行前台命令的标签时会提示确认。拖放文件时可看到选中数量和目标目录高亮。
 
 ### v0.3.0 · 2026-11-16
 
