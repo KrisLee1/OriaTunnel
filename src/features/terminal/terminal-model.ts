@@ -50,6 +50,11 @@ export function mergeSessions(
   );
   return ordered.filter((session) => !evicted.has(session.id));
 }
+export interface TerminalTabControls {
+  logout: () => Promise<void>;
+  foreground: () => boolean;
+  atPrompt: () => boolean;
+}
 export const terminalActive = (s: TerminalSession) => s.finishedAt === null;
 export function serviceForegroundSession(
   sessions: TerminalSession[],

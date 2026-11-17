@@ -8,7 +8,7 @@ export function useNativeFileDrop(
   ref: RefObject<HTMLElement | null>,
   enabled: boolean,
   onDrop: (paths: string[], point: { x: number; y: number }) => void,
-  onHover: (hovering: boolean) => void,
+  onHover: (hovering: boolean, hit?: Element | null) => void,
 ) {
   const callbacks = useRef({onDrop, onHover})
   callbacks.current = {onDrop, onHover}
@@ -21,9 +21,10 @@ export function useNativeFileDrop(
       if (payload.type === 'leave') { hasFiles = false; callbacks.current.onHover(false); return }
       if (payload.type === 'enter' || payload.type === 'drop') hasFiles = payload.paths.length > 0
       const point = nativeDropPoint(payload.position, navigator.platform.includes('Mac'), window.devicePixelRatio)
-      const target = document.elementFromPoint(point.x, point.y)?.closest('[data-native-file-drop]')
+      const hit = document.elementFromPoint(point.x, point.y)
+      const target = hit?.closest('[data-native-file-drop]')
       const inside = hasFiles && !!ref.current && target === ref.current
-      callbacks.current.onHover(inside && payload.type !== 'drop')
+      callbacks.current.onHover(inside && payload.type !== 'drop', hit)
       if (inside && payload.type === 'drop') callbacks.current.onDrop(payload.paths, point)
     }
     if (isViewerWindow()) {

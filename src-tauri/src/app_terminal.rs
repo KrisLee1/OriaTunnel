@@ -44,6 +44,89 @@ pub async fn open_terminal(
     let scope = crate::workspace::scope(&window)?;
     launch(state.inner().clone(), app, request, scope).await
 }
+#[tauri::command]
+pub async fn open_local_terminal(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    request_id: String,
+    client_id: String,
+    cols: u32,
+    rows: u32,
+) -> Result<Session, String> {
+    let scope = crate::workspace::scope(&window)?;
+    let _launch = state.workers.lock().await;
+    state.allow_launch()?;
+    terminal::dimensions(cols, rows)?;
+    if uuid::Uuid::parse_str(&request_id).is_err() || uuid::Uuid::parse_str(&client_id).is_err() {
+        return Err("invalidSession".into());
+    }
+    if let Some(existing) = state
+        .terminals
+        .existing(&request_id, &client_id, "", &None, &None)?
+    {
+        scope.check(&existing.id)?;
+        return Ok(existing);
+    }
+    let id = scope.session_id("terminal");
+    let shell = portable_pty::CommandBuilder::new_default_prog().get_shell();
+    let label = std::path::Path::new(&shell)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(&shell)
+        .to_owned();
+    let session = Session {
+        local: true,
+        id: id.clone(),
+        request_id,
+        client_id,
+        host_id: String::new(),
+        route_host_ids: vec![],
+        host_name: String::new(),
+        endpoint: shell,
+        label,
+        service_id: None,
+        action_id: None,
+        rule_id: None,
+        phase: "opening-pty".into(),
+        revision: 1,
+        started_at: timestamp(),
+        finished_at: None,
+        submitted: false,
+        exit_code: None,
+        exit_signal: None,
+        error: None,
+        fingerprint: None,
+        verification_endpoint: None,
+        cols,
+        rows,
+    };
+    let (session, cancel, input) = state.terminals.register(session)?;
+    if scope.lifetime.is_cancelled() {
+        cancel.cancel();
+    }
+    if let Some(input) = input {
+        let manager = state.terminals.clone();
+        let changed_manager = manager.clone();
+        let changed_app = app.clone();
+        let changed: terminal::Changed = Arc::new(move || {
+            crate::workspace::publish_terminals(&changed_app, changed_manager.list())
+        });
+        let job = tokio::spawn(terminal::local::execute(
+            manager,
+            id.clone(),
+            cancel,
+            input,
+            changed,
+        ));
+        let mut workers = state.terminal_workers.lock().await;
+        workers.retain(|_, job| !job.is_finished());
+        workers.insert(id, job);
+    }
+    crate::workspace::publish_terminals(&app, state.terminals.list());
+    Ok(session)
+}
+
 async fn launch(
     state: Arc<AppState>,
     app: tauri::AppHandle,
@@ -164,6 +247,7 @@ async fn launch(
         active.clone(),
     )?;
     let summary = Session {
+        local: false,
         rule_id: profile
             .as_ref()
             .map(|(s, _)| {
@@ -364,6 +448,16 @@ pub fn resize_terminal(
 ) -> Result<(), String> {
     crate::workspace::scope(&window)?.check(&id)?;
     state.terminals.resize(&id, &client_id, cols, rows)
+}
+#[tauri::command]
+pub fn local_terminal_foreground(
+    state: tauri::State<Arc<AppState>>,
+    window: tauri::WebviewWindow,
+    id: String,
+    client_id: String,
+) -> Result<bool, String> {
+    crate::workspace::scope(&window)?.check(&id)?;
+    state.terminals.local_foreground(&id, &client_id)
 }
 #[tauri::command]
 pub async fn close_terminal(

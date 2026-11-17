@@ -97,7 +97,7 @@
   "macCredentialDelete": "Das Passwort kann nicht aus dem macOS-Schlüsselbund gelöscht werden",
   "passwordUnsupported": "Das Merken von Passwörtern wird auf dieser Plattform nicht unterstützt",
   "trayServiceCommands": "Dienstbefehle",
-  "traySshTerminal": "SSH-Terminal",
+  "traySshTerminal": "Terminal",
   "traySourceMissingId": "Quelle nicht verfügbar · {{arg0}}",
   "trayStop": "Stoppen",
   "traySourceMissing": "Quelle nicht verfügbar",

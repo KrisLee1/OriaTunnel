@@ -97,7 +97,7 @@
   "macCredentialDelete": "macOS 키체인에서 비밀번호를 지울 수 없습니다",
   "passwordUnsupported": "이 플랫폼은 비밀번호 저장을 지원하지 않습니다",
   "trayServiceCommands": "서비스 명령",
-  "traySshTerminal": "SSH 터미널",
+  "traySshTerminal": "터미널",
   "traySourceMissingId": "원본 사용 불가 · {{arg0}}",
   "trayStop": "중지",
   "traySourceMissing": "원본 사용 불가",

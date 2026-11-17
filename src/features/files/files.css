@@ -188,16 +188,19 @@
 }
 .files-search-popup {
   width: min(280px, calc(100vw - 24px));
-  padding: 4px;
-}
-.files-search-popup input {
-  height: 28px;
-  font-size: 12px;
 }
 .files-toolbar svg {
   flex-shrink: 0;
 }
+.files-pane-scroll {
+  flex: 1;
+  min-height: 0;
+  margin-inline: -8px;
+  margin-block-end: -8px;
+}
 .files-viewport {
+  width: auto;
+  margin-inline: 8px;
   touch-action: pan-y;
   flex: 1;
   min-height: 0;
@@ -316,10 +319,7 @@
   max-height: 38px;
 }
 .files-task-list {
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  padding: 0 8px 8px;
+  overscroll-behavior: contain;
 }
 .files-error {
   display: flex;
@@ -615,20 +615,38 @@
   outline: 2px solid var(--oria-color-ring);
   outline-offset: -2px;
 }
-.files-drop-hover {
-  outline: 1px solid var(--oria-color-border-strong);
+.files-drop-hover,
+.files-entry[data-drop-hover] {
+  outline: 2px solid var(--oria-color-primary);
   outline-offset: -2px;
+}
+.files-entry[data-drop-hover] {
+  background: color-mix(in srgb, var(--oria-color-primary) 16%, transparent);
 }
 .files-drag {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 100;
   pointer-events: none;
-  background: var(--oria-color-overlay);
-  color: var(--oria-color-overlay-fg);
-  border: 1px solid var(--oria-color-primary);
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 24%));
+}
+.files-drag > .files-artwork {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+.files-drag-count {
+  position: absolute;
+  inset-inline-end: -3px;
+  top: -3px;
+  min-width: 16px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--oria-color-primary);
+  color: var(--oria-color-on-primary);
+  font: 600 10px/16px system-ui;
+  text-align: center;
 }
 .files-badge {
   font-size: 9px;

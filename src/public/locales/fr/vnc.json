@@ -25,6 +25,7 @@
   "pasteHint": "Collez ici le texte à envoyer",
   "defaultVnc": "VNC par défaut",
   "chooseDefault": "Définir comme client VNC par défaut du système",
+  "isDefault": "Déjà le client VNC par défaut",
   "askEachTime": "Demander à chaque fois",
   "openVnc": "Ouvrir VNC",
   "thisAppVnc": "VNC de cette application",

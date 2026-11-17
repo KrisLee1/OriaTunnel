@@ -25,6 +25,7 @@
   "pasteHint": "Zu sendenden Text hier einfügen",
   "defaultVnc": "Standard-VNC-Client",
   "chooseDefault": "Als Systemstandard für VNC festlegen",
+  "isDefault": "Bereits Standard für VNC",
   "askEachTime": "Jedes Mal fragen",
   "openVnc": "VNC öffnen",
   "thisAppVnc": "VNC in dieser App",

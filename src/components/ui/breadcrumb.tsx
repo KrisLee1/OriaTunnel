@@ -25,10 +25,12 @@ export function BreadcrumbItem({ className, ...props }: ComponentProps<"li">) {
     />
   );
 }
-export function BreadcrumbSeparator() {
+export function BreadcrumbSeparator({
+  children,
+}: Pick<ComponentProps<"li">, "children">) {
   return (
     <li role="presentation" aria-hidden="true" data-slot="breadcrumb-separator">
-      <ChevronRight className="size-3 shrink-0" />
+      {children ?? <ChevronRight className="size-3 shrink-0" />}
     </li>
   );
 }

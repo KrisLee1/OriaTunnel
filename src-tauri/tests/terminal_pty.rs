@@ -13,6 +13,7 @@ use std::{
 use tokio::sync::mpsc;
 fn summary(id: &str) -> Session {
     Session {
+        local: false,
         rule_id: None,
         id: id.into(),
         request_id: format!("request-{id}"),
@@ -481,4 +482,65 @@ async fn multiple_sessions_and_multihop_remain_independent_after_close() {
     }
     target_server.abort();
     jump_server.abort();
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn shell_editor_runs_commands_and_changes_real_directory_on_loopback() {
+    for shell in ["/bin/bash", "/bin/zsh"] {
+        if !std::path::Path::new(shell).exists() {
+            continue;
+        }
+        let mut fixture = server::Fixture::default();
+        fixture.editor_shell = Some(shell);
+        let (port, server) = server::start(fixture).await;
+        let manager = Arc::new(Manager::default());
+        let (s, cancel, input) = manager.register(summary("editor")).unwrap();
+        let (bytes, consumer) = consume(manager.clone(), &s.id);
+        let job = tokio::spawn(terminal::execute(
+            manager.clone(),
+            s.id.clone(),
+            cancel.clone(),
+            input.unwrap(),
+            request(port),
+        ));
+        let mut sequence = 0;
+        let mut send = |value: &[u8]| {
+            sequence += 1;
+            manager
+                .input(&s.id, "client", sequence, value.to_vec())
+                .unwrap();
+        };
+        wait_text(&bytes, 0, "]6973;editor;ready;0;").await;
+        send(b"#oria commands 1 cHJpbnRm\n");
+        wait_text(&bytes, 0, "matches;1;cHJpbnRmA").await;
+        send(b"#oria run 2 bWtkaXIgJ0EgQic=\n"); // Request release of the editor.
+        wait_text(&bytes, 0, "release;2;").await;
+        let mark = bytes.lock().unwrap().len();
+        send(b"mkdir 'A B'\r");
+        wait_text(&bytes, mark, "]6973;editor;ready;0;").await;
+        send(b"#oria dirs 3 QQ==\n");
+        wait_text(&bytes, mark, "matches;3;QSBCLwA=").await;
+        send(b"#oria list 4 Lg==\n");
+        wait_text(&bytes, mark, "list;4;QSBCLwA=").await;
+        send(b"#oria cd 5 QSBCLw==\n");
+        wait_text(&bytes, mark, "cwd;5;").await;
+        send(b"#oria cd 6 bWlzc2luZw==\n");
+        wait_text(&bytes, mark, "error;6;").await;
+        send(b"#oria run 7 cHdk\n");
+        wait_text(&bytes, mark, "release;7;").await;
+        let mark = bytes.lock().unwrap().len();
+        send(b"pwd\r");
+        wait_text(&bytes, mark, "/A B\r\n").await;
+        wait_text(&bytes, mark, "ready;0;").await;
+        send(b"#oria raw 8 \n");
+        wait_text(&bytes, mark, "release;8;").await;
+        send(&[4]);
+        tokio::time::timeout(Duration::from_secs(8), job)
+            .await
+            .unwrap()
+            .unwrap();
+        consumer.abort();
+        server.abort();
+    }
 }

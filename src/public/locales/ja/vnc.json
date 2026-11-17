@@ -25,6 +25,7 @@
   "pasteHint": "送信するテキストをここに貼り付けてください",
   "defaultVnc": "既定の VNC",
   "chooseDefault": "システム既定の VNC に設定",
+  "isDefault": "システム既定の VNC に設定済み",
   "askEachTime": "毎回確認",
   "openVnc": "VNC を開く",
   "thisAppVnc": "このアプリの VNC",

@@ -11,7 +11,7 @@
   "autoCheck": "Beim Start nach Updates suchen",
   "releases": "Veröffentlichungen öffnen",
   "confirmTitle": "Update installieren",
-  "confirmHint": "Version {{version}} installieren und neu starten? Alle Weiterleitungen, SSH-Terminals, Dienstbefehle und Hosttests werden beendet.",
+  "confirmHint": "Version {{version}} installieren und neu starten? Alle Weiterleitungen, Terminals, Dienstbefehle und Hosttests werden beendet.",
   "activeForwards": "Aktive Sitzungen und Befehle: {{count}}",
   "activeTests": "Aktive Hosttests: {{count}}",
   "later": "Später",

@@ -1,4 +1,6 @@
 //! Interactive SSH channels. Output has lossless bounded flow control; input never enters snapshots.
+mod editor;
+pub mod local;
 use crate::{
     model::{timestamp, FailureKind, Runtime},
     tunnel,
@@ -17,6 +19,8 @@ const OUTPUT_LIMIT: usize = 256 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
+    #[serde(default)]
+    pub local: bool,
     #[serde(default)]
     pub rule_id: Option<String>,
     pub id: String,
@@ -59,6 +63,8 @@ pub enum Input {
     Resize(u32, u32),
 }
 struct Entry {
+    #[cfg(unix)]
+    local_shell: Option<(Arc<std::os::fd::OwnedFd>, u32)>,
     session: Session,
     cancel: CancellationToken,
     input: mpsc::Sender<Input>,
@@ -147,6 +153,8 @@ impl Manager {
         entries.insert(
             session.id.clone(),
             Entry {
+                #[cfg(unix)]
+                local_shell: None,
                 session: session.clone(),
                 cancel: cancel.clone(),
                 input,
@@ -168,7 +176,24 @@ impl Manager {
             e.session.revision += 1;
         }
     }
+    pub fn local_foreground(&self, id: &str, client: &str) -> Result<bool, String> {
+        let mut entries = self.entries.lock().unwrap();
+        let entry = Self::owner(&mut entries, id, client)?;
+        #[cfg(unix)]
+        if let Some((master, shell)) = &entry.local_shell {
+            use std::os::fd::AsRawFd;
+            let group = unsafe { libc::tcgetpgrp(master.as_raw_fd()) };
+            return Ok(group > 0 && group as u32 != *shell);
+        }
+        #[cfg(not(unix))]
+        let _ = entry;
+        Ok(false)
+    }
     pub fn finish(&self, id: &str, phase: &str, error: Option<String>) {
+        #[cfg(unix)]
+        if let Some(entry) = self.entries.lock().unwrap().get_mut(id) {
+            entry.local_shell.take();
+        }
         self.change(id, |s| {
             s.phase = phase.into();
             s.error = error;
@@ -411,6 +436,11 @@ pub async fn execute(
         if !(request.validate)() {
             return ("failed", Some("staleSession".into()));
         }
+        let editor = if request.command.is_none() {
+            editor::startup(&connection, &id).await
+        } else {
+            None
+        };
         let opened = tokio::time::timeout(Duration::from_secs(15), connection.open_session()).await;
         let Ok(Ok(mut channel)) = opened else {
             return ("failed", Some("channelRejected".into()));
@@ -457,16 +487,29 @@ pub async fn execute(
                     .exec(true, command.as_bytes().to_vec())
                     .await
                     .map_err(|_| "remoteUnknown")?;
+            } else if let Some(ref startup) = editor {
+                channel
+                    .exec(true, startup.as_bytes().to_vec())
+                    .await
+                    .map_err(|_| "shellRejected")?;
             } else {
                 channel
                     .request_shell(true)
                     .await
                     .map_err(|_| "shellRejected")?;
             }
+            let mut try_plain_shell = editor.is_some();
             let mut early = Vec::new();
             loop {
                 match channel.wait().await {
                     Some(ChannelMsg::Success) => return Ok(early),
+                    Some(ChannelMsg::Failure) if try_plain_shell => {
+                        try_plain_shell = false;
+                        channel
+                            .request_shell(true)
+                            .await
+                            .map_err(|_| "shellRejected")?;
+                    }
                     Some(ChannelMsg::Failure) | None => {
                         return Err(if request.command.is_some() {
                             "execRejected"
@@ -571,6 +614,7 @@ mod tests {
     use super::*;
     fn session(id: &str) -> Session {
         Session {
+            local: false,
             rule_id: None,
             id: id.into(),
             request_id: format!("request-{id}"),

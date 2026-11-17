@@ -11,7 +11,7 @@
   "autoCheck": "Rechercher au démarrage",
   "releases": "Ouvrir les versions",
   "confirmTitle": "Installer la mise à jour",
-  "confirmHint": "Installer la version {{version}} et redémarrer ? Toutes les redirections, tous les terminaux SSH, toutes les commandes de service et tous les tests d’hôte seront arrêtés.",
+  "confirmHint": "Installer la version {{version}} et redémarrer ? Toutes les redirections, tous les terminaux, toutes les commandes de service et tous les tests d’hôte seront arrêtés.",
   "activeForwards": "Sessions et commandes actives : {{count}}",
   "activeTests": "Tests d’hôte actifs : {{count}}",
   "later": "Plus tard",

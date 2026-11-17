@@ -4,6 +4,7 @@ import type { Ref } from "react"
 import { cn } from "@/lib/utils"
 
 type ScrollAreaProps = ScrollAreaPrimitive.Root.Props & {
+  viewportProps?: Omit<ScrollAreaPrimitive.Viewport.Props, "className" | "children" | "ref">
   viewportClassName?: string
   contentClassName?: string
   viewportRef?: Ref<HTMLDivElement>
@@ -11,6 +12,7 @@ type ScrollAreaProps = ScrollAreaPrimitive.Root.Props & {
 
 function ScrollArea({
   className,
+  viewportProps,
   viewportClassName,
   contentClassName,
   viewportRef,
@@ -24,6 +26,7 @@ function ScrollArea({
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
+        {...viewportProps}
         ref={viewportRef}
         data-slot="scroll-area-viewport"
         className={cn(

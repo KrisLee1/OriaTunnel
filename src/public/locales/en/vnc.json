@@ -25,6 +25,7 @@
   "pasteHint": "Paste text here to send it",
   "defaultVnc": "Default VNC",
   "chooseDefault": "Set as system default VNC client",
+  "isDefault": "Already the default VNC client",
   "askEachTime": "Ask each time",
   "openVnc": "Open VNC",
   "thisAppVnc": "VNC in this app",

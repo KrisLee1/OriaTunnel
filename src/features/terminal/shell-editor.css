@@ -1,0 +1,377 @@
+.shell-transcript {
+  container-type: size;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+.shell-surface {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.integrated .shell-surface {
+  height: auto;
+  min-height: 100%;
+  position: relative;
+  font:
+    13px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  color: var(--oria-color-fg);
+}
+.integrated .ssh-terminal-screen {
+  width: 100%;
+  height: max(3em, calc(100cqh - 28px));
+  min-height: 0;
+  flex: none;
+}
+.shell-screen-hidden {
+  visibility: hidden;
+  position: absolute;
+  inset: auto 0 0;
+  pointer-events: none;
+}
+.shell-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 4px 2px var(--terminal-content-inset);
+}
+.shell-heading > .shell-environment {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 50%;
+  color: var(--oria-color-primary);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.shell-path [data-slot="breadcrumb-list"] {
+  gap: 2px;
+  color: inherit;
+  font: inherit;
+}
+.shell-path [data-slot="breadcrumb-separator"] {
+  flex: none;
+  color: var(--oria-color-muted-fg);
+}
+.shell-path [data-slot="breadcrumb-ellipsis"] {
+  width: 16px;
+}
+.shell-path button:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: -1px;
+}
+.shell-path button:hover {
+  text-decoration: underline;
+}
+.shell-path svg,
+.shell-options svg {
+  flex-shrink: 0;
+}
+:is(
+  .shell-block pre,
+  .shell-current-block .shell-command,
+  .shell-current-block .shell-output-measure
+) {
+  padding: 0 4px 4px var(--terminal-content-inset);
+  font: inherit;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.shell-edit {
+  display: flex;
+  gap: 1ch;
+  position: relative;
+  margin: 0 4px 0 var(--terminal-content-inset);
+}
+.shell-dollar {
+  flex: none;
+  color: var(--oria-color-muted-fg);
+  user-select: none;
+}
+.shell-input-body {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.shell-edit textarea,
+.shell-mirror {
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 8;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  width: 100%;
+}
+.shell-edit textarea {
+  display: block;
+  background: transparent;
+  color: inherit;
+  resize: none;
+  outline: none;
+  cursor: text;
+  position: relative;
+  overflow: hidden;
+  min-height: 1.45em;
+}
+.shell-mirror {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  user-select: none;
+}
+.shell-ghost {
+  color: color-mix(in srgb, var(--oria-color-fg) 48%, transparent);
+}
+.shell-options {
+  display: flex;
+  flex-direction: column;
+  max-height: 10em;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.shell-options button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: start;
+  padding: 3px 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.shell-options button[aria-selected="true"] {
+  background: var(--oria-color-primary);
+  color: var(--oria-color-on-primary, var(--oria-color-bg));
+}
+.shell-candidates {
+  position: absolute;
+  z-index: 5;
+  width: max-content;
+  min-width: min(20ch, 100%);
+  max-width: 100%;
+  border-radius: var(--oria-radius-md);
+}
+.shell-directory {
+  max-width: min(22rem, 90vw);
+}
+.shell-environment {
+  color: var(--oria-color-success);
+  flex: 0 1 auto;
+  max-width: 32%;
+}
+.shell-caret-anchor {
+  display: inline-block;
+  height: 1em;
+  width: 0;
+  vertical-align: text-bottom;
+}
+
+.shell-candidates button {
+  flex: none;
+  min-width: 0;
+}
+.shell-candidates button span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shell-directory > .search-input-control {
+  flex: none;
+  border-block-end: 1px solid var(--oria-color-border);
+}
+.shell-directory-viewport {
+  --scroll-fade-t-size: 12px;
+  --scroll-fade-b-size: 12px;
+  --scroll-fade-reveal: 20px;
+  scroll-padding-block: 12px;
+  overscroll-behavior: contain;
+}
+.shell-directory .shell-options {
+  max-height: none;
+  overflow: visible;
+}
+.shell-directory .shell-options button {
+  flex: none;
+  border-radius: var(--oria-radius-sm);
+  padding-inline: 6px 10px;
+}
+.shell-directory-status {
+  display: block;
+  padding: 3px 6px;
+  color: var(--oria-color-muted-fg);
+}
+
+.shell-block pre,
+.shell-block pre span {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+.shell-block pre:focus {
+  outline: none;
+}
+
+.shell-surface {
+  position: relative;
+  z-index: 1;
+}
+.shell-selection {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+.shell-selection i {
+  position: absolute;
+  background: var(--oria-color-selection);
+}
+.shell-transcript[data-text-selection] :is(pre, pre span, textarea)::selection {
+  color: var(--oria-color-selection-fg);
+  background-color: transparent;
+}
+::highlight(oria-terminal-selection) {
+  color: var(--oria-color-selection-fg);
+}
+
+.shell-transcript[data-fullscreen] :is(.shell-block, .shell-sticky) {
+  display: none;
+}
+.shell-transcript[data-fullscreen] .ssh-terminal-screen {
+  height: 100cqh;
+}
+
+.shell-current-block {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.integrated .shell-current-block {
+  flex: none;
+}
+.shell-block-more {
+  margin-inline-start: auto;
+  flex: none;
+  opacity: 0;
+  transition: opacity 100ms ease-out 350ms;
+}
+:is(.shell-block, .shell-current-block):hover > .shell-sticky .shell-block-more,
+.shell-block-more:focus-visible,
+.shell-block-more[aria-expanded="true"] {
+  opacity: 1;
+  transition-delay: 0s;
+}
+@media (hover: none) {
+  .shell-block-more {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-block-more {
+    transition-duration: 0s;
+  }
+}
+.shell-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.shell-sticky ::highlight(oria-terminal-selection) {
+  background: var(--oria-color-selection);
+}
+.shell-screen-clip {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.integrated .shell-screen-clip {
+  flex: none;
+  overflow: clip;
+}
+
+.shell-current-block[data-live-output] .shell-screen-clip {
+  position: relative;
+  display: block;
+  overflow: clip;
+}
+.shell-current-block[data-live-output] .ssh-terminal-screen {
+  position: sticky;
+  top: 0;
+}
+.shell-current-block[data-live-output] .xterm .scrollbar.vertical {
+  display: none;
+}
+
+.shell-live-viewport {
+  display: contents;
+}
+.shell-current-block[data-live-output] .shell-live-viewport {
+  display: block;
+}
+[data-output-folded] > :is(.shell-output-text, .shell-live-viewport) {
+  max-height: min(18lh, 46cqh);
+  overflow-y: auto;
+}
+
+.shell-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.shell-fold:focus-visible {
+  outline: 1px solid currentColor;
+}
+.shell-heading pre.shell-summary {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--oria-color-muted-fg);
+  user-select: text;
+}
+[data-output-folded] > .scroll-fade {
+  --scroll-fade-t-size: 16px;
+  --scroll-fade-b-size: 16px;
+  --scroll-fade-reveal: 24px;
+}
+
+.shell-block[data-defer-history] .shell-heading {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 26px;
+}
+
+.shell-output-measure {
+  position: absolute;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}

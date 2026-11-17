@@ -17,6 +17,7 @@ mod macos_windows;
 pub mod model;
 mod native_message;
 mod proxy_browser;
+mod saved_commands;
 mod service;
 pub mod service_control;
 pub mod service_templates;
@@ -82,6 +83,7 @@ pub fn run() {
                 std::process::exit(0);
             };
             app.manage(instance);
+            app.manage(saved_commands::Store::new(&directory));
             app.manage(Arc::new(app::AppState::load(path).map_err(|error| {
                 std::io::Error::other(native_message::render_in_language(
                     &error,
@@ -189,6 +191,7 @@ pub fn run() {
         .invoke_handler({
             let main: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
                 vnc::choose_default_vnc,
+                vnc::is_default_vnc,
                 app::snapshot,
                 app::file_api::file_snapshot,
                 app::file_api::file_clear_history,
@@ -207,12 +210,16 @@ pub fn run() {
                 app::file_api::file_preview,
                 app::file_api::file_read_text,
                 app::file_api::file_write_text,
+                saved_commands::saved_terminal_commands,
+                saved_commands::change_saved_terminal_command,
                 app::terminal_api::terminal_sessions,
                 app::terminal_api::open_terminal,
+                app::terminal_api::open_local_terminal,
                 app::terminal_api::attach_terminal,
                 app::terminal_api::ack_terminal,
                 app::terminal_api::terminal_input,
                 app::terminal_api::resize_terminal,
+                app::terminal_api::local_terminal_foreground,
                 app::terminal_api::close_terminal,
                 app::terminal_api::detach_terminal,
                 app::terminal_api::forget_terminal,
@@ -300,12 +307,16 @@ pub fn run() {
                 app::file_api::file_preview,
                 app::file_api::file_read_text,
                 app::file_api::file_write_text,
+                saved_commands::saved_terminal_commands,
+                saved_commands::change_saved_terminal_command,
                 app::terminal_api::terminal_sessions,
                 app::terminal_api::open_terminal,
+                app::terminal_api::open_local_terminal,
                 app::terminal_api::attach_terminal,
                 app::terminal_api::ack_terminal,
                 app::terminal_api::terminal_input,
                 app::terminal_api::resize_terminal,
+                app::terminal_api::local_terminal_foreground,
                 app::terminal_api::close_terminal,
                 app::terminal_api::detach_terminal,
                 app::terminal_api::forget_terminal,

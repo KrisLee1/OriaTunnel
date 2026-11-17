@@ -1,4 +1,6 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isDefaultVnc } from "@/lib/bridge";
 import { Button } from "@/components/ui/button";
 import {
   Item,
@@ -21,10 +23,38 @@ export function VncClientSetting({
   onChooseDefault,
 }: {
   desktop: boolean;
-  onChooseDefault: () => void;
+  onChooseDefault: () => Promise<boolean>;
 }) {
   const { t } = useTranslation("vnc");
   const { client, remembered, rememberClient } = useVncClientSettings();
+  const [isDefault, setIsDefault] = useState<boolean | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const query = useRef(0);
+  const refreshDefault = useCallback(async () => {
+    const request = ++query.current;
+    const current = await isDefaultVnc().catch(() => false);
+    if (request === query.current) setIsDefault(current);
+  }, []);
+
+  useEffect(() => {
+    if (!desktop) return;
+    void refreshDefault();
+    window.addEventListener("focus", refreshDefault);
+    return () => {
+      ++query.current;
+      window.removeEventListener("focus", refreshDefault);
+    };
+  }, [desktop, refreshDefault]);
+
+  async function chooseDefault() {
+    setChoosing(true);
+    try {
+      await onChooseDefault();
+      await refreshDefault();
+    } finally {
+      setChoosing(false);
+    }
+  }
   const items = [
     { value: "system", label: t("useSystem") },
     { value: "internal", label: t("useInternal") },
@@ -67,10 +97,10 @@ export function VncClientSetting({
             type="button"
             variant="outline"
             size="sm"
-            disabled={!desktop}
-            onClick={onChooseDefault}
+            disabled={!desktop || choosing || isDefault !== false}
+            onClick={chooseDefault}
           >
-            {t("chooseDefault")}
+            {t(isDefault ? "isDefault" : "chooseDefault")}
           </Button>
         </ItemActions>
       </Item>

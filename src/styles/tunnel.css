@@ -1859,3 +1859,10 @@ body,
   .command-action-header > button { grid-column: 2; grid-row: 3; }
   .command-action-options { grid-template-columns: minmax(0, 1fr); }
 }
+
+.terminal-start { display: flex; flex: 1; min-height: 0; overflow: auto; flex-direction: column; align-items: stretch; gap: 2px; padding: 6px var(--terminal-content-inset, 8px); }
+.terminal-target-menu { width: max-content; min-width: min(14rem, 85vw); max-width: min(24rem, 85vw); }
+.terminal-target { justify-content: flex-start; flex: none; min-width: 0; height: auto; gap: 8px; padding: 6px 8px; text-align: start; }
+.terminal-target-text { display: grid; min-width: 0; }
+.terminal-target-text > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.terminal-target-text small { color: var(--oria-color-muted-fg); font-size: 12px; }

@@ -11,7 +11,7 @@
   "autoCheck": "起動時に更新を確認",
   "releases": "リリースページを開く",
   "confirmTitle": "更新をインストール",
-  "confirmHint": "{{version}} をインストールして再起動しますか？すべての転送、SSH 端末、サービスコマンド、ホストテストが停止します。",
+  "confirmHint": "{{version}} をインストールして再起動しますか？すべての転送、端末、サービスコマンド、ホストテストが停止します。",
   "activeForwards": "実行中のセッションとコマンド：{{count}}",
   "activeTests": "実行中のホストテスト：{{count}}",
   "later": "後で",

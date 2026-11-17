@@ -77,6 +77,7 @@ export const openService = (id: string, internalVnc?: boolean) =>
 export const openHostService = (hostId: string, serviceId: string, revision: string, protocol: DirectProtocol, internalVnc = false) =>
   invoke<void>("open_host_service", { hostId, serviceId, revision, protocol, internalVnc });
 export const chooseDefaultVnc = () => invoke<void>("choose_default_vnc");
+export const isDefaultVnc = () => invoke<boolean>("is_default_vnc");
 export type ProxyBrowser = "edge" | "chrome" | "firefox";
 export const openProxyBrowser = (
   id: string,
@@ -189,6 +190,8 @@ export { Channel };
 
 export const terminalSessions = () =>
   invoke<import("@/types").TerminalSession[]>("terminal_sessions");
+export const openLocalTerminal = (requestId: string, clientId: string, cols: number, rows: number) =>
+  invoke<import("@/types").TerminalSession>("open_local_terminal", {requestId, clientId, cols, rows});
 export const openTerminal = (request: import("@/types").OpenTerminalRequest) =>
   invoke<import("@/types").TerminalSession>("open_terminal", {
     request: executionTarget(request),
@@ -212,6 +215,8 @@ export const resizeTerminal = (
   cols: number,
   rows: number,
 ) => invoke<void>("resize_terminal", { id, clientId, cols, rows });
+export const localTerminalForeground = (id: string, clientId: string) =>
+  invoke<boolean>("local_terminal_foreground", { id, clientId });
 export const closeTerminal = (id: string, clientId: string) =>
   invoke<void>("close_terminal", { id, clientId });
 export const detachTerminal = (id: string, clientId: string) =>

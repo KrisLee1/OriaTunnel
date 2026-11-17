@@ -52,11 +52,12 @@ export function FileSearchButton({
       />
       <PopoverContent
         align="end"
-        className="files-search-popup files-options-popup"
+        className="files-search-popup files-options-popup overflow-hidden p-0"
         aria-label={t("search")}
         initialFocus={() => (focusOnOpen.current ? input.current : false)}
       >
         <SearchInput
+          embedded
           ref={input}
           aria-label={t("search")}
           placeholder={t("search")}

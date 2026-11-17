@@ -600,6 +600,53 @@ fn windows_protocol_handler(scheme: windows::core::PCWSTR) -> windows::core::Res
 }
 
 #[tauri::command]
+pub fn is_default_vnc(app: AppHandle) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSWorkspace;
+        use objc2_foundation::{NSBundle, NSString, NSURL};
+
+        let url = NSURL::URLWithString(&NSString::from_str("vnc://localhost")).unwrap();
+        NSWorkspace::sharedWorkspace()
+            .URLForApplicationToOpenURL(&url)
+            .and_then(|url| NSBundle::bundleWithURL(&url))
+            .and_then(|bundle| bundle.bundleIdentifier())
+            .is_some_and(|id| id.to_string() == app.config().identifier)
+    }
+    #[cfg(windows)]
+    {
+        use windows::{
+            core::{w, PWSTR},
+            Win32::UI::Shell::{
+                AssocQueryStringW, ASSOCF_IS_PROTOCOL, ASSOCF_NOTRUNCATE, ASSOCSTR_PROGID,
+            },
+        };
+
+        // Match the ProgID registered by vnc-installer.nsh for this product.
+        let expected = format!("{}.VNC", app.package_info().name);
+        let mut buffer = vec![0; expected.encode_utf16().count() + 1];
+        let mut length = buffer.len() as u32;
+        let result = unsafe {
+            AssocQueryStringW(
+                ASSOCF_IS_PROTOCOL | ASSOCF_NOTRUNCATE,
+                ASSOCSTR_PROGID,
+                w!("vnc"),
+                None,
+                Some(PWSTR(buffer.as_mut_ptr())),
+                &mut length,
+            )
+        };
+        result.is_ok()
+            && String::from_utf16_lossy(&buffer[..buffer.len() - 1]).eq_ignore_ascii_case(&expected)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = app;
+        false
+    }
+}
+
+#[tauri::command]
 pub async fn choose_default_vnc(app: AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     {

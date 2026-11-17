@@ -37,6 +37,10 @@ struct PtyPair {
 #[derive(Clone, Default)]
 pub struct Fixture {
     pairs: Arc<Mutex<BTreeMap<ChannelId, Arc<PtyPair>>>>,
+    #[cfg(unix)]
+    pub editor_shell: Option<&'static str>,
+    #[cfg(unix)]
+    editor_home: Option<Arc<tempfile::TempDir>>,
     pub refuse_pty: bool,
     pub refuse_shell: bool,
     pub sizes: Arc<Mutex<Vec<(u32, u32)>>>,
@@ -54,6 +58,10 @@ impl server::Server for Fixture {
     fn new_client(&mut self, _: Option<std::net::SocketAddr>) -> Self {
         Self {
             pairs: Default::default(),
+            #[cfg(unix)]
+            editor_shell: self.editor_shell,
+            #[cfg(unix)]
+            editor_home: self.editor_home.clone(),
             refuse_pty: self.refuse_pty,
             refuse_shell: self.refuse_shell,
             sizes: self.sizes.clone(),
@@ -101,12 +109,14 @@ async fn spawn_shell(
     channel: ChannelId,
     handle: server::Handle,
     command: Option<String>,
+    shell: Option<&'static str>,
+    home: Option<Arc<tempfile::TempDir>>,
 ) {
-    let dir = tempfile::tempdir().unwrap();
-    let mut process = tokio::process::Command::new("/bin/sh");
+    let dir = home.unwrap_or_else(|| Arc::new(tempfile::tempdir().unwrap()));
+    let mut process = tokio::process::Command::new(shell.unwrap_or("/bin/sh"));
     process
         .env_clear()
-        .env("HOME", dir.path())
+        .env("HOME", dir.path().canonicalize().unwrap())
         .env("PATH", "/usr/bin:/bin")
         .env("TERM", "xterm-256color")
         .env(
@@ -121,6 +131,14 @@ async fn spawn_shell(
         .env("HISTFILE", "/dev/null")
         .current_dir(dir.path())
         .kill_on_drop(true);
+    if let Some(shell) = shell {
+        let file = if shell.ends_with("bash") {
+            ".bash_history"
+        } else {
+            ".zsh_history"
+        };
+        process.env("HISTFILE", dir.path().join(file));
+    }
     if let Some(command) = command {
         process.args(["-c", &command]);
     } else {
@@ -264,7 +282,16 @@ impl server::Handler for Fixture {
         self.shells
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if let Some(pair) = self.pairs.lock().unwrap().get(&ch).cloned() {
-            tokio::spawn(spawn_shell(pair, ch, session.handle(), None));
+            tokio::spawn(spawn_shell(
+                pair,
+                ch,
+                session.handle(),
+                None,
+                #[cfg(unix)]
+                self.editor_shell,
+                #[cfg(unix)]
+                self.editor_home.clone(),
+            ));
         }
         Ok(())
     }
@@ -274,6 +301,16 @@ impl server::Handler for Fixture {
         command: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        #[cfg(unix)]
+        if let Some(shell) = self.editor_shell {
+            if command == b"echo \"$0\"" && !self.pairs.lock().unwrap().contains_key(&ch) {
+                session.channel_success(ch)?;
+                session.data(ch, format!("{shell}\n").into_bytes())?;
+                session.eof(ch)?;
+                session.close(ch)?;
+                return Ok(());
+            }
+        }
         if let Some(pair) = self.pairs.lock().unwrap().get(&ch).cloned() {
             session.channel_success(ch)?;
             self.shells
@@ -283,6 +320,10 @@ impl server::Handler for Fixture {
                 ch,
                 session.handle(),
                 Some(String::from_utf8_lossy(command).into_owned()),
+                #[cfg(unix)]
+                self.editor_shell,
+                #[cfg(unix)]
+                self.editor_home.clone(),
             ));
         } else {
             session.channel_failure(ch)?;
@@ -367,6 +408,18 @@ pub async fn start(fixture: Fixture) -> (u16, tokio::task::JoinHandle<()>) {
     });
     let task = tokio::spawn(async move {
         let mut fixture = fixture;
+        #[cfg(unix)]
+        if fixture.editor_shell.is_some() {
+            let home = tempfile::tempdir().unwrap();
+            if fixture.editor_shell == Some("/bin/zsh") {
+                std::fs::write(
+                    home.path().join(".zshrc"),
+                    "HISTFILE=$HOME/.zsh_history\nSAVEHIST=500\n",
+                )
+                .unwrap();
+            }
+            fixture.editor_home = Some(Arc::new(home));
+        }
         let _ = fixture.run_on_socket(config, &listener).await;
     });
     (port, task)

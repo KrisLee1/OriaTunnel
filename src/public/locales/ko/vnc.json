@@ -25,6 +25,7 @@
   "pasteHint": "보낼 텍스트를 여기에 붙여넣으세요",
   "defaultVnc": "기본 VNC",
   "chooseDefault": "시스템 기본 VNC로 설정",
+  "isDefault": "시스템 기본 VNC로 설정됨",
   "askEachTime": "매번 묻기",
   "openVnc": "VNC 열기",
   "thisAppVnc": "이 앱의 VNC",

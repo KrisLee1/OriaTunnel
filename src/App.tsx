@@ -1191,7 +1191,7 @@ export function App() {
                 <h3>VNC</h3>
                 <VncClientSetting
                   desktop={bridge.desktop}
-                  onChooseDefault={() => void action(bridge.chooseDefaultVnc)}
+                  onChooseDefault={() => action(bridge.chooseDefaultVnc)}
                 />
                 <h3>{t("discovery")}</h3>
                 <HostSourceSettings

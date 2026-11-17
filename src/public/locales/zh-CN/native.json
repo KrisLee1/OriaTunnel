@@ -97,7 +97,7 @@
   "macCredentialDelete": "无法从 macOS 钥匙串清除密码",
   "passwordUnsupported": "当前平台暂不支持记住密码",
   "trayServiceCommands": "服务命令",
-  "traySshTerminal": "SSH 终端",
+  "traySshTerminal": "终端",
   "traySourceMissingId": "来源失效 · {{arg0}}",
   "trayStop": "停止",
   "traySourceMissing": "来源失效",

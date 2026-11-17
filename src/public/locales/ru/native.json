@@ -97,7 +97,7 @@
   "macCredentialDelete": "Не удалось удалить пароль из Связки ключей macOS",
   "passwordUnsupported": "Сохранение паролей на этой платформе не поддерживается",
   "trayServiceCommands": "Команды служб",
-  "traySshTerminal": "Терминал SSH",
+  "traySshTerminal": "Терминал",
   "traySourceMissingId": "Источник недоступен · {{arg0}}",
   "trayStop": "Остановить",
   "traySourceMissing": "Источник недоступен",

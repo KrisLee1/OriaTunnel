@@ -25,6 +25,7 @@
   "pasteHint": "Вставьте сюда текст для отправки",
   "defaultVnc": "VNC по умолчанию",
   "chooseDefault": "Назначить клиентом VNC по умолчанию",
+  "isDefault": "Клиент VNC по умолчанию",
   "askEachTime": "Спрашивать каждый раз",
   "openVnc": "Открыть VNC",
   "thisAppVnc": "VNC в этом приложении",

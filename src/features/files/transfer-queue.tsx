@@ -15,6 +15,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -267,7 +268,11 @@ export function TransferQueue({
         </div>
       </div>
       {expanded && (
-        <div className="files-task-list scroll-fade">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="files-task-list scroll-fade"
+          contentClassName="px-2 pb-2"
+        >
           {filtered.length === 0 && (
             <p className="files-empty">{t("noTransfers")}</p>
           )}
@@ -326,7 +331,7 @@ export function TransferQueue({
               {t("loadMoreTasks")}
             </Button>
           )}
-        </div>
+        </ScrollArea>
       )}
     </section>
   );

@@ -97,7 +97,7 @@
   "macCredentialDelete": "macOS キーチェーンからパスワードを消去できません",
   "passwordUnsupported": "このプラットフォームではパスワードの保存に対応していません",
   "trayServiceCommands": "サービスコマンド",
-  "traySshTerminal": "SSH ターミナル",
+  "traySshTerminal": "ターミナル",
   "traySourceMissingId": "読み込み元を利用できません · {{arg0}}",
   "trayStop": "停止",
   "traySourceMissing": "読み込み元を利用できません",

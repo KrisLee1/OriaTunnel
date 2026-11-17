@@ -97,7 +97,7 @@
   "macCredentialDelete": "Cannot clear the password from macOS Keychain",
   "passwordUnsupported": "Remembering passwords is not supported on this platform",
   "trayServiceCommands": "Service commands",
-  "traySshTerminal": "SSH terminal",
+  "traySshTerminal": "Terminal",
   "traySourceMissingId": "Source unavailable · {{arg0}}",
   "trayStop": "Stop",
   "traySourceMissing": "Source unavailable",

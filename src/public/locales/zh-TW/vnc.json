@@ -25,6 +25,7 @@
   "pasteHint": "在此貼上要傳送的文字",
   "defaultVnc": "預設 VNC",
   "chooseDefault": "設為系統預設 VNC",
+  "isDefault": "已是系統預設 VNC",
   "askEachTime": "每次詢問",
   "openVnc": "開啟 VNC",
   "thisAppVnc": "此應用程式 VNC",

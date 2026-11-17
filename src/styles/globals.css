@@ -31,6 +31,13 @@
   font-size: 12px;
 }
 
+.search-input-control[data-embedded] > input {
+  height: 34px;
+}
+.search-input-control[data-embedded]:focus-within > svg {
+  color: var(--oria-color-primary);
+}
+
 /* AuthenticationField supplies the single reveal control in Edge/WebView2. */
 input[type="password"]::-ms-reveal {
   display: none;
@@ -312,6 +319,18 @@ body {
   display: none;
   width: 0;
   height: 0;
+}
+
+[data-slot="scroll-area-viewport"].scroll-fade:not([data-has-overflow-y]) {
+  animation: none;
+  --scroll-fade-t: 0px;
+  --scroll-fade-b: 0px;
+}
+@supports not (animation-timeline: scroll()) {
+  [data-slot="scroll-area-viewport"].scroll-fade {
+    --scroll-fade-t: min(var(--_scroll-fade-size-t), var(--scroll-area-overflow-y-start, 0px));
+    --scroll-fade-b: min(var(--_scroll-fade-size-b), var(--scroll-area-overflow-y-end, 0px));
+  }
 }
 
 /* ScrollArea owns overlay tracks; the native gutter must stay zero-width. */

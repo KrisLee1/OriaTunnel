@@ -35,7 +35,7 @@ pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 
-托盘由 `desktop.rs` 构建原生子菜单：服务名称下按精确转发引用分组列动作，SSH 终端下仅打开面板及已添加主机，不设新建项。TRAY_PANELS 保留全局面板入口；具体服务请求只携带 ID/修订/停止类型，原生先重验当前可用性，前端从保存配置解析并复用现有确认/认证/执行；不从事件接受脚本或凭据。终端主机入口走原有 openHost；未绑定模板、诊断阻塞及忙碌状态在菜单体现。AppState.tray_service_activity 只提供忙碌集合和活动服务终端引用，状态集合变化才刷新配置菜单，避免输出/尺寸事件重复重建；主线程重读活动集合、拒绝旧配置 revision。顶层及目标组沿用原生 separator。
+托盘由 `desktop.rs` 构建原生子菜单：服务名称下按精确转发引用分组列动作，终端下仅打开面板及已添加主机，不设新建项。TRAY_PANELS 保留全局面板入口；具体服务请求只携带 ID/修订/停止类型，原生先重验当前可用性，前端从保存配置解析并复用现有确认/认证/执行；不从事件接受脚本或凭据。终端主机入口走原有 openHost；未绑定模板、诊断阻塞及忙碌状态在菜单体现。AppState.tray_service_activity 只提供忙碌集合和活动服务终端引用，状态集合变化才刷新配置菜单，避免输出/尺寸事件重复重建；主线程重读活动集合、拒绝旧配置 revision。顶层及目标组沿用原生 separator。
 
 `pnpm tauri dev` 同时启动 Vite 和 Tauri 桌面应用。Vite 固定使用本机 1420 端口；若端口占用，先检查已有开发进程。`pnpm dev` 仅用于浏览器界面预览，不具备 SSH、配置持久化和原生窗口能力。
 
@@ -265,6 +265,8 @@ pnpm test src/features/commands
 
 0.2.0 的原生入口为 `src-tauri/src/app_files.rs`，队列、SFTP、本机文件系统、直传与文本保存分别位于 `src-tauri/src/files/`；前端在 `src/features/files/`，通过该目录的 `api.ts` 调用专用 IPC，并订阅 `files://snapshot`。任务状态、字节进度和提交结果均来自 Rust，不能用前端定时器模拟成功。
 
+macOS 可在项目根目录执行 `pnpm build`，再执行 `node scripts/qa/terminal-editor-macos.mjs`。脚本启动隔离应用和仅监听回环地址的 Bash、Zsh SSH 服务，使用临时账户目录。鼠标验证要求测试窗口处于前台。使用 `--no-pointer` 可在同一 WebView 中验证选区、菜单、焦点和目录交互。`--output-only` 可单独检查普通输出完整展开、双行吸顶、更多菜单的折叠和复制，以及 Vim 的整屏切换。`--overflow-only --no-pointer` 单独运行 4,200 行与 50,000 行带色输出和 40 条连续命令的压力测试，验证连续保留范围、自动限高、渲染行数与跨屏跳滚。`--library-only --no-pointer` 检查非模态保存层、关键词多选、命令回填与管理。`--local-only --no-pointer` 验证隔离主目录中的本机 Zsh、目标列表、关闭标签、PTY 尺寸及退出码。加 `--bash` 可同样验证本机 Bash。压力测试报告保存在 `outputs/terminal-editor/overflow.json`，其余记录也在同一目录。
+
 文件与终端共用 `src/components/ui/workspace-panel.tsx`、`use-workspace-panel.ts` 及 `workspace-layout.ts`；停靠、尺寸、顶栏避让和焦点逻辑复用，业务内容保持挂载。文件面板的三栏布局、分组和视图偏好独立保存；参见 [UI 开发入口](ui-development.md)。
 
 针对性检查：
@@ -319,7 +321,7 @@ pnpm test src/features/commands
 
 ## 内置 VNC 远程桌面
 
-`src-tauri/src/vnc/` 负责 VNC 地址解析、RFB 协商、认证和画面解码，`src/features/vnc/` 负责独立窗口中的画布、输入和顶栏。每个窗口可打开 SSH 终端和文件传输。macOS 的原生全屏与 Dock 窗口恢复位于 `src-tauri/src/macos_windows.rs` 和 `src-tauri/src/macos_fullscreen.m`。
+`src-tauri/src/vnc/` 负责 VNC 地址解析、RFB 协商、认证和画面解码，`src/features/vnc/` 负责独立窗口中的画布、输入和顶栏。每个窗口可打开本地终端、SSH 终端和文件传输。macOS 的原生全屏与 Dock 窗口恢复位于 `src-tauri/src/macos_windows.rs` 和 `src-tauri/src/macos_fullscreen.m`。
 
 协议回归使用本机回环夹具。在仓库根目录运行：
 

@@ -213,6 +213,7 @@ export interface CommandOutput { sequence: number; stream: "stdout" | "stderr"; 
 export interface CommandEvent { run: CommandRun; output: CommandOutput[]; reset: boolean }
 
 export interface TerminalSession {
+  local?: boolean;
   ruleId?:string|null;
   routeHostIds: string[];
   id: string; requestId: string; clientId: string; hostId: string; hostName: string; endpoint: string;

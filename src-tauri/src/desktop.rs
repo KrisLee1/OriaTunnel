@@ -81,7 +81,7 @@ const TRAY_PANELS: [(&str, &str, &str); 3] = [
         "服务命令",
         "tunnel://open-service-commands",
     ),
-    ("tray:ssh-terminal", "SSH 终端", "tunnel://open-terminal"),
+    ("tray:ssh-terminal", "终端", "tunnel://open-terminal"),
     ("tray:files", "文件传输", "tunnel://open-files"),
 ];
 impl TrayMenu {

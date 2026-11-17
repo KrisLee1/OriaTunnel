@@ -18,7 +18,6 @@ import { AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
   TerminalIcon,
-  SquarePlusIcon,
   SquareTerminalIcon,
   XIcon,
   RotateCwIcon,
@@ -26,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Modal, ModalActions } from "@/components/tunnel-form";
-import { HostPicker } from "@/features/hosts/host-picker";
+import { TerminalTargets } from "./terminal-targets";
 import { AuthenticationField } from "@/features/hosts/authentication-field";
 import { addedHosts } from "@/features/hosts/host-collection";
 import { jumpHosts } from "@/features/tunnels/rule-model";
@@ -35,6 +34,7 @@ import { mergeRuns } from "@/features/commands/command-model";
 import * as bridge from "@/lib/bridge";
 import type {
   CommandRun,
+  Host,
   PresetAction,
   RemoteService,
   Snapshot,
@@ -43,6 +43,7 @@ import type {
 import {
   mergeSessions,
   terminalActive,
+  type TerminalTabControls,
   unsubmittedPreset,
   terminalNeedsCredentials,
   terminalStateTone,
@@ -52,6 +53,7 @@ import { terminalTabScrollEdges } from "./workspace-layout";
 import { workspaceLayoutKey } from "@/components/ui/workspace-layout";
 import { useWorkspacePanel } from "@/components/ui/use-workspace-panel";
 import { WorkspacePanel } from "@/components/ui/workspace-panel";
+import { SavedCommandsButton, SavedCommandsProvider } from "./saved-commands";
 const TerminalView = lazy(() => import("./terminal-view"));
 interface WorkspaceApi {
   openHost: (hostId?: string) => void;
@@ -144,7 +146,6 @@ export function TerminalWorkspaceProvider({
     hostId: string;
     noEnvironment: boolean;
     fallback: boolean;
-    locked?: boolean;
     replaceId?: string;
     profile?: { service: RemoteService; action: PresetAction; ruleId?: string };
   } | null>(null);
@@ -152,6 +153,7 @@ export function TerminalWorkspaceProvider({
     [remember, setRemember] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState<TerminalSession | null>(null),
     [busy, setBusy] = useState(false);
+  const tabControls = useRef(new Map<string, TerminalTabControls>());
   const submitting = useRef(false),
     requests = useRef(new Map<string, string>()),
     dismissed = useRef(new Set<string>());
@@ -236,18 +238,7 @@ export function TerminalWorkspaceProvider({
     if (hostId) {
       return connectHost(hostId);
     }
-    if (!hostId && (sessions.length || commandTabs.length)) {
-      if (!selected) setSelected(sessions[0]?.id || commandTabs[0]);
-      return;
-    }
-    if (viewer && preferredHost) return connectHost(preferredHost);
-    setDraft({
-      hostId: viewer ? "" : addedHosts(data).find((h) => !h.hidden)?.id || "",
-      noEnvironment: true,
-      fallback: false,
-    });
-    setSecrets({});
-    setRemember({});
+    if (!selected) setSelected(sessions[0]?.id || commandTabs[0] || "");
   };
   const trayOpen = useRef(openHost);
   useLayoutEffect(() => {
@@ -268,7 +259,7 @@ export function TerminalWorkspaceProvider({
     };
   }, [viewer]);
   const launch = async (
-    hostId: string,
+    hostId: string | null,
     noEnvironment: boolean,
     values: Record<string, string>,
     remembered: string[],
@@ -290,32 +281,37 @@ export function TerminalWorkspaceProvider({
     try {
       const baseKey = profile
         ? `${profile.service.id}:${profile.service.revision}:${profile.action.id}`
-        : `shell:${hostId}`;
+        : hostId === null
+          ? "local"
+          : `shell:${hostId}`;
       const key = previous ? `${baseKey}:replace:${previous.id}` : baseKey;
       const requestId = requests.current.get(key) || crypto.randomUUID();
       requests.current.set(key, requestId);
       if (previous) replacementRequests.current.set(requestId, previous.id);
       if (options?.automatic)
         automaticAuthRequests.current.set(requestId, profile?.service.revision);
-      const session = await bridge.openTerminal({
-        hostId,
-        noLocalEnvironment: profile ? noEnvironment : true,
-        clientId,
-        requestId,
-        cols: 80,
-        rows: 24,
-        confirmed: true,
-        secrets: values,
-        rememberHostIds: remembered,
-        ...(profile
-          ? {
-              serviceId: profile.service.id,
-              ruleId: profile.ruleId,
-              actionId: profile.action.id,
-              revision: profile.service.revision,
-            }
-          : {}),
-      });
+      const session =
+        hostId === null
+          ? await bridge.openLocalTerminal(requestId, clientId, 80, 24)
+          : await bridge.openTerminal({
+              hostId,
+              noLocalEnvironment: profile ? noEnvironment : true,
+              clientId,
+              requestId,
+              cols: 80,
+              rows: 24,
+              confirmed: true,
+              secrets: values,
+              rememberHostIds: remembered,
+              ...(profile
+                ? {
+                    serviceId: profile.service.id,
+                    ruleId: profile.ruleId,
+                    actionId: profile.action.id,
+                    revision: profile.service.revision,
+                  }
+                : {}),
+            });
       requests.current.delete(key);
       merge([session]);
       replacementRequests.current.delete(requestId);
@@ -347,6 +343,19 @@ export function TerminalWorkspaceProvider({
       automatic: true,
     }).catch(() => {});
   };
+  const connectLocal = (replaceId?: string) =>
+    launch(null, false, {}, [], undefined, { replaceId }).catch(() => {});
+  const targets = addedHosts(data).filter((host) => !host.hidden);
+  if (preferredHost)
+    targets.sort(
+      (a, b) => Number(b.id === preferredHost) - Number(a.id === preferredHost),
+    );
+  const chooseTarget = (host: Host | null) => {
+    if (host) {
+      onChooseHost?.(host.id);
+      void connectHost(host.id);
+    } else void connectLocal();
+  };
   const openPreset: WorkspaceApi["openPreset"] = async (
     service,
     action,
@@ -370,8 +379,10 @@ export function TerminalWorkspaceProvider({
     submitting.current = true;
     setBusy(true);
     try {
-      if (terminalActive(session))
+      if (terminalActive(session)) {
+        await tabControls.current.get(session.id)?.logout();
         await bridge.closeTerminal(session.id, session.clientId);
+      }
       await bridge.forgetTerminal(session.id, session.clientId);
       dismissed.current.add(session.id);
       setSessions((old) => old.filter((s) => s.id !== session.id));
@@ -387,6 +398,29 @@ export function TerminalWorkspaceProvider({
     } finally {
       submitting.current = false;
       setBusy(false);
+    }
+  };
+  const requestClose = async (session: TerminalSession) => {
+    const controls = tabControls.current.get(session.id);
+    try {
+      if (
+        session.phase === "running" &&
+        terminalActive(session) &&
+        ((session.serviceId && session.submitted) ||
+          controls?.foreground() ||
+          (session.local &&
+            !controls?.atPrompt() &&
+            (await bridge.localTerminalForeground(
+              session.id,
+              session.clientId,
+            ))))
+      ) {
+        setClosing(session);
+      } else {
+        await close(session);
+      }
+    } catch (e) {
+      setError(String(e));
     }
   };
   const selectedSession = sessions.find((s) => s.id === selected),
@@ -430,7 +464,6 @@ export function TerminalWorkspaceProvider({
       hostId: failed.hostId,
       noEnvironment: profile ? profile.service.noLocalEnvironment : true,
       fallback: true,
-      locked: true,
       replaceId: failed.id,
       ...(profile ? { profile } : {}),
     });
@@ -506,7 +539,7 @@ export function TerminalWorkspaceProvider({
     }),
     [sessions, busy, clientId, data.rules],
   );
-  return (
+  const workspace = (
     <Context.Provider value={workspaceApi}>
       {children}
       <WorkspacePanel
@@ -515,28 +548,15 @@ export function TerminalWorkspaceProvider({
         onClose={() => setExpanded(false)}
         className="terminal-workspace"
         actions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("new")}
-            title={t("new")}
-            onClick={() => {
-              setDraft({
-                hostId:
-                  selectedSession?.hostId ||
-                  preferredHost ||
-                  addedHosts(data)[0]?.id ||
-                  "",
-                noEnvironment: true,
-                fallback: false,
-              });
-              setSecrets({});
-              setRemember({});
-            }}
-          >
-            <SquarePlusIcon aria-hidden="true" />
-          </Button>
+          <>
+            <SavedCommandsButton />
+            <TerminalTargets
+              menu
+              hosts={targets}
+              choose={chooseTarget}
+              busy={busy}
+            />
+          </>
         }
       >
         {error && !draft && (
@@ -583,16 +603,17 @@ export function TerminalWorkspaceProvider({
                       data-tone={terminalStateTone(s)}
                       aria-hidden="true"
                     />
-                    <span className="terminal-tab-label">{s.label}</span>
+                    <span className="terminal-tab-label">
+                      {s.local ? t("localTerminal") + " · " + s.label : s.label}
+                    </span>
                   </TabsTrigger>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`${t("closeTab")} ${s.label}`}
-                    onClick={() =>
-                      terminalActive(s) ? setClosing(s) : void close(s)
-                    }
+                    disabled={busy}
+                    onClick={() => void requestClose(s)}
                   >
                     <XIcon aria-hidden="true" />
                   </Button>
@@ -677,6 +698,10 @@ export function TerminalWorkspaceProvider({
                     }
                     disabled={busy}
                     onClick={() => {
+                      if (selectedSession.local) {
+                        void connectLocal(selectedSession.id);
+                        return;
+                      }
                       if (!retryProfile) {
                         void connectHost(
                           selectedSession.hostId,
@@ -687,8 +712,10 @@ export function TerminalWorkspaceProvider({
                       setDraft({
                         hostId: selectedSession.hostId,
                         noEnvironment: true,
-                        fallback: terminalNeedsCredentials(selectedSession, data.hosts),
-                        locked: true,
+                        fallback: terminalNeedsCredentials(
+                          selectedSession,
+                          data.hosts,
+                        ),
                         replaceId: selectedSession.id,
                         ...(retryProfile
                           ? {
@@ -720,6 +747,7 @@ export function TerminalWorkspaceProvider({
                     {s.clientId === clientId ? (
                       <TerminalView
                         key={s.id}
+                        controls={tabControls.current}
                         session={s}
                         clientId={clientId}
                         visible={expanded && selected === s.id}
@@ -759,7 +787,7 @@ export function TerminalWorkspaceProvider({
             </div>
           </Tabs>
         ) : (
-          <p className="terminal-empty">{t("empty")}</p>
+          <TerminalTargets hosts={targets} choose={chooseTarget} busy={busy} />
         )}
       </WorkspacePanel>
       <AnimatePresence
@@ -768,23 +796,25 @@ export function TerminalWorkspaceProvider({
             !document.querySelector(
               '[role="dialog"][data-open], [role="alertdialog"][data-open]',
             )
-          )
-            document
-              .querySelector<HTMLTextAreaElement>(
-                ".terminal-session-panel:not([hidden]):not([data-hidden]) .xterm-helper-textarea",
-              )
-              ?.focus();
+          ) {
+            const activePanel = document.querySelector(
+              ".terminal-session-panel:not([hidden]):not([data-hidden])",
+            );
+            const input =
+              activePanel?.querySelector<HTMLTextAreaElement>(
+                ".shell-edit textarea",
+              ) ??
+              activePanel?.querySelector<HTMLTextAreaElement>(
+                ".ssh-terminal-screen:not(.shell-screen-hidden) .xterm-helper-textarea",
+              );
+            input?.focus({ preventScroll: true });
+          }
         }}
       >
         {draft && (
           <Modal
             key="connect"
-            title={
-              draft.locked
-                ? t("authForHost", { ns: "tunnel", name: route?.name || "" })
-                : t("open")
-            }
-            description={draft.locked ? undefined : t("connectHint")}
+            title={t("authForHost", { ns: "tunnel", name: route?.name || "" })}
             close={() => {
               setDraft(null);
               setSecrets({});
@@ -818,28 +848,7 @@ export function TerminalWorkspaceProvider({
                   </pre>
                 </>
               )}
-              {!draft.profile && !draft.locked && (
-                <HostPicker
-                  hosts={addedHosts(data).filter((h) => !h.hidden)}
-                  value={draft.hostId}
-                  onChange={(hostId) => {
-                    if (viewer && hostId) {
-                      onChooseHost?.(hostId);
-                      void connectHost(hostId);
-                      return;
-                    }
-                    setDraft({
-                      ...draft,
-                      hostId,
-                      fallback: false,
-                      profile: undefined,
-                    });
-                    setSecrets({});
-                    setRemember({});
-                  }}
-                />
-              )}
-              {!draft.profile && draft.locked && route && (
+              {!draft.profile && route && (
                 <code>
                   {route.user}@{route.address}:{route.port}
                 </code>
@@ -894,7 +903,7 @@ export function TerminalWorkspaceProvider({
           <Modal
             key="close"
             title={t("closeTab")}
-            description={t("closeHint")}
+            description={t("foregroundCloseHint")}
             close={() => setClosing(null)}
           >
             <code>{closing.endpoint}</code>
@@ -917,7 +926,7 @@ export function TerminalWorkspaceProvider({
                 disabled={busy}
                 onClick={() => void close(closing)}
               >
-                {t("disconnect")}
+                {t("closeTab")}
               </Button>
             </ModalActions>
           </Modal>
@@ -956,5 +965,8 @@ export function TerminalWorkspaceProvider({
         )}
       </AnimatePresence>
     </Context.Provider>
+  );
+  return (
+    <SavedCommandsProvider active={expanded}>{workspace}</SavedCommandsProvider>
   );
 }

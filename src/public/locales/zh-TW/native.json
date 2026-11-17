@@ -97,7 +97,7 @@
   "macCredentialDelete": "無法從 macOS 鑰匙圈清除密碼",
   "passwordUnsupported": "目前平台不支援記住密碼",
   "trayServiceCommands": "服務命令",
-  "traySshTerminal": "SSH 終端機",
+  "traySshTerminal": "終端機",
   "traySourceMissingId": "來源失效 · {{arg0}}",
   "trayStop": "停止",
   "traySourceMissing": "來源失效",

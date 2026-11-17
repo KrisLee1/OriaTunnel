@@ -178,33 +178,9 @@ async function clipboardShortcut(w, letter) {
     await w.command("Input.dispatchKeyEvent", { type, ...event, modifiers });
   }
 }
-async function shell(w, chooseHost = false) {
-  await tool(w, "SSH 终端");
-  if (chooseHost) {
-    await hit(
-      w,
-      q('[role="dialog"] [role=combobox]'),
-      "unassociated link chooses SSH host once",
-    );
-    await w.command("Input.insertText", { text: "V3 shell" });
-    await hit(
-      w,
-      all("[role=option]") + ".find(e=>e.textContent.includes('V3 shell'))",
-      "choose fixture SSH host",
-    );
-  } else {
-    await until(
-      async () =>
-        (await ipc(w, "terminal_sessions")).some((s) => s.hostId === "v3-pty"),
-      "opening terminal starts SSH automatically",
-    );
-    assert.equal(
-      await w.evaluate(
-        "!!document.querySelector('[role=dialog] [role=combobox]')",
-      ),
-      false,
-    );
-  }
+async function shell(w) {
+  await tool(w, "终端");
+  await hit(w, q('[data-terminal-start] [data-terminal-target="v3-pty"]'), "choose loopback SSH target on empty terminal");
   const field = q('[role="dialog"] input[type=password]');
   await until(() => w.evaluate("!!" + field), "terminal password prompt");
   await w.evaluate(field + ".focus()");
@@ -923,7 +899,7 @@ try {
     code: "ShiftLeft",
     windowsVirtualKeyCode: 16,
   });
-  await shell(a, true);
+  await shell(a);
   await until(
     () => pa.inputs.some((i) => i.key === 0xffe1 && !i.down),
     "panel focus releases held Shift",
@@ -950,7 +926,7 @@ try {
     q('.terminal-workspace button[aria-label="折叠面板"]'),
     "collapse terminal",
   );
-  await tool(b, "SSH 终端");
+  await tool(b, "终端");
   assert.equal((await ipc(b, "terminal_sessions"))[0].id, tb.id);
   mark(
     "Two live PTYs, isolated input and resizing, tab restore, fit/100% pointer at 150% scaling",

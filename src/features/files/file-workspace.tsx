@@ -1,3 +1,4 @@
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   FileActivityContext,
   FileTransferDetailsContext,
@@ -154,7 +155,24 @@ export function OpenFilesButton({
     </Button>
   );
 }
-type Drag = { side: "local" | "remote"; ids: string[]; x: number; y: number };
+type Drag = {
+  side: "local" | "remote";
+  ids: string[];
+  pointerId: number;
+  name: string;
+  kind: string;
+  x: number;
+  y: number;
+};
+function dragTransform(x: number, y: number) {
+  return `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+}
+function dropTarget(hit: Element | null | undefined, source?: Drag["side"]) {
+  const target = hit?.closest<HTMLElement>("[data-file-target]");
+  return target && target.dataset.fileSide !== source
+    ? target.dataset.fileTarget
+    : undefined;
+}
 type ModalAction = {
   kind: "rename" | "mkdir" | "createText" | "delete" | "properties";
   id: string;
@@ -204,6 +222,8 @@ export function FileWorkspaceProvider({
     [busy, setBusy] = useState(false),
     [preview, setPreview] = useState<FileTarget | null>(null),
     [drag, setDrag] = useState<Drag | null>(null);
+  const [dragTarget, setDragTarget] = useState<string>();
+  const dragPreview = useRef<HTMLDivElement>(null);
   const {
     queue,
     changeQueue,
@@ -415,37 +435,49 @@ export function FileWorkspaceProvider({
   const finishDrag = useCallback(
     (event: PointerEvent) => {
       const d = dragRef.current;
+      if (!d || d.pointerId !== event.pointerId) return;
       dragRef.current = null;
       setDrag(null);
-      if (!d) return;
-      const target = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<HTMLElement>("[data-file-target]");
-      if (!target || target.dataset.fileSide === d.side) return;
-      const id = target.dataset.fileTarget;
+      setDragTarget(undefined);
+      const id = dropTarget(
+        document.elementFromPoint(event.clientX, event.clientY),
+        d.side,
+      );
       if (id) void transfer(d.ids, id);
     },
     [transfer],
   );
   useEffect(() => {
+    const updateTarget = () => {
+      const d = dragRef.current;
+      if (d)
+        setDragTarget(dropTarget(document.elementFromPoint(d.x, d.y), d.side));
+    };
     const move = (e: PointerEvent) => {
-      if (dragRef.current) {
-        dragRef.current = { ...dragRef.current, x: e.clientX, y: e.clientY };
-        setDrag(dragRef.current);
-      }
+      const d = dragRef.current;
+      if (!d || d.pointerId !== e.pointerId) return;
+      dragRef.current = { ...d, x: e.clientX, y: e.clientY };
+      if (dragPreview.current)
+        dragPreview.current.style.transform = dragTransform(e.clientX, e.clientY);
+      updateTarget();
     };
     const cancel = () => {
       dragRef.current = null;
       setDrag(null);
+      setDragTarget(undefined);
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") cancel();
     };
+    window.addEventListener("blur", cancel);
+    window.addEventListener("scroll", updateTarget, true);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", finishDrag);
     window.addEventListener("pointercancel", cancel);
     window.addEventListener("keydown", key);
     return () => {
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("scroll", updateTarget, true);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", cancel);
@@ -642,8 +674,11 @@ export function FileWorkspaceProvider({
                 onDrag={(value) => {
                   dragRef.current = value;
                   setDrag(value);
+                  setDragTarget(
+                    dropTarget(document.elementFromPoint(value.x, value.y), value.side),
+                  );
                 }}
-                drag={drag}
+                dragTarget={dragTarget}
                 disabledDrop={!open || !!action || !!preview || !!auth}
                 onDrop={transfer}
               />
@@ -785,10 +820,15 @@ export function FileWorkspaceProvider({
       />
       {drag && (
         <div
+          ref={dragPreview}
+          aria-hidden="true"
           className="files-drag"
-          style={{ left: drag.x + 12, top: drag.y + 12 }}
+          style={{ transform: dragTransform(drag.x, drag.y) }}
         >
-          {t("transfer")} · {drag.ids.length}
+          <FileArtwork name={drag.name} kind={drag.kind} large />
+          {drag.ids.length > 1 && (
+            <span className="files-drag-count">{drag.ids.length}</span>
+          )}
         </div>
       )}
     </Context.Provider>
@@ -899,7 +939,7 @@ type PaneProps = {
   onError: (e: string) => void;
   onTransfer: (ids: string[], target?: string) => void;
   onDrag: (d: Drag) => void;
-  drag: Drag | null;
+  dragTarget?: string;
   disabledDrop: boolean;
   onDrop: (ids: string[], target: string) => Promise<void>;
 };
@@ -916,7 +956,7 @@ export function FilePane(p: PaneProps) {
     [descending, setDescending] = useState(false),
     [selected, setSelected] = useState<string[]>([]),
     [loading, setLoading] = useState(false),
-    [hover, setHover] = useState(false),
+    [nativeTarget, setNativeTarget] = useState<string>(),
     [scroll, setScroll] = useState(0),
     [cols, setCols] = useState(3),
     [viewportHeight, setViewportHeight] = useState(400);
@@ -982,7 +1022,7 @@ export function FilePane(p: PaneProps) {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [canRead]);
   useEffect(() => {
     setSelected([]);
   }, [query, hidden]);
@@ -1021,23 +1061,19 @@ export function FilePane(p: PaneProps) {
       if (entry) openEntry(entry);
     },
   });
-  const dropRef = useRef<HTMLElement | null>(null);
-  dropRef.current = root.current;
+  const hoverTarget = p.disabledDrop ? undefined : nativeTarget ?? p.dragTarget;
   useNativeFileDrop(
-    dropRef,
+    root,
     p.remote && canRead && !p.disabledDrop,
     (paths, point) => {
-      const hit = document
-        .elementFromPoint(point.x, point.y)
-        ?.closest<HTMLElement>("[data-file-target]");
-      const target = hit?.dataset.fileTarget || dir?.id;
+      const target = dropTarget(document.elementFromPoint(point.x, point.y));
       if (target)
         void api
           .sources(paths)
           .then((ids) => p.onDrop(ids, target))
           .catch((e) => p.onError(String(e)));
     },
-    setHover,
+    (inside, hit) => setNativeTarget(inside ? dropTarget(hit) : undefined),
   );
   const inspectTarget = (entry: Entry): FileTarget => {
     const drive = !p.remote && dir?.path === ":computer:";
@@ -1281,7 +1317,7 @@ export function FilePane(p: PaneProps) {
       data-native-file-drop
       data-file-side={p.side}
       data-file-target={canRead && !p.disabledDrop ? dir?.id : undefined}
-      className={`files-pane themed-surface ${hover ? "files-drop-hover" : ""}`}
+      className={`files-pane themed-surface ${hoverTarget && hoverTarget === dir?.id ? "files-drop-hover" : ""}`}
     >
       <div className="files-pane-title">
         <div className="files-pane-heading">{p.title}</div>
@@ -1414,85 +1450,84 @@ export function FilePane(p: PaneProps) {
         </div>
       ) : (
         <ContextMenu>
-          <ContextMenuTrigger
-            render={
-              <div
-                ref={viewport}
-                {...marquee.handlers}
-                className="files-viewport scroll-fade"
-                role="grid"
-                aria-label={
-                  p.status?.hostName || t(p.remote ? "remote" : "local")
-                }
-                aria-multiselectable="true"
-                tabIndex={0}
-                onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
-                onKeyDown={(e) => {
-                  if (!e.currentTarget.contains(e.target as Node)) return;
-                  if (
-                    (e.target as HTMLElement).closest(
-                      "input, textarea, select, button, a, [contenteditable=true], [role^=menu]",
-                    )
+          <ScrollArea
+            className="files-pane-scroll"
+            viewportRef={viewport}
+            viewportClassName="files-viewport scroll-fade"
+            viewportProps={{
+              render: <ContextMenuTrigger />,
+              ...marquee.handlers,
+              role: "grid",
+              "aria-label":
+                p.status?.hostName || t(p.remote ? "remote" : "local"),
+              "aria-multiselectable": true,
+              tabIndex: 0,
+              onScroll: (e) => setScroll(e.currentTarget.scrollTop),
+              onKeyDown: (e) => {
+                if (!e.currentTarget.contains(e.target as Node)) return;
+                if (
+                  (e.target as HTMLElement).closest(
+                    "input, textarea, select, button, a, [contenteditable=true], [role^=menu]",
                   )
-                    return;
-                  if (e.key === "Escape") marquee.cancel();
-                  const shortcut = fileShortcut(
-                    { ...e, isComposing: e.nativeEvent.isComposing },
-                    mac,
-                  );
-                  if (shortcut) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (shortcut === "selectAll") setSelected(ordered);
-                    if (shortcut === "copyPath")
-                      copyPaths(
-                        items.filter((item) => selected.includes(item.id)),
-                      );
-                    if (shortcut === "parent" && dir) void load(dir.parent);
-                    if (shortcut === "delete" && dir?.path !== ":computer:")
-                      action("delete");
-                    if (
-                      shortcut === "rename" &&
-                      selected.length === 1 &&
-                      dir?.path !== ":computer:"
-                    )
-                      action("rename");
-                    if (shortcut === "open" && selected.length === 1) {
-                      const entry = items.find((i) => i.id === selected[0]);
-                      if (entry) openEntry(entry);
-                    }
-                    return;
-                  }
-                  if (
-                    e.defaultPrevented ||
-                    e.nativeEvent.isComposing ||
-                    e.metaKey ||
-                    e.ctrlKey ||
-                    e.altKey
-                  )
-                    return;
-                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                    e.preventDefault();
-                    const index = ordered.indexOf(selected.at(-1) || "");
-                    const next = Math.max(
-                      0,
-                      Math.min(
-                        items.length - 1,
-                        index + (e.key === "ArrowDown" ? 1 : -1),
-                      ),
+                )
+                  return;
+                if (e.key === "Escape") marquee.cancel();
+                const shortcut = fileShortcut(
+                  { ...e, isComposing: e.nativeEvent.isComposing },
+                  mac,
+                );
+                if (shortcut) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (shortcut === "selectAll") setSelected(ordered);
+                  if (shortcut === "copyPath")
+                    copyPaths(
+                      items.filter((item) => selected.includes(item.id)),
                     );
-                    if (items[next]) {
-                      setSelected([items[next].id]);
-                      viewport.current?.scrollTo({
-                        top:
-                          Math.floor(next / (view === "list" ? 1 : cols)) *
-                          rowHeight,
-                      });
-                    }
+                  if (shortcut === "parent" && dir) void load(dir.parent);
+                  if (shortcut === "delete" && dir?.path !== ":computer:")
+                    action("delete");
+                  if (
+                    shortcut === "rename" &&
+                    selected.length === 1 &&
+                    dir?.path !== ":computer:"
+                  )
+                    action("rename");
+                  if (shortcut === "open" && selected.length === 1) {
+                    const entry = items.find((i) => i.id === selected[0]);
+                    if (entry) openEntry(entry);
                   }
-                }}
-              />
-            }
+                  return;
+                }
+                if (
+                  e.defaultPrevented ||
+                  e.nativeEvent.isComposing ||
+                  e.metaKey ||
+                  e.ctrlKey ||
+                  e.altKey
+                )
+                  return;
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const index = ordered.indexOf(selected.at(-1) || "");
+                  const next = Math.max(
+                    0,
+                    Math.min(
+                      items.length - 1,
+                      index + (e.key === "ArrowDown" ? 1 : -1),
+                    ),
+                  );
+                  if (items[next]) {
+                    setSelected([items[next].id]);
+                    viewport.current?.scrollTo({
+                      top:
+                        Math.floor(next / (view === "list" ? 1 : cols)) *
+                        rowHeight,
+                    });
+                  }
+                }
+              },
+            }}
           >
             <div style={{ height: rowCount * rowHeight, position: "relative" }}>
               {visible.map((e, index) => {
@@ -1505,7 +1540,7 @@ export function FilePane(p: PaneProps) {
                       render={
                         <motion.div
                           initial="rest"
-                          animate="rest"
+                          animate={hoverTarget === e.id ? "artwork-hover" : "rest"}
                           whileHover="artwork-hover"
                           whileFocus="artwork-hover"
                           role="row"
@@ -1537,6 +1572,7 @@ export function FilePane(p: PaneProps) {
                           }
                           data-file-side={p.side}
                           data-file-entry={e.id}
+                          data-drop-hover={hoverTarget === e.id || undefined}
                           onContextMenu={() => {
                             if (!chosen) setSelected([e.id]);
                           }}
@@ -1579,11 +1615,17 @@ export function FilePane(p: PaneProps) {
                               p.onDrag({
                                 side: p.side,
                                 ids: point.ids,
+                                pointerId: event.pointerId,
+                                name: e.name,
+                                kind: !p.remote && dir?.path === ":computer:" ? "drive" : e.kind,
                                 x: event.clientX,
                                 y: event.clientY,
                               });
                               pointer.current = null;
                             }
+                          }}
+                          onLostPointerCapture={() => {
+                            pointer.current = null;
                           }}
                           onPointerUp={() => {
                             pointer.current = null;
@@ -1637,7 +1679,7 @@ export function FilePane(p: PaneProps) {
                 {t(loading ? "loading" : query ? "noResults" : "empty")}
               </p>
             )}
-          </ContextMenuTrigger>
+          </ScrollArea>
           {menu()}
         </ContextMenu>
       )}
