@@ -2,7 +2,7 @@ import { memo, useCallback, useRef, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useWindowDetail } from "./virtual-output";
 import { CommandHeader } from "./command-editor";
-import type { CommandBlock } from "./shell-editor";
+import { promptSymbol, type CommandBlock } from "./shell-editor";
 import { TerminalOutput } from "./terminal-output";
 
 export const ArchivedCommand = memo(function ArchivedCommand({
@@ -62,7 +62,7 @@ export const ArchivedCommand = memo(function ArchivedCommand({
         />
         {block.command && !commandFolded && (
           <pre tabIndex={-1} className="shell-command" data-selectable="true">
-            $ {block.command}
+            {promptSymbol(block.powershell)} {block.command}
           </pre>
         )}
       </div>

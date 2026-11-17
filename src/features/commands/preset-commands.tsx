@@ -233,16 +233,15 @@ export const ServiceCommandsButton = memo(function ServiceCommandsButton({
         const unavailable = !service.port ? "servicePort" : !protocol ? "serviceSelectProtocol" : null;
         const foreground = workspace?.foregroundSession(service, targetId);
         const running = ui.running(service, targetId);
+        const muted = !hostId && !running;
         const color = running
           ? service.color || "var(--oria-color-accent)"
-          : "var(--oria-color-muted-fg)";
+          : hostId ? "var(--oria-color-fg)" : "var(--oria-color-muted-fg)";
         const icon = (
           <span
             className="inline-flex shrink-0"
-            style={{
-              filter: running ? undefined : "grayscale(1)",
-              opacity: running ? 1 : 0.7,
-            }}
+            data-foreground-emoji={hostId && !running && service.icon?.kind === "emoji" ? "" : undefined}
+            style={muted ? { filter: "grayscale(1)", opacity: 0.7 } : undefined}
           >
             <ConnectionIcon icon={service.icon} color={color} />
           </span>

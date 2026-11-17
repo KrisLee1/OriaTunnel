@@ -15,6 +15,7 @@
   "blockActions": "More command actions",
   "copyCommand": "Copy command",
   "copyOutput": "Copy output",
+  "copyAll": "Copy all",
   "directories": "Search directories…",
   "parentDirectory": ".. (Parent directory)",
   "directoryError": "Cannot open directory. Retry",

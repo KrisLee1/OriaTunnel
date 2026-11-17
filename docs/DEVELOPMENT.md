@@ -265,6 +265,13 @@ pnpm test src/features/commands
 
 0.2.0 的原生入口为 `src-tauri/src/app_files.rs`，队列、SFTP、本机文件系统、直传与文本保存分别位于 `src-tauri/src/files/`；前端在 `src/features/files/`，通过该目录的 `api.ts` 调用专用 IPC，并订阅 `files://snapshot`。任务状态、字节进度和提交结果均来自 Rust，不能用前端定时器模拟成功。
 
+Windows 在项目根目录执行以下命令，在隔离的 WebView2 中复测本地 PowerShell。测试从终端面板打开真实 ConPTY，检查回环 ping 在缩放窗口时的输出间距、主动输出的空行与缩进、盘符切换、命令补全、命令库、前台输入与退出。每轮使用独立应用数据、WebView 配置和空 SSH 配置，结果写入 `outputs/terminal-windows/run-*/result.json`。可通过 `ORIA_QA_EXE` 指定待测的可执行文件。
+
+```powershell
+pnpm tauri build --debug --no-bundle --features tauri/custom-protocol
+node scripts/qa/terminal-windows.mjs
+```
+
 macOS 可在项目根目录执行 `pnpm build`，再执行 `node scripts/qa/terminal-editor-macos.mjs`。脚本启动隔离应用和仅监听回环地址的 Bash、Zsh SSH 服务，使用临时账户目录。鼠标验证要求测试窗口处于前台。使用 `--no-pointer` 可在同一 WebView 中验证选区、菜单、焦点和目录交互。`--output-only` 可单独检查普通输出完整展开、双行吸顶、更多菜单的折叠和复制，以及 Vim 的整屏切换。`--overflow-only --no-pointer` 单独运行 4,200 行与 50,000 行带色输出和 40 条连续命令的压力测试，验证连续保留范围、自动限高、渲染行数与跨屏跳滚。`--library-only --no-pointer` 检查非模态保存层、关键词多选、命令回填与管理。`--local-only --no-pointer` 验证隔离主目录中的本机 Zsh、目标列表、关闭标签、PTY 尺寸及退出码。加 `--bash` 可同样验证本机 Bash。压力测试报告保存在 `outputs/terminal-editor/overflow.json`，其余记录也在同一目录。
 
 文件与终端共用 `src/components/ui/workspace-panel.tsx`、`use-workspace-panel.ts` 及 `workspace-layout.ts`；停靠、尺寸、顶栏避让和焦点逻辑复用，业务内容保持挂载。文件面板的三栏布局、分组和视图偏好独立保存；参见 [UI 开发入口](ui-development.md)。

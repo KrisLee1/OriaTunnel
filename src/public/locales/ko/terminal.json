@@ -15,6 +15,7 @@
   "blockActions": "추가 작업",
   "copyCommand": "명령 복사",
   "copyOutput": "출력 복사",
+  "copyAll": "모두 복사",
   "directories": "디렉터리 검색…",
   "parentDirectory": ".. (상위 디렉터리)",
   "directoryError": "디렉터리를 열 수 없습니다. 다시 시도",

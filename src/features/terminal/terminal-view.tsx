@@ -2,11 +2,13 @@ import { CommandHistory } from "./archived-command";
 import { CommandHeader, CommandEditor } from "./command-editor";
 import {
   captureOutput,
+  powerShellOutputEnd,
+  powerShellOutputStart,
   selectOutputMatch,
   terminalTextRange,
   selectionFragments,
 } from "./terminal-output";
-import { commandOutput, exceedsPreviewHeight } from "./shell-editor";
+import { commandOutput, exceedsPreviewHeight, promptSymbol } from "./shell-editor";
 import { useShellEditor } from "./use-shell-editor";
 import "./shell-editor.css";
 import { SearchInput } from "@/components/ui/search-input";
@@ -204,7 +206,7 @@ export default function TerminalView({
     const needle = query.toLocaleLowerCase();
     for (const block of shell.blocks) {
       for (const [part, value] of [
-        ["shell-command", block.command && "$ " + block.command],
+        ["shell-command", block.command && promptSymbol(block.powershell) + " " + block.command],
         ["shell-output-text", block.output],
       ]) {
         const text = value.toLocaleLowerCase();
@@ -286,8 +288,8 @@ export default function TerminalView({
       const cell = grid.offsetHeight / term.rows;
       const expected = "$ " + liveCommand.command;
       let echo = "",
-        echoRows = 0;
-      for (let i = 0; i < buf.length; i++) {
+        echoRows = liveCommand.powershell ? powerShellOutputStart(term) : 0;
+      for (let i = 0; !liveCommand.powershell && i < buf.length; i++) {
         const line = buf.getLine(i);
         if (!line) break;
         if (i && !line.isWrapped) echo += "\n";
@@ -631,8 +633,40 @@ export default function TerminalView({
       };
       shellRef.current.send.current = (text) =>
         send(new TextEncoder().encode(text));
+      let windowsPrompt:
+        | { data: string; revision: string; marker: string }
+        | undefined;
+      let windowsStartup =
+        session.local && /(?:^|[\\/])(?:powershell|pwsh)\.exe$/iu.test(session.endpoint);
+      const finishWindowsOutput = () => {
+        if (!windowsPrompt) return;
+        const { data, revision, marker } = windowsPrompt;
+        const row = powerShellOutputEnd(term, marker);
+        if (row === undefined) return;
+        windowsPrompt = undefined;
+        shellRef.current.receive(data, term, row);
+        rawCommand.current.running = false;
+        send(new TextEncoder().encode(`#oria ack ${revision} \n`));
+      };
       const shellMessages = term.parser.registerOscHandler(6973, (data) => {
         if (current.current.session.serviceId) return false;
+        if (windowsStartup && data === session.id + ";initPowerShell;0;") {
+          windowsStartup = false;
+          send(new Uint8Array([13]));
+          return true;
+        }
+        if (session.local && data.startsWith(session.id + ";readyPowerShell;")) {
+          windowsStartup = false;
+          const revision = data.split(";", 3)[2];
+          if (/^\d+$/.test(revision)) {
+            windowsPrompt = {
+              data,
+              revision,
+              marker: `oria-${session.id.slice(-12)}-${revision}`,
+            };
+          }
+          return true;
+        }
         const editor = shellRef.current;
         const handled = editor.receive(data, term);
         if (editor.atPrompt()) rawCommand.current.running = false;
@@ -820,6 +854,7 @@ export default function TerminalView({
         }
         lastFrame = frame.sequence;
         term.write(new Uint8Array(frame.bytes), () => {
+          if (!disposed) finishWindowsOutput();
           if (!disposed)
             void bridge
               .ackTerminal(session.id, clientId, frame.sequence)
@@ -1172,14 +1207,12 @@ export default function TerminalView({
                         };
                       const term = terminal.current,
                         command = shell.running.command;
+                      const output = term
+                        ? captureOutput(term, false, undefined, shell.running.powershell).output
+                        : "";
                       return {
                         command,
-                        output: term
-                          ? commandOutput(
-                              command,
-                              captureOutput(term, false).output,
-                            )
-                          : "",
+                        output: shell.running.powershell ? output : commandOutput(command, output),
                       };
                     }}
                     prompt={shell.running || shell.prompt}
@@ -1215,6 +1248,7 @@ export default function TerminalView({
                       history={shell.history}
                       inputRef={shell.editorInput}
                       cwd={shell.prompt.cwd}
+                      powershell={shell.prompt.powershell}
                       visible={visible}
                       submit={(value) =>
                         terminal.current &&
@@ -1239,7 +1273,7 @@ export default function TerminalView({
                     data-selectable="true"
                     tabIndex={-1}
                   >
-                    $ {liveCommand.command}
+                    {promptSymbol(liveCommand.powershell)} {liveCommand.command}
                   </pre>
                 )}
               </div>

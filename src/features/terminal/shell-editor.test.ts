@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   commandOutput,
+  commandTranscript,
   completionWord,
   editorReply,
   editorRequest,
@@ -9,6 +10,13 @@ import {
   insertCandidate,
   retainBlocks,
 } from "./shell-editor";
+it("copies a command block with its shell prompt and the original output spacing", () => {
+  const block = { command: "echo hello", output: "\n  hello" };
+  expect(commandTranscript(block, true)).toBe("> echo hello\n\n  hello");
+  expect(commandTranscript(block)).toBe("$ echo hello\n\n  hello");
+  expect(commandTranscript({ command: "", output: "banner" })).toBe("banner");
+  expect(commandTranscript({ command: "pwd", output: "" })).toBe("$ pwd");
+});
 it("replaces only the path token, quotes shell metacharacters and keeps later arguments", () => {
   const line = 'cat "docs/a b" tail';
   const word = completionWord(line, 12);
@@ -29,6 +37,26 @@ it("scopes replies to the SSH session and transports arbitrary UTF-8 as data", (
     .at(-1);
   expect(editorReply("abc;cwd;2;" + payload, "abc")?.fields).toEqual([value]);
   expect(editorReply("abc;cwd;2;" + payload, "another")).toBeUndefined();
+});
+it("completes PowerShell paths literally and preserves the rest of the line", () => {
+  const line = "Get-ChildItem .\\child\\O -Force";
+  const word = completionWord(line, line.indexOf(" -Force"), true);
+  expect(word.prefix).toBe(".\\child\\O");
+  expect(insertCandidate(line, word, "O'Brien $(dir)").line).toBe(
+    "Get-ChildItem '.\\child\\O''Brien $(dir)' -Force",
+  );
+  expect(completionWord("Set-Location C:\\", 16, true).kind).toBe("dirs");
+  expect(
+    insertCandidate(".\\My", completionWord(".\\My", 4, true), "My Tool.exe")
+      .line,
+  ).toBe("& '.\\My Tool.exe'");
+  expect(
+    insertCandidate(
+      "& .\\My",
+      completionWord("& .\\My", 6, true),
+      "My Tool.exe",
+    ).line,
+  ).toBe("& '.\\My Tool.exe'");
 });
 it("normalizes decorated and duplicate environment names", () => {
   expect(

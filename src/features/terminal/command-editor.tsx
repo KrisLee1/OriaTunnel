@@ -28,8 +28,10 @@ import {
 import { TerminalPath, type DirectoryNavigation } from "./terminal-path";
 import {
   completionWord,
+  commandTranscript,
   exceedsPreviewHeight,
   insertCandidate,
+  promptSymbol,
   type Prompt,
   type ShellQuery,
   type TerminalCopyText,
@@ -165,7 +167,7 @@ export function CommandHeader({
           className="shell-summary"
           title={command}
         >
-          $ {command}
+          {promptSymbol(prompt.powershell)} {command}
         </pre>
       )}
       <DropdownMenu
@@ -201,12 +203,21 @@ export function CommandHeader({
             return true;
           }}
         >
-          {(["command", "output"] as const).map((kind) => (
+          {(["command", "output", "all"] as const).map((kind) => (
             <DropdownMenuItem
               key={kind}
-              disabled={!copyText?.[kind]}
+              data-copy={kind}
+              disabled={
+                kind === "all"
+                  ? !copyText?.command && !copyText?.output
+                  : !copyText?.[kind]
+              }
               onClick={() => {
-                const text = copyText?.[kind];
+                if (!copyText) return;
+                const text =
+                  kind === "all"
+                    ? commandTranscript(copyText, prompt.powershell)
+                    : copyText[kind];
                 if (text) {
                   restoreInput.current = true;
                   void copy(text);
@@ -214,7 +225,13 @@ export function CommandHeader({
                 setCopyText(null);
               }}
             >
-              {t(kind === "command" ? "copyCommand" : "copyOutput")}
+              {t(
+                kind === "command"
+                  ? "copyCommand"
+                  : kind === "output"
+                    ? "copyOutput"
+                    : "copyAll",
+              )}
             </DropdownMenuItem>
           ))}
           {toggleOutput && canLimitOutput && (
@@ -246,6 +263,7 @@ export function CommandEditor({
   inputRef,
   visible,
   cwd,
+  powershell,
   shortcut,
 }: {
   query: ShellQuery;
@@ -256,6 +274,7 @@ export function CommandEditor({
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   visible: boolean;
   cwd: string;
+  powershell?: boolean;
   shortcut: (
     action: NonNullable<ReturnType<typeof terminalShortcutAction>>,
   ) => void;
@@ -281,7 +300,7 @@ export function CommandEditor({
   const mode = manualMode ?? (matches.length ? "saved" : null);
   const original = useRef<Draft>({ line: "", cursor: 0 });
   const restore = useRef<number | null>(null);
-  const word = completionWord(line, cursor);
+  const word = completionWord(line, cursor, powershell);
   const listId = useId();
   const list = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLSpanElement>(null);
@@ -289,13 +308,13 @@ export function CommandEditor({
   // Native editing gives the platform ownership of grapheme selection and IME.
   // Mirror the draft and its UTF-8 byte offset into the current shell prompt.
   useEffect(() => {
-    if (composing) return;
+    if (composing || powershell) return;
     const timer = setTimeout(() => {
       const point = new TextEncoder().encode(line.slice(0, cursor)).length;
       void query("edit", point + " " + line).catch(() => {});
     }, 40);
     return () => clearTimeout(timer);
-  }, [line, cursor, query, composing]);
+  }, [line, cursor, query, composing, powershell]);
   useEffect(() => {
     let live = true;
     setRemote([]);
@@ -310,7 +329,13 @@ export function CommandEditor({
       () => {
         void query(word.kind, word.prefix).then(
           (result) => {
-            if (live) setRemote([...new Set(result)].sort());
+            if (live) {
+              const names = [...new Set(result)];
+              if (powershell && word.kind === "commands")
+                names.sort((a, b) => a.length - b.length || a.localeCompare(b));
+              else names.sort();
+              setRemote(names);
+            }
           },
           () => {},
         );
@@ -321,10 +346,13 @@ export function CommandEditor({
       live = false;
       clearTimeout(timer);
     };
-  }, [query, line, cursor, cwd, mode, composing]);
-  const recent = history.filter((value) =>
-    value.startsWith(mode === "history" ? original.current.line : line),
-  );
+  }, [query, line, cursor, cwd, mode, composing, powershell]);
+  const prefix = mode === "history" ? original.current.line : line;
+  const startsWith = (value: string, typed: string) =>
+    powershell
+      ? value.toLowerCase().startsWith(typed.toLowerCase())
+      : value.startsWith(typed);
+  const recent = history.filter((value) => startsWith(value, prefix));
   const candidates =
     mode === "saved"
       ? matches.map((entry) => ({
@@ -340,7 +368,12 @@ export function CommandEditor({
           }))
         : [
             ...(line && cursor === line.length
-              ? recent
+              ? [
+                  ...recent,
+                  ...(library?.entries ?? [])
+                    .map((e) => e.command)
+                    .filter((value) => startsWith(value, line)),
+                ]
                   .filter((v) => v !== line)
                   .map((value) => ({
                     line: value,
@@ -365,14 +398,17 @@ export function CommandEditor({
       : historyOpen
         ? rows.length - 1 - index
         : index;
-  const first = candidates[0];
+  const ghostIndex = candidates.findIndex(
+    (item) => item.line.length > line.length && startsWith(item.line, line),
+  );
   const ghost =
     !composing &&
     mode !== "history" &&
     mode !== "saved" &&
     cursor === line.length &&
-    first?.line.startsWith(line)
-      ? first.line.slice(line.length)
+    !(powershell && dismissed) &&
+    ghostIndex >= 0
+      ? candidates[ghostIndex].line.slice(line.length)
       : "";
   const apply = (draft: Draft) => {
     setSavedChoice(null);
@@ -461,7 +497,7 @@ export function CommandEditor({
   return (
     <div className="shell-edit" data-ssh-terminal="true" data-selectable="true">
       <span className="shell-dollar" aria-hidden="true">
-        $
+        {promptSymbol(powershell)}
       </span>
       <div className="shell-input-body">
         <div aria-hidden="true" className="shell-mirror">
@@ -601,7 +637,7 @@ export function CommandEditor({
               case "ArrowRight":
                 if (ghost && e.currentTarget.selectionStart === cursor) {
                   e.preventDefault();
-                  accept(0);
+                  accept(ghostIndex);
                 }
                 break;
               case "Escape":
@@ -665,7 +701,8 @@ export function CommandEditor({
               >
                 {mode === "complete" &&
                   word.kind !== "commands" &&
-                  (candidate.label.endsWith("/") ? (
+                  (candidate.label.endsWith("/") ||
+                  (powershell && candidate.label.endsWith("\\")) ? (
                     <Folder size={14} />
                   ) : (
                     <File size={14} />

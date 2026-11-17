@@ -49,7 +49,12 @@ export type ShellQuery = (
   value: string,
 ) => Promise<string[]>;
 
-export type Prompt = { cwd: string; home: string; environments?: string[] };
+export type Prompt = {
+  cwd: string;
+  home: string;
+  environments?: string[];
+  powershell?: boolean;
+};
 export type CommandBlock = Prompt & {
   id: number;
   command: string;
@@ -58,6 +63,17 @@ export type CommandBlock = Prompt & {
 };
 export type ArchivedBlock = CommandBlock & { outputLines: number };
 export type TerminalCopyText = { command: string; output: string };
+export function promptSymbol(powershell = false) {
+  return powershell ? ">" : "$";
+}
+export function commandTranscript(
+  { command, output }: TerminalCopyText,
+  powershell = false,
+) {
+  if (!command) return output;
+  const heading = promptSymbol(powershell) + " " + command;
+  return output ? heading + "\n" + output : heading;
+}
 // The PTY screen includes the native prompt and submitted command.
 export function commandOutput(command: string, screen: string) {
   if (!command) return screen;
@@ -103,7 +119,12 @@ export function retainBlocks(blocks: ArchivedBlock[], block: CommandBlock) {
 }
 
 const boundary = /[\s|;&()<>]/u;
-export function completionWord(line: string, cursor: number) {
+export function completionWord(
+  line: string,
+  cursor: number,
+  powershell = false,
+) {
+  const escape = powershell ? "`" : "\\";
   let start = 0,
     quote = "",
     escaped = false;
@@ -114,7 +135,7 @@ export function completionWord(line: string, cursor: number) {
       if (i > start) spans.push([start, i]);
       start = i + 1;
     } else if (escaped) escaped = false;
-    else if (c === "\\" && quote !== "'") escaped = true;
+    else if (c === escape && quote !== "'") escaped = true;
     else if (quote) {
       if (c === quote) quote = "";
     } else if (c === '"' || c === "'") quote = c;
@@ -131,24 +152,30 @@ export function completionWord(line: string, cursor: number) {
     const c = typed[i],
       next = typed[i + 1];
     if (!quote && (c === "'" || c === '"')) quote = c;
-    else if (quote && c === quote) quote = "";
+    else if (powershell && quote === "'" && c === "'" && next === "'") {
+      prefix += c;
+      i++;
+    } else if (quote && c === quote) quote = "";
     else if (
-      c === "\\" &&
+      c === escape &&
       next &&
-      (!quote || (quote === '"' && /["$`\\\n]/u.test(next)))
+      (!quote || (quote === '"' && (powershell || /["$`\\\n]/u.test(next))))
     ) {
       prefix += next;
       i++;
     } else prefix += c;
   }
   const command = !before.trim() || /[|;&(]\s*$/u.test(before);
+  const directoryCommand = powershell
+    ? /(?:^|[|;&])\s*(?:cd|sl|chdir|set-location)\s+$/iu
+    : /(?:^|[|;&])\s*(?:builtin\s+)?cd\s+$/u;
   const kind =
-    command && !prefix.includes("/")
+    command && !prefix.includes("/") && !(powershell && prefix.includes("\\"))
       ? "commands"
-      : /(?:^|[|;&])\s*(?:builtin\s+)?cd\s+$/u.test(before)
+      : directoryCommand.test(before)
         ? "dirs"
         : "files";
-  return { from, to, prefix, kind };
+  return { from, to, prefix, kind, powershell, command };
 }
 
 export function insertCandidate(
@@ -156,16 +183,32 @@ export function insertCandidate(
   word: ReturnType<typeof completionWord>,
   name: string,
 ) {
-  const slash = word.kind === "commands" ? -1 : word.prefix.lastIndexOf("/");
-  const value = word.prefix.slice(0, slash + 1) + name;
-  const escaped = /[\n\r]/u.test(value)
-    ? "'" + value.replaceAll("'", "'\\''") + "'"
-    : value
-        .replace(/[^\p{L}\p{N}\-_.~/:]/gu, (c) => "\\" + c)
-        .replace(
-          /^~/u,
-          slash >= 0 && word.prefix.startsWith("~/") ? "~" : "\\~",
+  const slash =
+    word.kind === "commands"
+      ? -1
+      : Math.max(
+          word.prefix.lastIndexOf("/"),
+          word.powershell ? word.prefix.lastIndexOf("\\") : -1,
         );
+  const value = word.prefix.slice(0, slash + 1) + name;
+  let escaped: string;
+  if (word.powershell) {
+    escaped = value;
+    if (!/^[\p{L}\p{N}_./~:\\-]+$/u.test(value)) {
+      escaped = "'" + value.replace(/['\u2018-\u201b]/gu, "$&$&") + "'";
+      if (word.command && !/&\s*$/u.test(line.slice(0, word.from)))
+        escaped = "& " + escaped;
+    }
+  } else {
+    escaped = /[\n\r]/u.test(value)
+      ? "'" + value.replaceAll("'", "'\\''") + "'"
+      : value
+          .replace(/[^\p{L}\p{N}\-_.~/:]/gu, (c) => "\\" + c)
+          .replace(
+            /^~/u,
+            slash >= 0 && word.prefix.startsWith("~/") ? "~" : "\\~",
+          );
+  }
   return {
     line: line.slice(0, word.from) + escaped + line.slice(word.to),
     cursor: word.from + escaped.length,

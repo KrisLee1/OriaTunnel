@@ -69,7 +69,7 @@ pub async fn open_local_terminal(
         return Ok(existing);
     }
     let id = scope.session_id("terminal");
-    let shell = portable_pty::CommandBuilder::new_default_prog().get_shell();
+    let shell = terminal::local::shell();
     let label = std::path::Path::new(&shell)
         .file_name()
         .and_then(|s| s.to_str())
@@ -83,7 +83,7 @@ pub async fn open_local_terminal(
         host_id: String::new(),
         route_host_ids: vec![],
         host_name: String::new(),
-        endpoint: shell,
+        endpoint: shell.clone(),
         label,
         service_id: None,
         action_id: None,
@@ -115,6 +115,7 @@ pub async fn open_local_terminal(
         let job = tokio::spawn(terminal::local::execute(
             manager,
             id.clone(),
+            shell,
             cancel,
             input,
             changed,

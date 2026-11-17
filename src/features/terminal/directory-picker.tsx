@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Folder } from "lucide-react";
+import {
+  ArrowUp,
+  Folder,
+  HardDrive,
+  Monitor,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -9,6 +15,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import type { ShellQuery, Prompt } from "./shell-editor";
+import { breadcrumbs } from "@/features/files/api";
 
 export function DirectoryPicker({
   id,
@@ -34,6 +41,7 @@ export function DirectoryPicker({
     boundary?: Element;
   }>({ side: "bottom", height: 216 });
   const [filter, setFilter] = useState("");
+  const [drives, setDrives] = useState(false);
   const [items, setItems] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState(0);
@@ -42,18 +50,43 @@ export function DirectoryPicker({
   const viewport = useRef<HTMLDivElement>(null);
   const options = useRef<HTMLDivElement>(null);
   const optionId = useId();
-  const entries = [
-    ...(prompt.cwd !== "/" && !filter ? [".."] : []),
-    ...items.filter((i) =>
-      i.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
-    ),
-  ];
+  const parent = breadcrumbs(prompt.cwd, !prompt.powershell).at(-2)?.path;
+  const separator = prompt.powershell ? "\\" : "/";
+  const base = prompt.cwd.endsWith(separator)
+    ? prompt.cwd
+    : prompt.cwd + separator;
+  const entries: { label: string; path: string | null; icon: LucideIcon }[] =
+    items
+      .filter((name) =>
+        name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
+      )
+      .map((name) => ({
+        label: drives
+          ? name
+          : name.replace(prompt.powershell ? /[\\/]$/u : /\/$/u, ""),
+        path: drives ? name : base + name,
+        icon: drives ? HardDrive : Folder,
+      }));
+  if (!filter) {
+    if (prompt.powershell && !drives)
+      entries.unshift({
+        label: t("local", { ns: "files" }),
+        path: null,
+        icon: Monitor,
+      });
+    if (drives || parent)
+      entries.unshift({
+        label: drives ? t("back", { ns: "files" }) : t("parentDirectory"),
+        path: drives ? null : parent!,
+        icon: ArrowUp,
+      });
+  }
   const load = () => {
     const version = ++generation.current;
     setStatus("loading");
     setItems([]);
     setSelected(0);
-    void query("list", prompt.cwd).then(
+    void query(drives ? "drives" : "list", drives ? "" : prompt.cwd).then(
       (list) => {
         if (version === generation.current) {
           setItems(list);
@@ -71,13 +104,16 @@ export function DirectoryPicker({
     return () => {
       generation.current++;
     };
-  }, [open, query, prompt.cwd]);
-  const choose = async (name: string) => {
-    if (!name || status === "changing") return;
-    const path =
-      name === ".."
-        ? prompt.cwd.replace(/\/[^/]+\/?$/u, "") || "/"
-        : prompt.cwd.replace(/\/$/u, "") + "/" + name;
+  }, [open, query, prompt.cwd, drives]);
+  const choose = async (path: string | null) => {
+    if (status === "changing") return;
+    if (path === null) {
+      generation.current++;
+      setItems([]);
+      setDrives(!drives);
+      search.current?.focus();
+      return;
+    }
     setStatus("changing");
     if (await navigate(path)) {
       setOpen(false);
@@ -107,6 +143,7 @@ export function DirectoryPicker({
         }
         setOpen(v);
         setFilter("");
+        if (v) setDrives(false);
       }}
     >
       <PopoverTrigger
@@ -139,8 +176,8 @@ export function DirectoryPicker({
         <SearchInput
           ref={search}
           embedded
-          placeholder={t("directories")}
-          aria-label={t("directories")}
+          placeholder={drives ? t("drive", { ns: "files" }) : t("directories")}
+          aria-label={drives ? t("drive", { ns: "files" }) : t("directories")}
           value={filter}
           role="combobox"
           aria-expanded
@@ -171,7 +208,7 @@ export function DirectoryPicker({
             }
             if (e.key === "Enter" && entries[selected]) {
               e.preventDefault();
-              void choose(entries[selected]);
+              void choose(entries[selected].path);
             }
           }}
         />
@@ -188,20 +225,18 @@ export function DirectoryPicker({
             aria-label={t("directories")}
             className="shell-options"
           >
-            {entries.map((name, i) => (
+            {entries.map(({ label, path, icon: Icon }, i) => (
               <button
-                key={name}
+                key={path ?? "drive-list"}
                 id={optionId + "-" + i}
                 type="button"
                 role="option"
+                title={drives && path ? path : undefined}
                 aria-selected={i === selected}
                 onPointerMove={() => setSelected(i)}
-                onClick={() => void choose(name)}
+                onClick={() => void choose(path)}
               >
-                {name === ".." ? <ArrowUp size={14} /> : <Folder size={14} />}{" "}
-                {name === ".."
-                  ? t("parentDirectory")
-                  : name.replace(/\/$/u, "")}
+                <Icon size={14} /> {label}
               </button>
             ))}
           </div>

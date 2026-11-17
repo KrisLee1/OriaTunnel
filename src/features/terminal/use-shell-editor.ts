@@ -117,7 +117,7 @@ export function useShellEditor(
     requestAnimationFrame(() =>
       editorInput.current?.focus({ preventScroll: true }),
     );
-  const receive = (data: string, term: Terminal) => {
+  const receive = (data: string, term: Terminal, endRow?: number) => {
     const reply = editorReply(data, id);
     if (!reply) return true;
     const { kind, fields, revision } = reply;
@@ -125,10 +125,18 @@ export function useShellEditor(
       completedScreen.current = captureOutput(term);
       return true;
     }
-    if (kind === "ready" && fields.length >= 3 && fields[0].startsWith("/")) {
+    const powershell = kind === "readyPowerShell";
+    if (
+      fields.length >= 3 &&
+      ((powershell &&
+        endRow !== undefined &&
+        /^(?:[^\\/:]+:[\\/]|\\\\[^\\]+\\[^\\]+)/u.test(fields[0])) ||
+        (kind === "ready" && fields[0].startsWith("/")))
+    ) {
       cancelPending();
       const old = state.current.block;
-      const { output, runs } = completedScreen.current ?? captureOutput(term);
+      const { output, runs } =
+        completedScreen.current ?? captureOutput(term, true, endRow, powershell);
       completedScreen.current = null;
       if (old || output.trim()) {
         const done = old || {
@@ -137,7 +145,7 @@ export function useShellEditor(
           command: "",
           output: "",
         };
-        const body = commandOutput(done.command, output);
+        const body = powershell ? output : commandOutput(done.command, output);
         const skip = output.length - body.length;
         const block = {
           ...done,
@@ -164,6 +172,7 @@ export function useShellEditor(
       const next = {
         cwd: fields[0],
         home: fields[1],
+        powershell,
         environments: environmentNames(fields.slice(3)),
       };
       state.current = { prompt: next, editing: true, block: null };
@@ -203,9 +212,9 @@ export function useShellEditor(
     setRunning(block);
     setEditing(false);
     void response.then(
-      () => {
+      (fields) => {
         if (raw) send.current?.(value);
-        else {
+        else if (!(block.powershell && fields[0] === "accepted")) {
           if (value) term.paste(value);
           send.current?.("\r");
         }
@@ -215,7 +224,11 @@ export function useShellEditor(
     );
   };
   const changed = useCallback((cwd: string) => {
-    if (state.current.prompt && cwd?.startsWith("/")) {
+    if (
+      state.current.prompt &&
+      cwd &&
+      (state.current.prompt.powershell || cwd.startsWith("/"))
+    ) {
       const next = { ...state.current.prompt, cwd };
       state.current.prompt = next;
       setPrompt(next);

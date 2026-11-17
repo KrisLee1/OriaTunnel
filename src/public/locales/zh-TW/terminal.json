@@ -15,6 +15,7 @@
   "blockActions": "更多操作",
   "copyCommand": "複製命令",
   "copyOutput": "複製輸出",
+  "copyAll": "複製全部",
   "directories": "搜尋目錄…",
   "parentDirectory": "..（上一層）",
   "directoryError": "無法開啟目錄，點擊重試",

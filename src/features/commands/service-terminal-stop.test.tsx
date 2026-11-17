@@ -145,6 +145,7 @@ describe("foreground service stop", () => {
   it("synchronizes launch, terminal stop and running color from either the host or a linked forward", () => {
     const value = {
       ...service,
+      color: "#37a18b",
       hostIds: ["host"],
       ruleIds: ["forward", "second-forward"],
     };
@@ -167,7 +168,14 @@ describe("foreground service stop", () => {
         expect(
           state.items.get(i18n.t("kind.stop", { ns: "commands" }))?.disabled,
         ).toBe(true);
-        expect(stoppedHtml).toContain("grayscale(1)");
+        if (target === "host:host") {
+          expect(runningHtml).toContain(value.color);
+          expect(stoppedHtml).not.toContain(value.color);
+          expect(stoppedHtml).toContain("var(--oria-color-fg)");
+          expect(stoppedHtml).not.toContain("grayscale(1)");
+        } else {
+          expect(stoppedHtml).toContain("grayscale(1)");
+        }
       }
     }
   });

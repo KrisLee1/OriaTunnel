@@ -50,16 +50,57 @@ function attributes(cell: IBufferCell): CSSProperties {
 
 // Capture the emulator's rendered grid. Spaces between columns are real cells,
 // and a soft wrap continues the same logical line when the panel changes width.
-export function captureOutput(term: Terminal, withStyles = true) {
+// ConPTY forwards OSC immediately but paints console cells asynchronously.
+// Locate the shell's end marker even if a resize wrapped it or background
+// output advanced the cursor before the frame was consumed.
+export function powerShellOutputEnd(term: Terminal, marker: string) {
+  const buffer = term.buffer.active;
+  for (let row = buffer.length - 1; row >= 0; row--) {
+    const line = buffer.getLine(row);
+    if (!line) continue;
+    let text = line.translateToString(true);
+    if (!text || !marker.endsWith(text)) continue;
+    let first = row;
+    while (first > 0 && text.length < marker.length) {
+      text = buffer.getLine(--first)!.translateToString(false) + text;
+    }
+    if (text === marker) return first;
+  }
+}
+
+// The local shell leaves a concealed '>' above the command. During a ConPTY
+// repaint the old viewport can enter scrollback before the new one is painted.
+export function powerShellOutputStart(term: Terminal) {
+  const buffer = term.buffer.active;
+  let start = 0;
+  for (let row = 0; row < buffer.length; row++) {
+    const line = buffer.getLine(row);
+    const text = line?.translateToString(true);
+    if (!text) continue;
+    if (text !== ">" || !line?.getCell(0)?.isInvisible()) break;
+    start = row + 1;
+  }
+  return start;
+}
+
+export function captureOutput(
+  term: Terminal,
+  withStyles = true,
+  endRow = term.buffer.active.length,
+  powershell = false,
+) {
   const buffer = term.buffer.active,
     cell = buffer.getNullCell();
   const runs: OutputRun[] = [];
-  const first = Math.max(0, buffer.length - 5000);
+  const first = Math.max(
+    powershell ? powerShellOutputStart(term) : 0,
+    endRow - 5000,
+  );
   let output = "",
     lastFg = -1,
     lastBg = -1,
     lastFlags = -1;
-  for (let row = first; row < buffer.length; row++) {
+  for (let row = first; row < endRow; row++) {
     const line = buffer.getLine(row);
     if (!line) continue;
     if (row > first && !line.isWrapped) output += "\n";

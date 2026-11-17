@@ -15,6 +15,7 @@
   "blockActions": "Autres actions",
   "copyCommand": "Copier la commande",
   "copyOutput": "Copier la sortie",
+  "copyAll": "Tout copier",
   "directories": "Rechercher un dossier…",
   "parentDirectory": ".. (Dossier parent)",
   "directoryError": "Dossier inaccessible. Réessayer",

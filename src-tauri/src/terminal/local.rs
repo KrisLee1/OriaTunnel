@@ -25,21 +25,52 @@ struct Process {
     writer: Box<dyn Write + Send>,
 }
 
-fn spawn(id: &str, dimensions: (u32, u32)) -> Result<Process, String> {
+pub(crate) fn shell() -> String {
+    #[cfg(windows)]
+    let shell = std::env::var("ComSpec")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| CommandBuilder::new_default_prog().get_shell());
+    #[cfg(not(windows))]
+    let shell = CommandBuilder::new_default_prog().get_shell();
+    #[cfg(windows)]
+    if std::path::Path::new(&shell)
+        .file_name()
+        .is_some_and(|name| name.eq_ignore_ascii_case("cmd.exe"))
+    {
+        if let Some(system) = std::env::var_os("SystemRoot") {
+            let powershell = std::path::PathBuf::from(system)
+                .join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+            if powershell.is_file() {
+                return powershell.to_string_lossy().into_owned();
+            }
+        }
+    }
+    shell
+}
+
+fn spawn(shell: &str, id: &str, dimensions: (u32, u32)) -> Result<Process, String> {
+    #[cfg(windows)]
+    let mut cmd = CommandBuilder::new(shell);
+    #[cfg(not(windows))]
     let mut cmd = CommandBuilder::new_default_prog();
     #[cfg(unix)]
     {
-        let shell = cmd.get_shell();
-        if let Some(startup) = super::editor::shell_startup(&shell, id) {
-            cmd = CommandBuilder::new(&shell);
-            if std::path::Path::new(&shell).ends_with("zsh") {
+        if let Some(startup) = super::editor::shell_startup(shell, id) {
+            cmd = CommandBuilder::new(shell);
+            if std::path::Path::new(shell).ends_with("zsh") {
                 cmd.arg("-f");
             }
             cmd.args(["-c", &startup]);
         }
     }
     #[cfg(windows)]
-    if std::path::Path::new(&cmd.get_shell())
+    if std::path::Path::new(shell).file_stem().is_some_and(|name| {
+        name.eq_ignore_ascii_case("powershell") || name.eq_ignore_ascii_case("pwsh")
+    }) {
+        cmd.env("ORIA_TERMINAL_SESSION", id);
+        cmd.args(["-NoLogo", "-NoExit", "-Command", include_str!("editor.ps1")]);
+    } else if std::path::Path::new(shell)
         .file_name()
         .is_some_and(|s| s.eq_ignore_ascii_case("cmd.exe"))
     {
@@ -50,7 +81,7 @@ fn spawn(id: &str, dimensions: (u32, u32)) -> Result<Process, String> {
             .unwrap_or("$P$G");
         cmd.env("PROMPT", format!("$E]133;A$E\\{prompt}"));
     }
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     let _ = id;
     if let Some(home) = dirs::home_dir() {
         cmd.cwd(home);
@@ -97,6 +128,7 @@ fn readable(fd: std::os::fd::RawFd, finished: &CancellationToken) -> bool {
 pub async fn execute(
     manager: Arc<Manager>,
     id: String,
+    shell: String,
     cancel: CancellationToken,
     mut input: mpsc::Receiver<Input>,
     changed: Changed,
@@ -111,7 +143,7 @@ pub async fn execute(
     }
     let initial = *sizes.borrow_and_update();
     let job = id.clone();
-    let process = tokio::task::spawn_blocking(move || spawn(&job, initial)).await;
+    let process = tokio::task::spawn_blocking(move || spawn(&shell, &job, initial)).await;
     let Process {
         master,
         mut child,

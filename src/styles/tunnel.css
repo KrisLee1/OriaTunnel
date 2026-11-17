@@ -1064,6 +1064,12 @@ body,
   min-width: 0;
   overflow: hidden;
 }
+/* Color emoji glyphs have their own palette. Tint only the glyph silhouette. */
+[data-foreground-emoji] .connection-icon {
+  background-color: var(--oria-color-fg);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 .host-service-viewport {
   height: 32px;
   --service-fade-start: 0px;

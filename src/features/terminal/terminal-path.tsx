@@ -76,12 +76,12 @@ export function TerminalPath({
   const pickerId = useId();
   const { cwd, home } = prompt;
   const parts = useMemo(() => {
-    const path = breadcrumbs(cwd, true);
+    const path = breadcrumbs(cwd, !prompt.powershell);
     const homeIndex = path.findIndex((part) => part.path === home);
     return homeIndex < 0
       ? path
       : [{ label: "~", path: home }, ...path.slice(homeIndex + 1)];
-  }, [cwd, home]);
+  }, [cwd, home, prompt.powershell]);
   const last = parts.length - 1;
   const leaf = parts[last];
   const absoluteRoot = parts[0].label === "/";

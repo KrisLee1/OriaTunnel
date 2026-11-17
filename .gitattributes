@@ -2,3 +2,5 @@
 src-tauri/tests/fixtures/updater/payload.txt -text
 # Application bundles and release receipts must retain the exact license bytes.
 LICENSE -text
+# Embedded verbatim and sourced by the remote Unix shell, including Windows builds.
+src-tauri/src/terminal/editor.sh text eol=lf

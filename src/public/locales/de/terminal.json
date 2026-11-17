@@ -15,6 +15,7 @@
   "blockActions": "Weitere Befehlsaktionen",
   "copyCommand": "Befehl kopieren",
   "copyOutput": "Ausgabe kopieren",
+  "copyAll": "Alles kopieren",
   "directories": "Verzeichnisse suchen…",
   "parentDirectory": ".. (Übergeordnetes Verzeichnis)",
   "directoryError": "Verzeichnis nicht verfügbar. Erneut versuchen",

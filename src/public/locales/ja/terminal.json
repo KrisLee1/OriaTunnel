@@ -15,6 +15,7 @@
   "blockActions": "その他の操作",
   "copyCommand": "コマンドをコピー",
   "copyOutput": "出力をコピー",
+  "copyAll": "すべてコピー",
   "directories": "ディレクトリを検索…",
   "parentDirectory": "..（親ディレクトリ）",
   "directoryError": "ディレクトリを開けません。再試行",

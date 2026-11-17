@@ -15,6 +15,7 @@
   "blockActions": "更多操作",
   "copyCommand": "复制命令",
   "copyOutput": "复制输出",
+  "copyAll": "复制全部",
   "directories": "搜索目录…",
   "parentDirectory": "..（上一级）",
   "directoryError": "无法打开目录，点击重试",

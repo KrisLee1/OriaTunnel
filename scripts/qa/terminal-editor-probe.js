@@ -560,8 +560,10 @@ async function verifyOutput(cfg, shell) {
   const cases = [
     [block, 0, longCommand + "; sleep 6"],
     [block, 1, expectedOutput],
+    [block, 2, "$ " + longCommand + "; sleep 6\n" + expectedOutput],
     [latest, 0, laterCommand],
     [latest, 1, "second-block-ok"],
+    [latest, 2, "$ " + laterCommand + "\nsecond-block-ok"],
     [editor().closest(".shell-current-block"), 0, "echo unrelated-draft"],
   ];
   for (const [owner, i, text] of cases) {

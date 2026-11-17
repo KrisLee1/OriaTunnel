@@ -1,4 +1,4 @@
-# Sourced only in the interactive shell started by this terminal session.
+# Embedded with Unix line endings and sourced in this session's interactive shell.
 # All payloads are data. NUL separates fields inside base64-encoded OSC replies.
 __oria_emit() {
     local kind=$1 revision=$2 encoded=
