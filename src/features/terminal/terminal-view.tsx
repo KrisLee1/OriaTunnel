@@ -646,8 +646,8 @@ export default function TerminalView({
       let windowsPrompt:
         | { data: string; revision: string; marker: string }
         | undefined;
-      let windowsStartup =
-        session.local && /(?:^|[\\/])(?:powershell|pwsh)\.exe$/iu.test(session.endpoint);
+      let powerShellEditor = false;
+      let windowsStartup = true;
       const finishWindowsOutput = () => {
         if (!windowsPrompt) return;
         const { data, revision, marker } = windowsPrompt;
@@ -660,12 +660,15 @@ export default function TerminalView({
       };
       const shellMessages = term.parser.registerOscHandler(6973, (data) => {
         if (current.current.session.serviceId) return false;
-        if (windowsStartup && data === session.id + ";initPowerShell;0;") {
+        if (
+          powerShellEditor && windowsStartup &&
+          data === session.id + ";initPowerShell;0;"
+        ) {
           windowsStartup = false;
           send(new Uint8Array([13]));
           return true;
         }
-        if (session.local && data.startsWith(session.id + ";readyPowerShell;")) {
+        if (powerShellEditor && data.startsWith(session.id + ";readyPowerShell;")) {
           windowsStartup = false;
           const revision = data.split(";", 3)[2];
           if (/^\d+$/.test(revision)) {
@@ -897,6 +900,8 @@ export default function TerminalView({
           return;
         }
         lastFrame = frame.sequence;
+        // The launch mode travels with the bytes so an early OSC cannot race a session snapshot.
+        powerShellEditor = frame.powerShellEditor;
         term.write(new Uint8Array(frame.bytes), () => {
           if (!disposed) finishWindowsOutput();
           if (!disposed)

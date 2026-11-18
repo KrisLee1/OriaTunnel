@@ -37,7 +37,6 @@ struct PtyPair {
 #[derive(Clone, Default)]
 pub struct Fixture {
     pairs: Arc<Mutex<BTreeMap<ChannelId, Arc<PtyPair>>>>,
-    #[cfg(unix)]
     pub editor_shell: Option<&'static str>,
     #[cfg(unix)]
     editor_home: Option<Arc<tempfile::TempDir>>,
@@ -58,7 +57,6 @@ impl server::Server for Fixture {
     fn new_client(&mut self, _: Option<std::net::SocketAddr>) -> Self {
         Self {
             pairs: Default::default(),
-            #[cfg(unix)]
             editor_shell: self.editor_shell,
             #[cfg(unix)]
             editor_home: self.editor_home.clone(),
@@ -287,7 +285,6 @@ impl server::Handler for Fixture {
                 ch,
                 session.handle(),
                 None,
-                #[cfg(unix)]
                 self.editor_shell,
                 #[cfg(unix)]
                 self.editor_home.clone(),
@@ -301,11 +298,26 @@ impl server::Handler for Fixture {
         command: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        #[cfg(unix)]
+        const SHELL_PROBE: &str = r#"echo "oria-shell~$0~%OS%~\$env:OS""#;
         if let Some(shell) = self.editor_shell {
-            if command == b"echo \"$0\"" && !self.pairs.lock().unwrap().contains_key(&ch) {
+            if command == SHELL_PROBE.as_bytes() && !self.pairs.lock().unwrap().contains_key(&ch) {
+                #[cfg(unix)]
+                let mut probe = {
+                    let mut process = tokio::process::Command::new(shell);
+                    process
+                        .env_clear()
+                        .env("HOME", self.editor_home.as_ref().unwrap().path());
+                    process.args([
+                        if shell.ends_with("zsh") { "-fc" } else { "-c" },
+                        SHELL_PROBE,
+                    ]);
+                    process
+                };
+                #[cfg(windows)]
+                let mut probe = platform::editor_probe(shell, SHELL_PROBE);
+                let output = probe.output().await?;
                 session.channel_success(ch)?;
-                session.data(ch, format!("{shell}\n").into_bytes())?;
+                session.data(ch, output.stdout)?;
                 session.eof(ch)?;
                 session.close(ch)?;
                 return Ok(());
@@ -320,7 +332,6 @@ impl server::Handler for Fixture {
                 ch,
                 session.handle(),
                 Some(String::from_utf8_lossy(command).into_owned()),
-                #[cfg(unix)]
                 self.editor_shell,
                 #[cfg(unix)]
                 self.editor_home.clone(),

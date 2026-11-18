@@ -54,6 +54,7 @@ impl Session {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Frame {
+    pub power_shell_editor: bool,
     pub id: String,
     pub sequence: u64,
     pub bytes: Vec<u8>,
@@ -63,6 +64,7 @@ pub enum Input {
     Resize(u32, u32),
 }
 struct Entry {
+    power_shell_editor: bool,
     #[cfg(unix)]
     local_shell: Option<(Arc<std::os::fd::OwnedFd>, u32)>,
     session: Session,
@@ -153,6 +155,7 @@ impl Manager {
         entries.insert(
             session.id.clone(),
             Entry {
+                power_shell_editor: false,
                 #[cfg(unix)]
                 local_shell: None,
                 session: session.clone(),
@@ -174,6 +177,11 @@ impl Manager {
         if let Some(e) = self.entries.lock().unwrap().get_mut(id) {
             update(&mut e.session);
             e.session.revision += 1;
+        }
+    }
+    fn enable_powershell_editor(&self, id: &str) {
+        if let Some(entry) = self.entries.lock().unwrap().get_mut(id) {
+            entry.power_shell_editor = true;
         }
     }
     pub fn local_foreground(&self, id: &str, client: &str) -> Result<bool, String> {
@@ -260,6 +268,7 @@ impl Manager {
                     if e.bytes + part.len() <= OUTPUT_LIMIT {
                         e.sequence += 1;
                         e.queue.push_back(Frame {
+                            power_shell_editor: e.power_shell_editor,
                             id: id.into(),
                             sequence: e.sequence,
                             bytes: part.to_vec(),
@@ -489,7 +498,7 @@ pub async fn execute(
                     .map_err(|_| "remoteUnknown")?;
             } else if let Some(ref startup) = editor {
                 channel
-                    .exec(true, startup.as_bytes().to_vec())
+                    .exec(true, startup.command.as_bytes().to_vec())
                     .await
                     .map_err(|_| "shellRejected")?;
             } else {
@@ -502,7 +511,12 @@ pub async fn execute(
             let mut early = Vec::new();
             loop {
                 match channel.wait().await {
-                    Some(ChannelMsg::Success) => return Ok(early),
+                    Some(ChannelMsg::Success) => {
+                        if try_plain_shell && editor.as_ref().is_some_and(|e| e.powershell) {
+                            manager.enable_powershell_editor(&id);
+                        }
+                        return Ok(early);
+                    }
                     Some(ChannelMsg::Failure) if try_plain_shell => {
                         try_plain_shell = false;
                         channel

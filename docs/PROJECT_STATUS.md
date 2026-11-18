@@ -6,6 +6,12 @@
 
 源码版本与四平台安装入口已同步至 0.4.1。[更新日志](releases/v0.4.1.md) 同时用于 GitHub Release 和应用内更新。
 
+## Windows SSH 智能终端（未发布）
+
+远程交互式终端在独立 SSH 通道识别 Bash、zsh、Windows cmd 或 PowerShell。Windows cmd 默认入口优先启动系统 Windows PowerShell，PowerShell 默认入口沿用远端正在使用的版本。二者加载与本地 Windows 终端相同的命令编辑器钩子。Rust 在输出帧中标记编辑器类型，前端沿用相同的输入、补全、盘符导航与命令块归档。
+
+macOS 已验证 Shell 探测、两种 Windows 启动命令的内容、Bash/zsh 回环 SSH 回归，以及真实 PowerShell 7.5.4 在隔离 PTY 中的握手、命令输出和退出码。Windows 专用回环 SSH/ConPTY 测试覆盖 cmd 与 Windows PowerShell 两种入口；本轮尚未在 Windows 主机执行。
+
 ## macOS 更新后的 Dock 图标（未发布）
 
 应用内更新从原安装路径重新打开应用包，等旧进程完全退出后再启动新版。隔离的 Apple Silicon 原生 Dock 测试复现了旧重启方式产生两个图标的问题，并用生产重启命令验证连续两次替换签名测试包。新版启动时只有一个图标，退出后点击原固定项也能正常启动。

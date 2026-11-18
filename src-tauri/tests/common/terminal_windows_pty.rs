@@ -61,11 +61,26 @@ impl PtyPair {
         .await;
     }
 }
+pub fn editor_probe(shell: &str, command: &str) -> tokio::process::Command {
+    let system = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32");
+    if shell == "cmd" {
+        let mut probe = tokio::process::Command::new(system.join("cmd.exe"));
+        probe.args(["/d", "/c"]).raw_arg(command);
+        probe
+    } else {
+        let mut probe =
+            tokio::process::Command::new(system.join("WindowsPowerShell/v1.0/powershell.exe"));
+        probe.args(["-NoLogo", "-NoProfile", "-Command", command]);
+        probe
+    }
+}
+
 pub async fn spawn_shell(
     pair: Arc<PtyPair>,
     channel: russh::ChannelId,
     handle: russh::server::Handle,
     command: Option<String>,
+    editor_shell: Option<&str>,
 ) {
     let directory = tempfile::tempdir().unwrap();
     // Absolute system path and no profile: never execute user PowerShell setup.
@@ -107,6 +122,25 @@ pub async fn spawn_shell(
     process.arg("-Command");
     let command = command.unwrap_or_else(||
         "function global:PSConsoleHostReadLine { [Console]::ReadLine() }; function global:prompt { 'oria-e2> ' }".into());
+    // Keep child PowerShell profiles and history isolated as well as the outer shell.
+    let command = if let Some(shell) = editor_shell {
+        process.env("ORIATUNNEL_TEST_DATA_DIR", directory.path());
+        let command = command.replace(" -NoLogo -NoExit ", " -NoLogo -NoProfile -NoExit ");
+        if shell == "cmd" {
+            // A batch file passes the SSH exec string verbatim through cmd's parser.
+            std::fs::write(
+                directory.path().join("fixture-ssh.cmd"),
+                format!("@echo off\r\n{command}\r\n"),
+            )
+            .unwrap();
+            r#"& "$env:SystemRoot\System32\cmd.exe" /d /c fixture-ssh.cmd; exit $LASTEXITCODE"#
+                .into()
+        } else {
+            command
+        }
+    } else {
+        command
+    };
     let utility =
         powershell.join("Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1");
     let utility = utility.to_string_lossy().replace('\'', "''");

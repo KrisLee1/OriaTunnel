@@ -110,6 +110,13 @@ async fn wait_text(bytes: &Arc<Mutex<Vec<u8>>>, start: usize, text: &str) -> usi
     })
 }
 fn consume(manager: Arc<Manager>, id: &str) -> (Arc<Mutex<Vec<u8>>>, tokio::task::JoinHandle<()>) {
+    consume_frames(manager, id, false)
+}
+fn consume_frames(
+    manager: Arc<Manager>,
+    id: &str,
+    powershell: bool,
+) -> (Arc<Mutex<Vec<u8>>>, tokio::task::JoinHandle<()>) {
     let (tx, mut rx) = mpsc::unbounded_channel();
     manager
         .attach(
@@ -128,6 +135,7 @@ fn consume(manager: Arc<Manager>, id: &str) -> (Arc<Mutex<Vec<u8>>>, tokio::task
     let id = id.to_string();
     let job = tokio::spawn(async move {
         while let Some(frame) = rx.recv().await {
+            assert_eq!(frame["powerShellEditor"].as_bool(), Some(powershell));
             captured.lock().unwrap().extend(
                 frame["bytes"]
                     .as_array()
@@ -573,6 +581,83 @@ async fn shell_editor_runs_commands_and_changes_real_directory_on_loopback() {
             .await
             .unwrap()
             .unwrap();
+        consumer.abort();
+        server.abort();
+    }
+}
+
+#[cfg(windows)]
+#[tokio::test(flavor = "multi_thread")]
+async fn windows_ssh_interactive_shell_uses_the_powershell_editor() {
+    for shell in ["cmd", "powershell"] {
+        let mut fixture = server::Fixture::default();
+        fixture.editor_shell = Some(shell);
+        let (port, server) = server::start(fixture).await;
+        let manager = Arc::new(Manager::default());
+        let id = "terminal:winssh-editor";
+        let (s, cancel, input) = manager.register(summary(id)).unwrap();
+        let (bytes, consumer) = consume_frames(manager.clone(), id, true);
+        let worker = tokio::spawn(terminal::execute(
+            manager.clone(),
+            s.id,
+            cancel,
+            input.unwrap(),
+            request(port),
+        ));
+        let mut sequence = 0;
+        let mut send = |text: &str| {
+            sequence += 1;
+            manager
+                .input(id, "client", sequence, text.as_bytes().to_vec())
+                .unwrap();
+        };
+        let ready = format!("]6973;{id};readyPowerShell;1;");
+        let init = format!("]6973;{id};initPowerShell;0;");
+        let prime_history = tokio::time::timeout(Duration::from_secs(45), async {
+            loop {
+                {
+                    let data = bytes.lock().unwrap();
+                    let text = String::from_utf8_lossy(&data);
+                    if text.contains(&init) {
+                        return true;
+                    }
+                    if text.contains(&ready) {
+                        return false;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("remote PowerShell startup");
+        if prime_history {
+            send("\r");
+        }
+        wait_text(&bytes, 0, &ready).await;
+        send("#oria ack 1 \n");
+        send("#oria drives 2 \n");
+        let drives = wait_text(&bytes, 0, ";matches;2;").await + ";matches;2;".len();
+        let end = wait_text(&bytes, drives, "\x07").await;
+        let decoded = data_encoding::BASE64
+            .decode(&bytes.lock().unwrap()[drives..end])
+            .unwrap();
+        assert!(decoded.windows(3).any(|w| w == b":\\\0"));
+        let run = |seq, cmd: &str| {
+            format!(
+                "#oria run {seq} {}\n",
+                data_encoding::BASE64.encode(cmd.as_bytes())
+            )
+        };
+        send(&run(3, "Write-Output ('remote-' + 'editor-ok')"));
+        wait_text(&bytes, 0, "remote-editor-ok").await;
+        wait_text(&bytes, 0, ";readyPowerShell;2;").await;
+        send("#oria ack 2 \n");
+        send(&run(4, "exit 7"));
+        tokio::time::timeout(Duration::from_secs(20), worker)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(manager.list()[0].exit_code, Some(7));
         consumer.abort();
         server.abort();
     }

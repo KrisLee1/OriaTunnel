@@ -1,4 +1,4 @@
-# Installed only inside the interactive local PowerShell process.
+# Installed only inside the interactive PowerShell process.
 if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { return }
 $global:__oriaSession = $env:ORIA_TERMINAL_SESSION
 Remove-Item Env:ORIA_TERMINAL_SESSION

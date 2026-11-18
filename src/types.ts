@@ -221,7 +221,7 @@ export interface TerminalSession {
   startedAt: number; finishedAt: number | null; submitted: boolean; exitCode: number | null; exitSignal: string | null; error: string | null;
   fingerprint: string | null; verificationEndpoint: string | null; cols: number; rows: number;
 }
-export interface TerminalFrame { id: string; sequence: number; bytes: number[] }
+export interface TerminalFrame { powerShellEditor: boolean; id: string; sequence: number; bytes: number[] }
 export interface OpenTerminalRequest {
   hostId: string; requestId: string; clientId: string; cols: number; rows: number; noLocalEnvironment: boolean;
   serviceId?: string; actionId?: string; ruleId?:string; revision?: string; confirmed: boolean;

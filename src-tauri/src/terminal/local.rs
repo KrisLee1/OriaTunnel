@@ -49,6 +49,13 @@ pub(crate) fn shell() -> String {
     shell
 }
 
+#[cfg(windows)]
+fn powershell(shell: &str) -> bool {
+    std::path::Path::new(shell).file_stem().is_some_and(|name| {
+        name.eq_ignore_ascii_case("powershell") || name.eq_ignore_ascii_case("pwsh")
+    })
+}
+
 fn spawn(shell: &str, id: &str, dimensions: (u32, u32)) -> Result<Process, String> {
     #[cfg(windows)]
     let mut cmd = CommandBuilder::new(shell);
@@ -65,9 +72,7 @@ fn spawn(shell: &str, id: &str, dimensions: (u32, u32)) -> Result<Process, Strin
         }
     }
     #[cfg(windows)]
-    if std::path::Path::new(shell).file_stem().is_some_and(|name| {
-        name.eq_ignore_ascii_case("powershell") || name.eq_ignore_ascii_case("pwsh")
-    }) {
+    if powershell(shell) {
         cmd.env("ORIA_TERMINAL_SESSION", id);
         cmd.args(["-NoLogo", "-NoExit", "-Command", include_str!("editor.ps1")]);
     } else if std::path::Path::new(shell)
@@ -140,6 +145,10 @@ pub async fn execute(
         manager.finish(&id, "disconnected", None);
         changed();
         return;
+    }
+    #[cfg(windows)]
+    if powershell(&shell) {
+        manager.enable_powershell_editor(&id);
     }
     let initial = *sizes.borrow_and_update();
     let job = id.clone();

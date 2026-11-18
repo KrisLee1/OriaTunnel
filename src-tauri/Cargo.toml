@@ -28,6 +28,7 @@ dirs = "6"
 uuid = { version = "1", features = ["v4"] }
 des = { version = "0.9", features = ["zeroize"] }
 flate2 = "1"
+data-encoding = "2"
 zeroize = "1.9.1"
 sha2 = "0.10.9"
 russh-sftp = "=3.0.1"
@@ -50,7 +51,6 @@ windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com"
 windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem", "Win32_System_Power", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Security_Credentials"] }
 
 [dev-dependencies]
-data-encoding = "2"
 tokio = { version = "1", features = ["test-util"] }
 tauri = { version = "2", features = ["test"] }
 rand = "0.10"
