@@ -5,74 +5,68 @@
   </picture>
 </p>
 
-<p align="center">Manage SSH tunnels visually. Use remote services with ease.</p>
+<h1 align="center">One SSH workspace for remote management</h1>
+
+<p align="center">Manage SSH tunnels, remote services, terminals, file transfers and remote desktops together in OriaTunnel.</p>
 
 <p align="center">
   <a href="../../README.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · English · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.ru.md">Русский</a>
 </p>
 
-OriaTunnel is a desktop tool for managing SSH tunnels and remote services on Windows and macOS. Manage multiple servers, tunnels, and services in a visual interface, without memorizing complex forwarding commands. Access internal databases, web dashboards, and development environments, and run configured service actions.
-
-Save hosts and forwarding rules once, then start, stop, and open services through the interface. If you are unfamiliar with SSH commands, you can import a configuration prepared by an administrator or colleague and supply your own authentication details.
-
-Current version: **v0.4.0** · [Version history](#version-history)
-
-**[📥 Download and install](#download-and-install)** · [🚀 Quick start](#quick-start) · [📖 Full user guide (Simplified Chinese)](../USAGE.md) · [🧭 Choose a forwarding mode](#choose-a-forwarding-mode)
+**[Download and install](#download-and-install)** · [Quick start](#quick-start) · [Full user guide (Simplified Chinese)](../USAGE.md) · [Live demo (Chinese)](https://oriamade.com/zh-CN/oria-tunnel#workspace)
 
 ## What you can do
 
-- **Built-in VNC viewer** — Open a forwarded desktop in its own window, switch to full screen, adjust the zoom, or use the SSH terminal and file transfer panels.
-- 📁 **Browse and transfer files (0.2.0):** browse local and SSH files, upload, download, transfer between hosts, manage background tasks, preview files, and edit text.
-- 🔗 **Manage multiple tunnels:** view connections by host and start or stop rules individually or in batches.
-- 💻 **Open an SSH terminal:** use multiple interactive terminal tabs, or run interactive and long-running foreground commands in dedicated terminals.
-- **Turn service commands into buttons:** save start, stop, restart, status, and log actions, then run them from a linked forward. Built-in templates help you get started.
-- **Check and connect services:** configure status and health probes, or use a supported non-interactive start action to start a service and connect its forward, with results for each step.
-- **Use familiar SSH forwarding modes:** local forwarding (L), remote forwarding (R), and dynamic SOCKS5 forwarding (D), with ordered multi-hop ProxyJump support.
-- **Reuse host settings:** discover candidates from SSH configuration or add hosts manually; authenticate with a password, private key, or system SSH Agent.
-- **See what is happening:** inspect connection status, listening paths, traffic, active connections, reconnect progress, and filterable event logs.
-- **Keep tunnels available:** run in the tray or menu bar, reconnect after network failures, and optionally start at login or connect selected rules at app startup.
-- **Organize and share configurations:** customize names, tags, colors, and icons; import or export hosts, forwards, and explicitly selected service templates.
-- **Use one of eight interface languages:** Simplified Chinese, Traditional Chinese, Japanese, Korean, English, German, French, and Russian, including native error messages and SSH configuration diagnostics. Light, dark, and theme settings are available.
+### 🔗 Visual tunnel management
+
+- See how local ports connect to SSH hosts on the connection map. Start or stop rules individually or in batches and track their status, active connections and traffic.
+- Pick a host from your SSH configuration or add one manually. Connect with a password, private key or system SSH agent, including across multiple ProxyJump hosts.
+- Save a rule to reopen an internal web app from the map or connect your database client to its local port.
+
+### ⚙️ Remote services
+
+- Save start, stop, restart, status and log commands in a template. Link it to a forward to run those actions from the service menu.
+- If a service needs to start first, configure its startup command and health check. Follow each step as the command runs, the check completes and the tunnel connects.
+
+### 💻 Local and SSH terminals
+
+- Switch between local and remote sessions in tabs. Use suggestions as you type, press ↑ for history or recall a saved command by keyword across sessions.
+- Edit multiple lines with Shift+Enter and keep your draft when changing directories. Collapse long output and copy a command or its result separately.
+
+### 📁 File transfers
+
+- Browse directories side by side. Drag files between panels for batch uploads and downloads, or open a different SSH host in each panel to transfer between them.
+- Track each batch in the background queue and pause, resume or cancel tasks. Preview files and edit text directly in the workspace.
+
+### 🖥️ VNC remote desktop
+
+- Open a VNC forward in its own window over SSH. Switch to full screen, adjust zoom and copy text in either direction.
+- Open an SSH terminal or transfer files over SFTP in the desktop window. Submitted transfers continue after you close it.
 
 ## Download and install
 
+| Platform | Installer v0.4.0 | Installation |
+| --- | --- | --- |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | Open the disk image and drag OriaTunnel into Applications. |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | Run the installer and follow the prompts. |
 
-Visit the [Releases download page](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0) and choose the package for your operating system and device architecture.
+### Version history
 
-- **Windows:** download the `.exe` installer and follow the installation wizard.
-- **macOS:** download and open the `.dmg`, then drag `OriaTunnel.app` into **Applications**. If you download a `.zip`, extract the `.dmg` inside it first.
+**v0.4.0** · Local and SSH terminals now support completion, a shared command library, multiline editing and collapsible output. Check for updates under **About**.
 
-| Platform | Download |
-| --- | --- |
-| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
-
-Check for updates under **About → Version update**, then download and install when ready. Startup checks can be disabled. Installation disconnects SSH sessions; save terminal work first. Use the installers above for a first installation or an older development build. See [application updates (Chinese)](../USAGE.md#应用更新).
-
-Launch OriaTunnel after installation, then follow the [quick start](#quick-start) to add an SSH host and create a forward. Everyday use does not require Node.js, pnpm, or Rust.
+[Release notes (Chinese)](../releases/v0.4.0.md) · [All releases](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## Quick start
 
-For initial setup, have the SSH address, port, username, authentication method, and target service address and port ready. Ask your administrator if needed; you do not need to learn SSH command syntax first. This example assumes the service is already running.
+This example connects your browser to a web service already running on port 3000 of the SSH server.
 
 1. Open OriaTunnel and choose **Add host**. Select a host discovered from SSH configuration, or enter its details manually. Discovery only reads configuration; it does not connect automatically.
-2. Choose **New forward**, select the host and L / R / D, then fill in the listening endpoint. L / R also require a target address and port.
-3. Choose **Save and start**, authenticate when prompted, and verify the server fingerprint on the first connection.
-4. Wait for **Listening**, then use the forwarding endpoint in your browser or service client. For D, use the proxy-browser menu; associated services can open their remote web pages directly.
+2. Choose **New forward**, select the host and choose local forwarding (L). Set the listener to `127.0.0.1:13000` and the target to `127.0.0.1:3000` on the SSH server.
+3. Choose **Save and start**, authenticate when prompted, and verify the server fingerprint on the first connection. Once the rule shows **Listening**, open `http://127.0.0.1:13000` in your local browser.
 
-For example, to reach a web app on your SSH server, choose **L**, listen on `127.0.0.1:13000`, and target `127.0.0.1:3000`. Once started, open `http://127.0.0.1:13000` on this computer. The target `127.0.0.1` means **the SSH server itself**; this example assumes the web app is running on port 3000 there.
+Next time, start the saved rule. If the page fails to load, check that the remote service is running on the target port. [troubleshooting guide (Chinese)](../USAGE.md#查看状态与排查问题)
 
-**Listening** means the forwarding endpoint is ready. Service availability also depends on the target application, network, and permissions. See [status and troubleshooting (Chinese)](../USAGE.md#查看状态与排查问题) if needed.
-
-After setup, start the saved rule from the map or forward list. For a ready HTTP, HTTPS, or VNC endpoint, use **Open service**; databases use their corresponding clients.
-
-Already have an OriaTunnel configuration file? Choose **Import configuration** on the forward page, review it, and supply your authentication details before starting. Imported service templates require review and explicit enablement. See [use an existing configuration (Chinese)](../USAGE.md#使用现成配置).
-
-To operate a remote service, create or import a template on the services page, check its commands and paths, then link it in the forward editor. Run actions from that forward’s service menu. Saving or linking a template does not execute commands. See [service templates (Chinese)](../USAGE.md#预设远程命令).
-
-## Choose a forwarding mode
+### Choose a forwarding mode
 
 | Mode | When to use it | How you access the service |
 | --- | --- | --- |
@@ -80,7 +74,7 @@ To operate a remote service, create or import a template on the services page, c
 | **R · Remote forwarding** | Let a server access a development service running on this computer | Connect to a listening port on the server, which reaches the local service over SSH |
 | **D · Dynamic forwarding** | Reach multiple internal addresses through an SSH host | Open an isolated proxy browser from the menu, or configure another client to use local SOCKS5 |
 
-A server with a shared IP and only one assigned SSH port can still provide access to multiple services through that port. See the [shared IP example (Chinese)](../USAGE.md#场景四共享-ip只分配一个-ssh-端口).
+Already have an OriaTunnel configuration file? Choose **Import configuration** on the forward page, review it, and supply your authentication details before starting. Imported service templates require review and explicit enablement. See [use an existing configuration (Chinese)](../USAGE.md#使用现成配置).
 
 ## Screenshots
 
@@ -89,74 +83,19 @@ These light and dark interface previews use sample data from the OriaTunnel demo
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Connection map"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/terminal-dark.png"><img src="../assets/screenshots/terminal-light.png" alt="Smart terminal command library"></picture> |
 | :---: | :---: |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/files-dark.png"><img src="../assets/screenshots/files-light.png" alt="File transfer queue"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/vnc-dark.png"><img src="../assets/screenshots/vnc-light.png" alt="VNC remote desktop"></picture> |
+
+<details>
+<summary>More screenshots</summary>
+
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Forwards"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/services-dark.png"><img src="../assets/screenshots/services-light.png" alt="Services"></picture> |
+| :---: | :---: |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="SSH hosts"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Activity log"></picture> |
 
-## User documentation
+</details>
 
-The [full user guide (Simplified Chinese)](../USAGE.md) covers host management, authentication, worked forwarding examples, background operation, and common problems.
+## Documentation and support
 
-- [First connection and everyday use](../USAGE.md#第一次连接远程服务)
-- [Use an existing configuration](../USAGE.md#使用现成配置)
-- [Service templates and actions](../USAGE.md#预设远程命令)
-- [Status, health checks, and starting a service with its forward](../USAGE.md#服务状态健康检查与启动并连接)
-- [Interactive SSH terminal](../USAGE.md#本地与-ssh-交互终端)
-- [Add and manage SSH hosts](../USAGE.md#添加和管理-ssh-主机)
-- [Create and manage forwards](../USAGE.md#创建和管理转发)
-- [L: access remote services](../USAGE.md#场景一访问服务器上的网页或数据库l) · [R: access local services](../USAGE.md#场景二让服务器访问本机开发服务r) · [D: SOCKS5 proxy](../USAGE.md#场景三通过-ssh-代理访问多个服务d)
-- [Import and export configurations](../USAGE.md#配置导入与导出)
-- [Background operation, reconnects, and startup](../USAGE.md#后台运行重连与自动启动)
-- [Status and troubleshooting](../USAGE.md#查看状态与排查问题)
-- [File transfers, previews, and editing (0.2.0)](../USAGE.md#文件传输)
-
-## Version history
-
-### v0.4.0 · 2026-11-17
-
-- In Bash, Zsh and local Windows PowerShell, press → to accept an inline suggestion, Tab to see completions, or ↑ to browse history. Click a path segment to change directories while keeping your draft.
-- Save commands with keywords and recall them across sessions. Use Shift+Enter to edit multiple lines before running them. Earlier long outputs collapse into scrollable previews when you run the next command.
-- Open local and SSH sessions from the terminal panel. Closing a tab with a running foreground command asks for confirmation. File drags highlight the destination folder.
-
-### v0.3.0 · 2026-11-16
-
-- **VNC remote desktop.** Open the built-in viewer from an SSH forward or a `vnc://` link. Control the desktop with your keyboard and mouse, zoom or go full screen, and connect to Mac Screen Sharing with a VNC password.
-- **Two-way text clipboard.** Paste local text into the remote desktop or bring text copied on the remote computer back to yours.
-- **Terminal and file transfers.** Open an SSH terminal and upload or download files over SFTP in the same VNC window. Transfers already submitted continue after you close the window.
-- **Hosts and forwards.** Choose whether to stop active connections before deleting a host. Undo up to 20 recent deletions each for hosts and forwards during the current session.
-
-### v0.2.0 · 2026-11-04
-
-- Added local/SSH file browsing, uploads, downloads, and host-to-host transfers with dockable panels, automatic/manual layouts, search, selection, and drag and drop.
-- Added background transfer queues, real progress, pause/resume/cancel, conflict handling, batch details, and connection-map status.
-- Added code, image, SVG, and Markdown previews and text editing, with external-change checks and encoding/line-ending preservation.
-- Improved macOS volumes, hidden files, permissions, Trash, and shortcuts; fixed proxy-browser startup, full-row double-clicks, and narrow transfer-item layouts.
-
-### v0.1.1 · 2026-10-27
-
-- Added D-forward actions to open a proxy browser and access remote services directly.
-- Improved service associations, management, and the remote-service access experience.
-- Improved connection-map rendering performance and fixed card rendering issues.
-
-### v0.1.0 · 2026-10-25
-
-- Visual SSH host and L / R / D tunnel management, multi-hop authentication, and connection diagnostics.
-- Reusable service templates, command actions, status and health checks, and combined service startup and forwarding.
-- Multi-tab SSH terminals and dedicated terminals for interactive or foreground service commands.
-- Configuration import/export, tray or menu bar operation, tunnel reconnection, eight interface languages, and theme settings.
-
-## Things to know
-
-L / R / D forward TCP traffic. D listens only on loopback addresses and supports SOCKS5 CONNECT without UDP. It can open isolated Chrome, Edge, or Firefox proxy windows without changing system proxies or everyday browser settings. Safari is not supported. Access to R from other computers depends on the server's SSH policy, firewall, and network configuration.
-
-Closing the window keeps forwards running in the tray or menu bar by default. **Quit OriaTunnel** stops all connections. Automatic connection is a separate opt-in setting, requires trusted hosts on every hop and private-key or Agent authentication, and does not use saved passwords.
-
-On Windows and macOS, you may opt to save passwords in the system credential store. Exports do not include stored authentication passwords, private key contents, or trust records. They do include host addresses, usernames, and ports, plus scripts and environment variables when services are selected. Review the contents before sharing. See [feature boundaries (Chinese)](../USAGE.md#当前功能边界) for details.
-
-Service templates must match the software, paths, and permissions on the server; they do not install or deploy applications. Starting or stopping a forward controls the tunnel. Remote service actions are separate, and checks run on demand without continuous background monitoring.
-
-For development, see the [development guide (Simplified Chinese)](../DEVELOPMENT.md).
-
-For problems, check the [troubleshooting guide (Chinese)](../USAGE.md#查看状态与排查问题) or report steps and redacted details in [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues).
+[Full user guide (Simplified Chinese)](../USAGE.md) · [troubleshooting guide (Chinese)](../USAGE.md#查看状态与排查问题) · [development guide (Simplified Chinese)](../DEVELOPMENT.md) · [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues)
 
 ## License
 

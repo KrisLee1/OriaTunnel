@@ -5,74 +5,68 @@
   </picture>
 </p>
 
-<p align="center">Gérez vos tunnels SSH visuellement et utilisez vos services distants simplement.</p>
+<h1 align="center">Un espace de travail SSH pour administrer vos serveurs</h1>
+
+<p align="center">OriaTunnel réunit tunnels SSH, services distants, terminaux, transferts de fichiers et bureaux distants dans une même interface.</p>
 
 <p align="center">
   <a href="../../README.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.en.md">English</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <a href="README.de.md">Deutsch</a> · Français · <a href="README.ru.md">Русский</a>
 </p>
 
-OriaTunnel est un outil de bureau de gestion des tunnels SSH et des services distants pour Windows et macOS. Gérez plusieurs serveurs, tunnels et services depuis une interface visuelle, sans mémoriser de commandes de redirection complexes. Accédez aux bases de données, interfaces web et environnements de développement de votre réseau interne et lancez des actions de service préconfigurées.
-
-Enregistrez vos hôtes et règles de redirection, puis démarrez, arrêtez et ouvrez vos services depuis l’interface. Sans connaître les commandes SSH, vous pouvez aussi importer une configuration préparée par un administrateur ou un collègue et renseigner vos propres informations d’authentification.
-
-Version actuelle : **v0.4.0** · [Historique des versions](#historique-des-versions)
-
-**[📥 Télécharger et installer](#télécharger-et-installer)** · [🚀 Prise en main](#prise-en-main) · [📖 Guide utilisateur complet (chinois simplifié)](../USAGE.md) · [🧭 Choisir un mode de redirection](#choisir-un-mode-de-redirection)
+**[Télécharger et installer](#télécharger-et-installer)** · [Prise en main](#prise-en-main) · [Guide utilisateur complet (chinois simplifié)](../USAGE.md) · [Démo en ligne (chinois)](https://oriamade.com/zh-CN/oria-tunnel#workspace)
 
 ## Fonctionnalités
 
-- **Client VNC intégré** — Ouvrez le bureau distant depuis une redirection dans une fenêtre dédiée avec zoom, plein écran, terminal SSH et transfert de fichiers.
-- 📁 **Parcourir et transférer des fichiers (0.2.0) :** parcourir les fichiers locaux et SSH, envoyer, télécharger, transférer entre hôtes, gérer la file en arrière-plan, prévisualiser et modifier du texte.
-- 🔗 **Gérer plusieurs tunnels :** affichez les connexions par hôte et démarrez ou arrêtez les règles individuellement ou par lot.
-- 💻 **Ouvrir un terminal SSH :** utilisez plusieurs onglets interactifs ou un terminal dédié aux commandes interactives et aux services fonctionnant au premier plan.
-- **Transformer les commandes de service en boutons :** enregistrez les actions de démarrage, d’arrêt, de redémarrage, d’état et de journaux, puis lancez-les depuis une redirection associée. Des modèles intégrés facilitent la configuration.
-- **Vérifier et connecter les services :** configurez des sondes d’état et de santé, ou combinez un démarrage non interactif pris en charge avec la connexion de la redirection, en consultant chaque résultat.
-- **Utiliser les modes de redirection SSH habituels :** redirection locale (L), redirection distante (R) et redirection SOCKS5 dynamique (D), avec prise en charge de routes ProxyJump ordonnées à plusieurs relais.
-- **Réutiliser les réglages des hôtes :** détectez les hôtes disponibles dans la configuration SSH ou ajoutez-les manuellement ; authentifiez-vous avec un mot de passe, une clé privée ou l’agent SSH du système.
-- **Suivre le fonctionnement :** consultez l’état des connexions, les adresses et ports d’écoute, le trafic, les connexions actives, la progression des reconnexions et les journaux d’événements filtrables.
-- **Garder les tunnels disponibles :** fonctionnement dans la zone de notification ou la barre des menus, reconnexion après une panne réseau et, en option, lancement à l’ouverture de session ou connexion des règles choisies au démarrage de l’application.
-- **Organiser et partager les configurations :** personnalisez les noms, étiquettes, couleurs et icônes ; importez ou exportez les hôtes, redirections et modèles de service explicitement sélectionnés.
-- **Choisir parmi huit langues d’interface :** chinois simplifié, chinois traditionnel, japonais, coréen, anglais, allemand, français et russe, y compris pour les messages d’erreur natifs et les diagnostics de configuration SSH. Des réglages d’apparence claire, sombre et de thème sont disponibles.
+### 🔗 Gestion visuelle des tunnels
+
+- La carte montre comment les ports locaux sont reliés aux hôtes SSH. Démarrez ou arrêtez les règles une à une ou par lots et suivez leur état, les connexions actives et le trafic.
+- Sélectionnez un hôte dans votre configuration SSH ou ajoutez-le manuellement. Utilisez un mot de passe, une clé privée ou l’agent SSH du système, y compris avec plusieurs hôtes de rebond (ProxyJump).
+- Enregistrez une règle pour rouvrir un site interne depuis la carte ou connecter votre client de base de données au port local.
+
+### ⚙️ Services distants
+
+- Enregistrez dans un modèle les commandes de démarrage, d’arrêt, de redémarrage, de consultation de l’état et des journaux. Associez-le à une redirection pour lancer ces actions depuis le menu du service.
+- Si le service doit d’abord démarrer, configurez sa commande de démarrage et son contrôle de disponibilité. Suivez le résultat de la commande, du contrôle et de la connexion au tunnel.
+
+### 💻 Terminaux locaux et SSH
+
+- Passez d’une session locale à une session distante grâce aux onglets. Utilisez les suggestions de saisie, appuyez sur ↑ pour retrouver l’historique ou rappelez une commande enregistrée par mot-clé dans toute session.
+- Éditez plusieurs lignes avec Maj+Entrée et conservez votre saisie en changeant de répertoire. Repliez les sorties longues et copiez séparément une commande ou son résultat.
+
+### 📁 Transferts de fichiers
+
+- Parcourez les répertoires côte à côte et glissez les fichiers d’un panneau à l’autre pour les envoyer ou les télécharger par lots. Ouvrez deux hôtes SSH pour transférer des fichiers entre eux.
+- Suivez chaque lot dans la file d’attente en arrière-plan. Vous pouvez suspendre, reprendre ou annuler une tâche, prévisualiser les fichiers et modifier le texte sur place.
+
+### 🖥️ Bureau distant VNC
+
+- Ouvrez un bureau VNC dans une fenêtre dédiée via un tunnel SSH. Ajustez le zoom, passez en plein écran et copiez du texte dans les deux sens.
+- Depuis cette fenêtre, ouvrez un terminal SSH ou transférez des fichiers par SFTP. Les transferts déjà lancés continuent après sa fermeture.
 
 ## Télécharger et installer
 
+| Plateforme | Paquet v0.4.0 | Installation |
+| --- | --- | --- |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | Ouvrez l’image disque et glissez OriaTunnel dans Applications. |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | Exécutez le programme d’installation et suivez les instructions. |
 
-Consultez la [page de téléchargement Releases](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0) et choisissez le paquet adapté à votre système d’exploitation et à l’architecture de votre appareil.
+### Historique des versions
 
-- **Windows :** téléchargez le programme d’installation `.exe` et suivez l’assistant d’installation.
-- **macOS :** téléchargez et ouvrez le fichier `.dmg`, puis glissez `OriaTunnel.app` dans **Applications**. Si vous téléchargez un fichier `.zip`, extrayez d’abord le fichier `.dmg` qu’il contient.
+**v0.4.0** · Les terminaux locaux et SSH proposent la complétion, une bibliothèque de commandes partagée, la saisie multiligne et le repli des sorties longues. Recherchez les mises à jour dans **À propos**.
 
-| Plateforme | Téléchargement |
-| --- | --- |
-| Windows x64 | [OriaTunnel_0.4.0_x64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) |
-| Windows ARM64 | [OriaTunnel_0.4.0_arm64-setup.exe](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) |
-| macOS Apple Silicon | [OriaTunnel_0.4.0_aarch64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) |
-| macOS Intel | [OriaTunnel_0.4.0_x64.dmg](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) |
-
-Vérifiez les mises à jour dans **À propos → Mise à jour**, puis téléchargez et installez la nouvelle version. La vérification au démarrage peut être désactivée. L’installation interrompt les connexions SSH ; enregistrez d’abord votre travail dans le terminal. Pour une première installation ou une ancienne version de développement, utilisez les programmes ci-dessus. Voir les [mises à jour de l’application (chinois)](../USAGE.md#应用更新).
-
-Lancez OriaTunnel après l’installation, puis suivez la [prise en main](#prise-en-main) pour ajouter un hôte SSH et créer une redirection. L’utilisation quotidienne ne nécessite ni Node.js, ni pnpm, ni Rust.
+[Notes de version (chinois)](../releases/v0.4.0.md) · [Toutes les versions](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## Prise en main
 
-Pour la première configuration, préparez l’adresse SSH, le port, le nom d’utilisateur, l’authentification ainsi que l’adresse et le port du service cible. Demandez ces informations à votre administrateur si nécessaire ; il n’est pas nécessaire d’apprendre les commandes SSH. Cet exemple suppose que le service fonctionne déjà.
+Dans cet exemple, un service web est déjà en cours d’exécution sur le port 3000 du serveur SSH.
 
 1. Ouvrez OriaTunnel et choisissez **Ajouter un hôte**. Sélectionnez un hôte détecté dans la configuration SSH ou saisissez ses informations manuellement. La détection lit uniquement la configuration ; elle ne se connecte pas automatiquement.
-2. Choisissez **Nouvelle redirection**, sélectionnez l’hôte et L / R / D, puis renseignez l’adresse et le port d’écoute. L / R nécessitent aussi une adresse et un port cibles.
-3. Choisissez **Enregistrer et démarrer**, authentifiez-vous lorsque l’application le demande et vérifiez l’empreinte du serveur lors de la première connexion.
-4. Attendez l’état **En écoute**, puis utilisez le point d’accès de la redirection dans votre navigateur ou votre client. Pour D, utilisez le menu du navigateur proxy ; les services associés peuvent être ouverts directement.
+2. Choisissez **Nouvelle redirection**, l’hôte et la redirection locale (L). Utilisez `127.0.0.1:13000` pour l’écoute locale et `127.0.0.1:3000` pour la cible sur le serveur SSH.
+3. Choisissez **Enregistrer et démarrer**, authentifiez-vous lorsque l’application le demande et vérifiez l’empreinte du serveur lors de la première connexion. Dès que la règle indique **En écoute**, ouvrez `http://127.0.0.1:13000` dans votre navigateur local.
 
-Par exemple, pour accéder à une application web sur votre serveur SSH, choisissez **L**, écoutez sur `127.0.0.1:13000` et définissez `127.0.0.1:3000` comme cible. Une fois la redirection démarrée, ouvrez `http://127.0.0.1:13000` sur cet ordinateur. L’adresse cible `127.0.0.1` désigne **le serveur SSH lui-même** ; cet exemple suppose que l’application web y fonctionne sur le port 3000.
+La prochaine fois, démarrez la règle enregistrée. Si la page ne s’ouvre pas, vérifiez que le service distant fonctionne sur le port cible. [guide de dépannage (chinois)](../USAGE.md#查看状态与排查问题)
 
-L’état **En écoute** signifie que le point d’accès de la redirection est prêt. La disponibilité du service dépend aussi de l’application cible, du réseau et des autorisations. Au besoin, consultez la rubrique [État et dépannage (chinois)](../USAGE.md#查看状态与排查问题).
-
-Une fois la configuration enregistrée, démarrez la règle depuis la carte ou la liste. Les accès HTTP, HTTPS ou VNC prêts peuvent être ouverts par le bouton du service ; les bases de données utilisent leur client habituel.
-
-Vous disposez déjà d’un fichier OriaTunnel ? Importez-le depuis la page des redirections, vérifiez son contenu et complétez votre authentification avant de démarrer. Les modèles de service importés nécessitent une vérification et une activation explicites. Voir [utiliser une configuration existante (chinois)](../USAGE.md#使用现成配置).
-
-Pour agir sur un service distant, créez ou importez un modèle sur la page des services, vérifiez les commandes et chemins, puis associez-le dans l’éditeur de redirection. Lancez les actions depuis le menu de cette redirection. Enregistrer ou associer un modèle n’exécute aucune commande. Voir [modèles de service (chinois)](../USAGE.md#预设远程命令).
-
-## Choisir un mode de redirection
+### Choisir un mode de redirection
 
 | Mode | Cas d’utilisation | Accès au service |
 | --- | --- | --- |
@@ -80,7 +74,7 @@ Pour agir sur un service distant, créez ou importez un modèle sur la page des 
 | **R · Redirection distante** | Permettre à un serveur d’accéder à un service de développement exécuté sur cet ordinateur | Se connecter à un port d’écoute sur le serveur qui mène au service local via SSH |
 | **D · Redirection dynamique** | Atteindre plusieurs adresses internes via un hôte SSH | Ouvrir un navigateur proxy distinct depuis le menu, ou configurer un autre client pour SOCKS5 local |
 
-Un serveur avec une adresse IP partagée et un seul port SSH attribué peut tout de même donner accès à plusieurs services via ce port. Consultez l’[exemple d’adresse IP partagée (chinois)](../USAGE.md#场景四共享-ip只分配一个-ssh-端口).
+Vous disposez déjà d’un fichier OriaTunnel ? Importez-le depuis la page des redirections, vérifiez son contenu et complétez votre authentification avant de démarrer. Les modèles de service importés nécessitent une vérification et une activation explicites. Voir [utiliser une configuration existante (chinois)](../USAGE.md#使用现成配置).
 
 ## Captures d’écran
 
@@ -89,74 +83,19 @@ Ces aperçus en mode clair et sombre utilisent les données d’exemple de la d�
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/connection-map-dark.png"><img src="../assets/screenshots/connection-map-light.png" alt="Carte des connexions"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/terminal-dark.png"><img src="../assets/screenshots/terminal-light.png" alt="Bibliothèque de commandes du terminal"></picture> |
 | :---: | :---: |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/files-dark.png"><img src="../assets/screenshots/files-light.png" alt="File de transfert de fichiers"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/vnc-dark.png"><img src="../assets/screenshots/vnc-light.png" alt="Bureau distant VNC"></picture> |
+
+<details>
+<summary>Autres captures d’écran</summary>
+
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/forwards-dark.png"><img src="../assets/screenshots/forwards-light.png" alt="Redirections"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/services-dark.png"><img src="../assets/screenshots/services-light.png" alt="Services"></picture> |
+| :---: | :---: |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/hosts-dark.png"><img src="../assets/screenshots/hosts-light.png" alt="Hôtes SSH"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/screenshots/logs-dark.png"><img src="../assets/screenshots/logs-light.png" alt="Journal d’activité"></picture> |
 
-## Documentation utilisateur
+</details>
 
-Le [guide utilisateur complet (chinois simplifié)](../USAGE.md) présente la gestion des hôtes, l’authentification, des exemples détaillés de redirection, le fonctionnement en arrière-plan et les problèmes courants.
+## Documentation et assistance
 
-- [Première connexion et utilisation quotidienne](../USAGE.md#第一次连接远程服务)
-- [Utiliser une configuration existante](../USAGE.md#使用现成配置)
-- [Modèles et actions de service](../USAGE.md#预设远程命令)
-- [Vérifications d’état et de santé, démarrage et connexion](../USAGE.md#服务状态健康检查与启动并连接)
-- [Terminal SSH interactif](../USAGE.md#本地与-ssh-交互终端)
-- [Ajouter et gérer les hôtes SSH (chinois)](../USAGE.md#添加和管理-ssh-主机)
-- [Créer et gérer les redirections (chinois)](../USAGE.md#创建和管理转发)
-- [L : accéder aux services distants (chinois)](../USAGE.md#场景一访问服务器上的网页或数据库l) · [R : accéder aux services locaux (chinois)](../USAGE.md#场景二让服务器访问本机开发服务r) · [D : proxy SOCKS5 (chinois)](../USAGE.md#场景三通过-ssh-代理访问多个服务d)
-- [Importer et exporter les configurations (chinois)](../USAGE.md#配置导入与导出)
-- [Arrière-plan, reconnexions et démarrage (chinois)](../USAGE.md#后台运行重连与自动启动)
-- [État et dépannage (chinois)](../USAGE.md#查看状态与排查问题)
-- [Transfert, aperçu et modification de fichiers (0.2.0)](../USAGE.md#文件传输)
-
-## Historique des versions
-
-### v0.4.0 · 2026-11-17
-
-- Dans Bash, Zsh et PowerShell local sous Windows, → accepte la suggestion en fin de ligne, Tab affiche les complétions et ↑ ouvre l’historique. Cliquez sur un élément du chemin pour changer de dossier en conservant la commande en cours de saisie.
-- Enregistrez vos commandes avec des mots-clés pour les retrouver dans une autre session. Maj+Entrée insère un saut de ligne. À l’exécution de la commande suivante, les longues sorties précédentes se replient dans un aperçu défilant.
-- Ouvrez un terminal local ou une session SSH depuis le panneau du terminal. Une confirmation précède la fermeture d’un onglet où une commande est en cours. Le dossier cible est mis en évidence pendant le glisser-déposer.
-
-### v0.3.0 · 2026-11-16
-
-- **Bureau distant VNC.** Ouvrez le client intégré depuis une redirection SSH ou un lien `vnc://`. Pilotez le bureau au clavier et à la souris, zoomez ou passez en plein écran. Le partage d’écran du Mac est accessible avec un mot de passe VNC.
-- **Presse-papiers bidirectionnel.** Collez du texte local sur le bureau distant ou récupérez le texte copié sur l’ordinateur distant.
-- **Terminal et transfert de fichiers.** Ouvrez un terminal SSH et envoyez ou téléchargez des fichiers par SFTP dans la même fenêtre VNC. Les transferts déjà lancés continuent après sa fermeture.
-- **Hôtes et redirections.** Choisissez d’arrêter les connexions actives avant de supprimer un hôte. Vous pouvez annuler les 20 dernières suppressions de la session pour les hôtes et pour les redirections séparément.
-
-### v0.2.0 · 2026-11-04
-
-- Ajout de la navigation dans les fichiers locaux/SSH, des envois, téléchargements et transferts entre hôtes, avec panneaux ancrables, dispositions automatiques/manuelles, recherche, sélection multiple et glisser-déposer.
-- Ajout des files de transfert en arrière-plan, de la progression réelle, de la pause/reprise/annulation, de la gestion des conflits, des détails par lot et de l’état dans la carte des connexions.
-- Ajout des aperçus de code, images, SVG et Markdown et de la modification de texte, avec vérification des changements externes et conservation de l’encodage et des fins de ligne.
-- Amélioration des volumes, fichiers masqués, permissions, corbeille et raccourcis macOS ; correction du démarrage des navigateurs proxy, du double-clic sur toute une ligne et des transferts dans les panneaux étroits.
-
-### v0.1.1 · 2026-10-27
-
-- Ajout d’actions aux transferts D pour ouvrir un navigateur proxy et accéder directement aux services distants.
-- Amélioration des associations et de la gestion des services, ainsi que de l’accès aux services distants.
-- Amélioration des performances de rendu de la carte des connexions et correction de l’affichage des cartes.
-
-### v0.1.0 · 2026-10-25
-
-- Gestion visuelle des hôtes SSH et des tunnels L / R / D, authentification à plusieurs relais et diagnostic des connexions.
-- Modèles réutilisables, commandes de service, vérifications d’état et de santé, démarrage du service avec connexion de la redirection.
-- Terminaux SSH à plusieurs onglets et terminaux dédiés aux commandes interactives ou au premier plan.
-- Import et export, fonctionnement dans la zone de notification ou la barre des menus, reconnexion des tunnels, huit langues et thèmes.
-
-## À savoir
-
-L / R / D redirigent le trafic TCP. D écoute uniquement sur des adresses de boucle locale et prend en charge SOCKS5 CONNECT sans UDP. Il peut ouvrir des fenêtres proxy Chrome, Edge ou Firefox distinctes sans modifier le proxy système ni les réglages habituels du navigateur. Safari n’est pas pris en charge. L’accès à R depuis d’autres ordinateurs dépend de la politique SSH du serveur, du pare-feu et de la configuration réseau.
-
-Par défaut, la fermeture de la fenêtre laisse les redirections fonctionner dans la zone de notification ou la barre des menus. **Quitter OriaTunnel** arrête toutes les connexions. La connexion automatique est un réglage distinct à activer explicitement ; elle nécessite des hôtes approuvés à chaque relais et une authentification par clé privée ou agent, et n’utilise pas les mots de passe enregistrés.
-
-Sous Windows et macOS, vous pouvez choisir d’enregistrer les mots de passe dans le gestionnaire d’identifiants du système. Les exports n’incluent pas les mots de passe d’authentification enregistrés, le contenu des clés privées ni les enregistrements d’approbation. Ils incluent les adresses, noms d’utilisateur et ports, ainsi que les scripts et variables d’environnement si des services sont sélectionnés. Vérifiez le contenu avant de le partager. Consultez les [limites fonctionnelles (chinois)](../USAGE.md#当前功能边界) pour plus de détails.
-
-Les modèles doivent correspondre aux logiciels, chemins et permissions du serveur ; ils n’installent ni ne déploient les applications. Le démarrage ou l’arrêt d’une redirection contrôle le tunnel. Les actions de service sont distinctes. Les vérifications sont exécutées à la demande, sans surveillance continue en arrière-plan.
-
-Pour le développement, consultez le [guide de développement (chinois simplifié)](../DEVELOPMENT.md).
-
-En cas de problème, consultez le [guide de dépannage (chinois)](../USAGE.md#查看状态与排查问题) ou signalez les étapes et informations expurgées dans [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues).
+[Guide utilisateur complet (chinois simplifié)](../USAGE.md) · [guide de dépannage (chinois)](../USAGE.md#查看状态与排查问题) · [guide de développement (chinois simplifié)](../DEVELOPMENT.md) · [GitHub Issues](https://github.com/KrisLee1/OriaTunnel/issues)
 
 ## Licence
 
