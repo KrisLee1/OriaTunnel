@@ -1,4 +1,5 @@
 {
+  "detachPane": "拖曳面板，或點擊移回分頁列",
   "savedCommands": "已儲存的命令",
   "saveCommand": "儲存命令",
   "commandKeywords": "關鍵字",
@@ -23,6 +24,7 @@
   "recentCommands": "最近命令",
   "completions": "補全選項",
   "workspace": "終端機",
+  "terminalGroup": "組合終端機",
   "localTerminal": "本機終端機",
   "foregroundCloseHint": "有指令正在前景執行，仍要關閉此終端分頁嗎？",
   "open": "開啟 SSH 終端機",

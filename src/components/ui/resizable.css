@@ -1,0 +1,39 @@
+.resizable-handle {
+  position: relative;
+  background: transparent;
+  flex-shrink: 0;
+  outline: none;
+}
+.resizable-handle[aria-orientation="vertical"] {
+  width: 8px;
+  cursor: col-resize;
+}
+.resizable-handle[aria-orientation="horizontal"] {
+  height: 8px;
+  cursor: row-resize;
+}
+
+.resizable-handle::after {
+  position: absolute;
+  content: "";
+  border-radius: var(--oria-radius-sm);
+  background: var(--oria-color-border);
+}
+.resizable-handle[aria-orientation="vertical"]::after {
+  width: 2px;
+  height: 24px;
+  left: 3px;
+  top: calc(50% - 12px);
+}
+.resizable-handle[aria-orientation="horizontal"]::after {
+  width: 24px;
+  height: 2px;
+  top: 3px;
+  left: calc(50% - 12px);
+}
+.resizable-handle:hover::after {
+  background: var(--oria-color-border-strong);
+}
+[data-keyboard-navigation="true"] .resizable-handle:focus-visible::after {
+  background: var(--oria-color-ring);
+}

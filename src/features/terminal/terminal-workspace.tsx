@@ -20,10 +20,11 @@ import {
   TerminalIcon,
   SquareTerminalIcon,
   XIcon,
-  RotateCwIcon,
+  PanelsTopLeftIcon,
+  GripVerticalIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Modal, ModalActions } from "@/components/tunnel-form";
 import { TerminalTargets } from "./terminal-targets";
 import { AuthenticationField } from "@/features/hosts/authentication-field";
@@ -49,6 +50,17 @@ import {
   terminalStateTone,
   serviceForegroundSession,
 } from "./terminal-model";
+import { PaneIdentity } from "./pane-identity";
+import { TerminalSplitPanels } from "./terminal-split-panels";
+import {
+  movePane,
+  paneKeys,
+  reconcileGroups,
+  type PaneDrop,
+  type TerminalGroup,
+  type SplitSide,
+} from "./terminal-splits";
+import { usePaneDrag } from "./use-pane-drag";
 import { terminalTabScrollEdges } from "./workspace-layout";
 import { workspaceLayoutKey } from "@/components/ui/workspace-layout";
 import { useWorkspacePanel } from "@/components/ui/use-workspace-panel";
@@ -387,10 +399,19 @@ export function TerminalWorkspaceProvider({
       dismissed.current.add(session.id);
       setSessions((old) => old.filter((s) => s.id !== session.id));
       setClosing(null);
-      if (selected === session.id)
-        setSelected(
-          sessions.find((s) => s.id !== session.id)?.id || commandTabs[0] || "",
-        );
+      const sibling =
+        selectedGroup &&
+        paneKeys(selectedGroup.tree)
+          .map((key) => sessionsByKey.get(key))
+          .find((s) => s && s.id !== session.id);
+      setSelected((current) =>
+        current === session.id
+          ? sibling?.id ||
+            sessions.find((s) => s.id !== session.id)?.id ||
+            commandTabs[0] ||
+            ""
+          : current,
+      );
     } catch (e) {
       setError(String(e));
       setSelected(session.id);
@@ -423,9 +444,69 @@ export function TerminalWorkspaceProvider({
       setError(String(e));
     }
   };
-  const selectedSession = sessions.find((s) => s.id === selected),
-    selectedCommand = commands.find((r) => r.id === selected);
-  const retryProfile = unsubmittedPreset(selectedSession, data.services || []);
+  const sessionsByKey = new Map(
+    sessions.map((s) => [tabKeys.current.get(s.id) || s.id, s]),
+  );
+  const [layout, setLayout] = useState<TerminalGroup[]>([]);
+  const groups = reconcileGroups(layout, [...sessionsByKey.keys()]);
+  if (groups !== layout) setLayout(groups);
+  const selectedCommand = commandTabs.includes(selected)
+    ? commands.find((r) => r.id === selected)
+    : undefined;
+  const selectedSession =
+    sessions.find((s) => s.id === selected) ??
+    (!selectedCommand ? sessions[0] : undefined);
+  const selectedKey =
+    selectedSession &&
+    (tabKeys.current.get(selectedSession.id) || selectedSession.id);
+  const selectedGroup = groups.find(
+    (group) => selectedKey && paneKeys(group.tree).includes(selectedKey),
+  );
+  const activeTab =
+    selectedGroup?.tab ?? selectedCommand?.id ?? commandTabs[0] ?? "";
+  const focusActiveTerminal = (expectedKey?: string) => {
+    if (
+      document.querySelector(
+        '[role="dialog"][data-open], [role="alertdialog"][data-open]',
+      )
+    )
+      return;
+    const pane = panel.ref.current?.querySelector<HTMLElement>(
+      '.terminal-session-panel[data-active="true"]',
+    );
+    if (!pane || (expectedKey && pane.dataset.terminalPane !== expectedKey))
+      return;
+    const input =
+      pane.querySelector<HTMLElement>(".shell-edit textarea") ??
+      pane.querySelector<HTMLElement>(
+        ".ssh-terminal-screen:not(.shell-screen-hidden) .xterm-helper-textarea",
+      );
+    input?.focus({ preventScroll: true });
+  };
+  const place = (source: string, drop: PaneDrop) => {
+    const session = sessionsByKey.get(source);
+    if (!session) return;
+    const next = movePane(groups, source, drop, crypto.randomUUID());
+    if (next !== groups) {
+      setLayout(next);
+      setSelected(session.id);
+      // WebKit blurs the input when its portal host moves, even if the same pane stays active.
+      requestAnimationFrame(() => focusActiveTerminal(source));
+    }
+  };
+  const drag = usePaneDrag(tabListRef, place);
+  const closeButton = (session: TerminalSession) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={t("closeTab") + " " + session.label}
+      disabled={busy}
+      onClick={() => void requestClose(session)}
+    >
+      <XIcon aria-hidden="true" />
+    </Button>
+  );
   const route = draft
     ? data.hosts.find((h) => h.id === draft.hostId)
     : undefined;
@@ -471,8 +552,10 @@ export function TerminalWorkspaceProvider({
     setRemember({});
     setError(failed.error || "");
   }, [sessions, data, clientId, busy, draft, closing, trust, t]);
-  const tabIds = [...sessions.map((s) => s.id), ...commandTabs];
-  const tabSignature = tabIds.join("\0");
+  const tabSignature = [
+    ...groups.map((group) => group.tab),
+    ...commandTabs,
+  ].join("\0");
   useEffect(() => {
     const list = tabListRef.current;
     if (!list) return;
@@ -573,52 +656,91 @@ export function TerminalWorkspaceProvider({
             </Button>
           </p>
         )}
-        {tabIds.length ? (
+        {tabSignature ? (
           <Tabs
             className="terminal-tabs"
-            value={selected}
+            value={activeTab}
             onValueChange={(id) => {
-              if (typeof id === "string") setSelected(id);
+              if (typeof id === "string")
+                setSelected(sessionsByKey.get(id)?.id ?? id);
             }}
           >
             <TabsList
               ref={tabListRef}
+              data-drop={drag.preview === "tabs" || undefined}
               variant="line"
               className="terminal-tab-list"
               data-fade-left={tabEdges.left}
               data-fade-right={tabEdges.right}
             >
-              {sessions.map((s) => (
-                <div
-                  className="terminal-tab-entry"
-                  key={tabKeys.current.get(s.id) || s.id}
-                >
-                  <TabsTrigger
-                    value={s.id}
-                    title={`${s.endpoint} · ${t(`phase.${s.phase}`)}`}
-                    aria-label={`${s.label} · ${t(`phase.${s.phase}`)}`}
-                  >
-                    <span
-                      className="terminal-tab-indicator"
-                      data-tone={terminalStateTone(s)}
-                      aria-hidden="true"
-                    />
-                    <span className="terminal-tab-label">
-                      {s.local ? t("localTerminal") + " · " + s.label : s.label}
-                    </span>
-                  </TabsTrigger>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`${t("closeTab")} ${s.label}`}
-                    disabled={busy}
-                    onClick={() => void requestClose(s)}
-                  >
-                    <XIcon aria-hidden="true" />
-                  </Button>
-                </div>
-              ))}
+              {groups.map((group) => {
+                const s = sessionsByKey.get(group.tab)!;
+                const members = paneKeys(group.tree);
+                const grouped = members.length > 1;
+                const canDock =
+                  !grouped &&
+                  selectedKey !== undefined &&
+                  group.tab !== activeTab;
+                const title = grouped
+                  ? members
+                      .map((key) => sessionsByKey.get(key)!.label)
+                      .join(" · ")
+                  : s.endpoint + " · " + t(`phase.${s.phase}`);
+                return (
+                  <div className="terminal-tab-entry" key={group.tab}>
+                    <TabsTrigger
+                      value={group.tab}
+                      className={canDock ? "terminal-draggable-tab" : undefined}
+                      {...(canDock && drag.handle(group.tab, false))}
+                      aria-keyshortcuts={
+                        canDock
+                          ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+                          : undefined
+                      }
+                      onKeyDownCapture={(event) => {
+                        if (!canDock || !event.altKey) return;
+                        const sides: Record<string, SplitSide> = {
+                          ArrowLeft: "left",
+                          ArrowRight: "right",
+                          ArrowUp: "top",
+                          ArrowDown: "bottom",
+                        };
+                        const side = sides[event.key];
+                        if (side) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          place(group.tab, { pane: selectedKey, side });
+                        }
+                      }}
+                      title={title}
+                      aria-label={
+                        grouped
+                          ? undefined
+                          : s.label + " · " + t(`phase.${s.phase}`)
+                      }
+                    >
+                      {grouped ? (
+                        <PanelsTopLeftIcon aria-hidden="true" />
+                      ) : (
+                        <span
+                          className="terminal-tab-indicator"
+                          data-tone={terminalStateTone(s)}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className="terminal-tab-label">
+                        {grouped
+                          ? t("terminalGroup")
+                          : s.local
+                            ? t("localTerminal") + " · " + s.label
+                            : s.label}
+                      </span>
+                      {grouped && <span>{members.length}</span>}
+                    </TabsTrigger>
+                    {!grouped && closeButton(s)}
+                  </div>
+                );
+              })}
               {commandTabs.map((id) => (
                 <div className="terminal-tab-entry" key={id}>
                   <TabsTrigger value={id}>
@@ -642,7 +764,11 @@ export function TerminalWorkspaceProvider({
                         ids.filter((value) => value !== id),
                       );
                       if (selected === id)
-                        setSelected(tabIds.find((value) => value !== id) || "");
+                        setSelected(
+                          sessions[0]?.id ||
+                            commandTabs.find((value) => value !== id) ||
+                            "",
+                        );
                     }}
                   >
                     <XIcon aria-hidden="true" />
@@ -650,115 +776,109 @@ export function TerminalWorkspaceProvider({
                 </div>
               ))}
             </TabsList>
-            {selectedSession && (
-              <div className="terminal-identity">
-                <code title={selectedSession.endpoint}>
-                  {selectedSession.endpoint}
-                </code>
-                <span className="sr-only" role="status">
-                  {t(`phase.${selectedSession.phase}`)}
-                </span>
-                {(selectedSession.exitCode !== null ||
-                  selectedSession.exitSignal) && (
-                  <span className="terminal-session-notice">
-                    {selectedSession.exitCode !== null
-                      ? `${t("exitCode")}: ${selectedSession.exitCode}`
-                      : ""}
-                    {selectedSession.exitSignal
-                      ? ` · ${selectedSession.exitSignal}`
-                      : ""}
-                  </span>
-                )}
-                {selectedSession.error && (
-                  <span
-                    className="terminal-session-notice text-destructive"
-                    title={t(`error.${selectedSession.error}`)}
-                  >
-                    {t(
-                      selectedSession.error === "remoteUnknown"
-                        ? "remoteUnknownShort"
-                        : `error.${selectedSession.error}`,
-                    )}
-                  </span>
-                )}
-                {selectedSession.finishedAt !== null && (
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={
-                      retryProfile
-                        ? t("retryAuth", { ns: "commands" })
-                        : t("reconnect")
-                    }
-                    title={
-                      retryProfile
-                        ? t("retryAuth", { ns: "commands" })
-                        : t("reconnect")
-                    }
-                    disabled={busy}
-                    onClick={() => {
-                      if (selectedSession.local) {
-                        void connectLocal(selectedSession.id);
-                        return;
-                      }
-                      if (!retryProfile) {
-                        void connectHost(
-                          selectedSession.hostId,
-                          selectedSession.id,
-                        );
-                        return;
-                      }
-                      setDraft({
-                        hostId: selectedSession.hostId,
-                        noEnvironment: true,
-                        fallback: terminalNeedsCredentials(
-                          selectedSession,
-                          data.hosts,
-                        ),
-                        replaceId: selectedSession.id,
-                        ...(retryProfile
-                          ? {
-                              profile: retryProfile,
-                              noEnvironment:
-                                retryProfile.service.noLocalEnvironment,
-                            }
-                          : {}),
-                      });
-                      setSecrets({});
-                      setRemember({});
-                    }}
-                  >
-                    <RotateCwIcon aria-hidden="true" />
-                  </Button>
-                )}
-              </div>
-            )}
             <div className="terminal-view-area">
-              <Suspense fallback={<p className="muted">{t("loading")}</p>}>
-                {sessions.map((s) => (
-                  <TabsContent
-                    className="terminal-session-panel"
-                    keepMounted
-                    value={s.id}
-                    key={tabKeys.current.get(s.id) || s.id}
-                    aria-label={s.label}
-                  >
-                    {s.clientId === clientId ? (
-                      <TerminalView
-                        key={s.id}
-                        controls={tabControls.current}
-                        session={s}
-                        clientId={clientId}
-                        visible={expanded && selected === s.id}
-                        onError={fail}
+              <TerminalSplitPanels
+                groups={groups}
+                label={(key) => sessionsByKey.get(key)!.label}
+                resizeLabel={(axis) =>
+                  t(axis === "horizontal" ? "resizeWidth" : "resize")
+                }
+                renderPane={(key, group) => {
+                  const session = sessionsByKey.get(key)!;
+                  const grouped = typeof group.tree !== "string";
+                  const visible = activeTab === group.tab;
+                  const active = expanded && selectedSession?.id === session.id;
+                  const preview = drag.preview;
+                  const profile = unsubmittedPreset(
+                    session,
+                    data.services || [],
+                  );
+                  return (
+                    <section
+                      className={
+                        grouped
+                          ? "terminal-session-panel themed-surface workspace-pane-card"
+                          : "terminal-session-panel"
+                      }
+                      data-terminal-pane={key}
+                      data-active={active}
+                      data-grouped={grouped}
+                      aria-label={session.label}
+                      data-drop={
+                        preview && preview !== "tabs" && preview.pane === key
+                          ? preview.side
+                          : undefined
+                      }
+                      hidden={!visible}
+                      onPointerDownCapture={() => setSelected(session.id)}
+                      onFocusCapture={(event) => {
+                        if (event.currentTarget.contains(event.target))
+                          setSelected(session.id);
+                      }}
+                    >
+                      <PaneIdentity
+                        session={session}
+                        busy={busy}
+                        retryProfile={!!profile}
+                        reconnect={() => {
+                          if (session.local) void connectLocal(session.id);
+                          else if (!profile)
+                            void connectHost(session.hostId, session.id);
+                          else {
+                            setDraft({
+                              hostId: session.hostId,
+                              noEnvironment: profile.service.noLocalEnvironment,
+                              fallback: terminalNeedsCredentials(
+                                session,
+                                data.hosts,
+                              ),
+                              replaceId: session.id,
+                              profile,
+                            });
+                            setSecrets({});
+                            setRemember({});
+                          }
+                        }}
+                        grip={
+                          grouped && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="terminal-pane-grip"
+                              {...drag.handle(key, true)}
+                              title={t("detachPane")}
+                              aria-label={
+                                t("detachPane") + " · " + session.label
+                              }
+                              onClick={() => place(key, "tabs")}
+                            >
+                              <GripVerticalIcon />
+                            </Button>
+                          )
+                        }
+                        closeButton={grouped && closeButton(session)}
                       />
-                    ) : (
-                      <div className="terminal-ended-screen" />
-                    )}
-                  </TabsContent>
-                ))}
-              </Suspense>
+                      <Suspense
+                        fallback={<p className="muted">{t("loading")}</p>}
+                      >
+                        {session.clientId === clientId ? (
+                          <TerminalView
+                            key={session.id}
+                            controls={tabControls.current}
+                            session={session}
+                            clientId={clientId}
+                            active={active}
+                            visible={expanded && visible}
+                            onError={fail}
+                          />
+                        ) : (
+                          <div className="terminal-ended-screen" />
+                        )}
+                      </Suspense>
+                    </section>
+                  );
+                }}
+              />
               {"runtimes" in data &&
                 selectedCommand &&
                 commandTabs.includes(selectedCommand.id) && (
@@ -790,27 +910,7 @@ export function TerminalWorkspaceProvider({
           <TerminalTargets hosts={targets} choose={chooseTarget} busy={busy} />
         )}
       </WorkspacePanel>
-      <AnimatePresence
-        onExitComplete={() => {
-          if (
-            !document.querySelector(
-              '[role="dialog"][data-open], [role="alertdialog"][data-open]',
-            )
-          ) {
-            const activePanel = document.querySelector(
-              ".terminal-session-panel:not([hidden]):not([data-hidden])",
-            );
-            const input =
-              activePanel?.querySelector<HTMLTextAreaElement>(
-                ".shell-edit textarea",
-              ) ??
-              activePanel?.querySelector<HTMLTextAreaElement>(
-                ".ssh-terminal-screen:not(.shell-screen-hidden) .xterm-helper-textarea",
-              );
-            input?.focus({ preventScroll: true });
-          }
-        }}
-      >
+      <AnimatePresence onExitComplete={() => focusActiveTerminal()}>
         {draft && (
           <Modal
             key="connect"

@@ -1,4 +1,5 @@
 {
+  "detachPane": "Drag pane, or click to move it to the tab bar",
   "savedCommands": "Saved commands",
   "saveCommand": "Save command",
   "commandKeywords": "Keywords",
@@ -23,6 +24,7 @@
   "recentCommands": "Recent commands",
   "completions": "Completions",
   "workspace": "Terminal",
+  "terminalGroup": "Terminal group",
   "localTerminal": "Local terminal",
   "foregroundCloseHint": "A command is running in the foreground. Close this terminal tab?",
   "open": "Open SSH terminal",

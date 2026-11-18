@@ -75,12 +75,14 @@ export default function TerminalView({
   session,
   clientId,
   controls,
+  active,
   visible,
   onError,
 }: {
   session: TerminalSession;
   clientId: string;
   controls: Map<string, TerminalTabControls>;
+  active: boolean;
   visible: boolean;
   onError: (error: string) => void;
 }) {
@@ -900,7 +902,7 @@ export default function TerminalView({
     );
   }, [t, ready, session.endpoint]);
   useEffect(() => {
-    if (!visible || !ready || session.phase !== "running") return;
+    if (!active || !ready || session.phase !== "running") return;
     // A different feature's modal may still be finishing its close animation.
     // Wait for that modal to leave before focusing once; never steal its focus.
     let frame = 0;
@@ -915,6 +917,12 @@ export default function TerminalView({
         )
           return;
         dialogs.disconnect();
+        const pane = transcript.current?.closest(".terminal-session-panel");
+        if (
+          pane?.contains(document.activeElement) ||
+          window.getSelection()?.toString()
+        )
+          return;
         focusInput();
       });
     };
@@ -924,7 +932,7 @@ export default function TerminalView({
       cancelAnimationFrame(frame);
       dialogs.disconnect();
     };
-  }, [visible, ready, session.phase]);
+  }, [active, ready, session.phase]);
   useEffect(() => {
     const pane = transcript.current;
     if (
@@ -936,7 +944,7 @@ export default function TerminalView({
       menuOpen
     )
       return;
-    const panel = pane.closest<HTMLElement>(".terminal-workspace") ?? pane;
+    const panel = pane.closest<HTMLElement>(".terminal-session-panel") ?? pane;
     const controls =
       "button,a,input,textarea,select,[contenteditable=true],[role=option],[role=tab],[role=separator],[role=combobox]";
     const selectable = "pre,.xterm";
@@ -1003,6 +1011,7 @@ export default function TerminalView({
       frame = requestAnimationFrame(() => {
         const target = document.activeElement;
         if (
+          panel.dataset.active !== "true" ||
           selecting ||
           window.getSelection()?.toString() ||
           terminal.current?.hasSelection() ||
@@ -1015,9 +1024,9 @@ export default function TerminalView({
           target === document.body ||
           target === panel ||
           target === pane ||
-          target?.matches(
-            ".terminal-session-panel,.shell-surface,.ssh-terminal-screen",
-          )
+          (target &&
+            panel.contains(target) &&
+            target.matches(".shell-surface,.ssh-terminal-screen"))
         )
           focusBlank();
       });
@@ -1249,7 +1258,7 @@ export default function TerminalView({
                       inputRef={shell.editorInput}
                       cwd={shell.prompt.cwd}
                       powershell={shell.prompt.powershell}
-                      visible={visible}
+                      visible={active}
                       submit={(value) =>
                         terminal.current &&
                         shell.release(value, false, terminal.current)
@@ -1346,7 +1355,7 @@ export default function TerminalView({
             }
             finalFocus={() => {
               if (
-                !visible ||
+                !active ||
                 paste !== null ||
                 document.querySelector(
                   '[role="dialog"][data-open], [role="alertdialog"][data-open]',

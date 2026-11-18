@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { lazy, Suspense, useId, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { Modal, ModalActions } from "@/components/tunnel-form";
 import { desktop } from "@/lib/bridge";
 import type { useApplicationUpdate } from "@/lib/application-update";
 import { bytes } from "@/features/tunnels/runtime-format";
+
+const ReleaseNotes = lazy(() => import("./release-notes"));
 
 export function ApplicationUpdateSetting({
   updates,
@@ -144,12 +146,9 @@ export function ApplicationUpdateSetting({
                   <summary className="cursor-pointer text-xs">
                     {t("notes")}
                   </summary>
-                  <p
-                    className="mt-2 whitespace-pre-wrap break-words text-xs text-muted-foreground"
-                    data-selectable="true"
-                  >
-                    {state.release.notes}
-                  </p>
+                  <Suspense fallback={null}>
+                    <ReleaseNotes content={state.release.notes} />
+                  </Suspense>
                 </details>
               )}
             </div>

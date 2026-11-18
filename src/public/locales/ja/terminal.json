@@ -1,4 +1,5 @@
 {
+  "detachPane": "ペインをドラッグ、またはクリックしてタブバーに戻す",
   "savedCommands": "保存済みコマンド",
   "saveCommand": "コマンドを保存",
   "commandKeywords": "キーワード",
@@ -23,6 +24,7 @@
   "recentCommands": "最近のコマンド",
   "completions": "補完候補",
   "workspace": "ターミナル",
+  "terminalGroup": "ターミナルグループ",
   "localTerminal": "ローカルターミナル",
   "foregroundCloseHint": "フォアグラウンドでコマンドを実行中です。この端末タブを閉じますか？",
   "open": "SSH ターミナルを開く",

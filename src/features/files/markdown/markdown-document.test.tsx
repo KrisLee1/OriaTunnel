@@ -1,7 +1,8 @@
 import "@/i18n";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MarkdownDocument, documentUrl } from "./markdown-document";
+import { documentUrl } from "@/lib/markdown/document-url";
+import { MarkdownDocument } from "./markdown-document";
 import { sanitizeAnimatedSvg } from "@/lib/markdown/safe-svg";
 import { parseDelimitedPreview } from "@/lib/markdown/structured-code";
 import { defaultDataChartTheme, parseDataChartSpec, renderDataChartSvg } from "@/lib/markdown/data-chart";

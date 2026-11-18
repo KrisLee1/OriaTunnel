@@ -1,5 +1,7 @@
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { cn } from "@/lib/utils";
+import "./resizable.css";
+
 export const ResizablePanelGroup = Group;
 export const ResizablePanel = Panel;
 export function ResizableHandle({
@@ -7,6 +9,6 @@ export function ResizableHandle({
   ...props
 }: React.ComponentProps<typeof Separator>) {
   return (
-    <Separator {...props} className={cn("files-resize-handle", className)} />
+    <Separator {...props} className={cn("resizable-handle", className)} />
   );
 }

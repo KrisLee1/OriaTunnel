@@ -4,7 +4,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { remarkInlineExtensions } from "@/lib/markdown/remark-inline-extensions";
-import { ExternalLink } from "@/components/ui/external-link";
+import { documentUrl } from "@/lib/markdown/document-url";
+import { MarkdownLink } from "@/components/ui/markdown-link";
 import { Kbd } from "@/components/ui/kbd";
 import { MarkdownBlockquote } from "./markdown-callout";
 import { StructuredFence } from "./structured-fence";
@@ -22,20 +23,6 @@ export function codeText(value: ReactNode): string {
     return codeText(value.props.children);
   return "";
 }
-export function documentUrl(url: string, image = false) {
-  if (/^#[\w:.-]+$/.test(url)) return url;
-  if (image && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-z\d+/=]+$/i.test(url) && url.length < 3_000_000) return url;
-  try {
-    const u = new URL(url);
-    return ["http:", "https:"].includes(u.protocol) &&
-      !u.username &&
-      !u.password
-      ? u.href
-      : "";
-  } catch {
-    return "";
-  }
-}
 
 export const MarkdownDocument = memo(function MarkdownDocument({
   content,
@@ -45,14 +32,7 @@ export const MarkdownDocument = memo(function MarkdownDocument({
   const { t } = useTranslation();
   const components = useMemo<Components>(
     () => ({
-      a: ({ href, children, node: _node, ...props }) =>
-        href?.startsWith("#") ? (
-          <a {...props} href={href}>{children}</a>
-        ) : href ? (
-          <ExternalLink {...props} href={href}>{children}</ExternalLink>
-        ) : (
-          <span>{children}</span>
-        ),
+      a: MarkdownLink,
       blockquote: MarkdownBlockquote,
       code: ({ children, className, node: _node, ...props }) =>
         !className && isKeyboardShortcut(codeText(children).trim()) ? (

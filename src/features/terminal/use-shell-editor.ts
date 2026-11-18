@@ -218,7 +218,10 @@ export function useShellEditor(
           if (value) term.paste(value);
           send.current?.("\r");
         }
-        if (term.element?.offsetParent) term.focus();
+        if (
+          term.element?.closest('.terminal-session-panel[data-active="true"]')
+        )
+          term.focus();
       },
       () => {},
     );

@@ -1,4 +1,5 @@
 {
+  "detachPane": "Faire glisser le volet ou cliquer pour le remettre dans la barre d’onglets",
   "savedCommands": "Commandes enregistrées",
   "saveCommand": "Enregistrer la commande",
   "commandKeywords": "Mots-clés",
@@ -23,6 +24,7 @@
   "recentCommands": "Commandes récentes",
   "completions": "Complétions",
   "workspace": "Terminal",
+  "terminalGroup": "Groupe de terminaux",
   "localTerminal": "Terminal local",
   "foregroundCloseHint": "Une commande est en cours au premier plan. Fermer cet onglet de terminal ?",
   "open": "Ouvrir un terminal SSH",

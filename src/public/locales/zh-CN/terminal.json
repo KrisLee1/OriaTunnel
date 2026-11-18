@@ -1,4 +1,5 @@
 {
+  "detachPane": "拖动面板，或点击移回标签栏",
   "savedCommands": "已保存的命令",
   "saveCommand": "保存命令",
   "commandKeywords": "关键词",
@@ -23,6 +24,7 @@
   "recentCommands": "最近命令",
   "completions": "补全候选",
   "workspace": "终端",
+  "terminalGroup": "组合终端",
   "localTerminal": "本地终端",
   "foregroundCloseHint": "有命令正在前台运行，仍要关闭此终端标签吗？",
   "open": "打开 SSH 终端",

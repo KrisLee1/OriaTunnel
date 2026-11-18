@@ -103,7 +103,7 @@ export function TransferQueue({
   );
   if (!expanded && orientation === "horizontal")
     return (
-      <section className="files-queue themed-surface collapsed files-queue-rail">
+      <section className="files-queue themed-surface workspace-pane-card collapsed files-queue-rail">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -129,7 +129,7 @@ export function TransferQueue({
     );
   return (
     <section
-      className={`files-queue themed-surface ${expanded ? "" : "collapsed"}`}
+      className={`files-queue themed-surface workspace-pane-card ${expanded ? "" : "collapsed"}`}
     >
       <div className="files-toolbar">
         <Button variant="ghost" size="sm" onClick={onToggle}>

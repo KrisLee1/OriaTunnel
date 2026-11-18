@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import i18n from "@/i18n";
+import releaseNotes from "../../../docs/releases/v0.4.0.md?raw";
 import { ApplicationUpdateSetting } from "./application-update-setting";
 import {
   acceptUpdateSnapshot,
@@ -24,7 +25,7 @@ const initial: UpdateSnapshot = {
   canDownload: false,
   canInstall: false,
 };
-function render(patch: Partial<UpdateSnapshot> = {}, showVersion = true) {
+function setting(patch: Partial<UpdateSnapshot> = {}, showVersion = true) {
   const updates: ReturnType<typeof useApplicationUpdate> = {
     snapshot: { ...initial, ...patch },
     pending: false,
@@ -36,9 +37,17 @@ function render(patch: Partial<UpdateSnapshot> = {}, showVersion = true) {
     context: vi.fn(),
     install: vi.fn(),
   };
-  return renderToStaticMarkup(
-    <ApplicationUpdateSetting updates={updates} showVersion={showVersion} />,
+  return (
+    <ApplicationUpdateSetting updates={updates} showVersion={showVersion} />
   );
+}
+function render(patch: Partial<UpdateSnapshot> = {}, showVersion = true) {
+  return renderToStaticMarkup(setting(patch, showVersion));
+}
+async function renderWithNotes(patch: Partial<UpdateSnapshot>) {
+  const stream = await renderToReadableStream(setting(patch));
+  await stream.allReady;
+  return new Response(stream).text();
 }
 afterEach(async () => {
   await i18n.changeLanguage("zh-CN");
@@ -115,8 +124,22 @@ describe("application updates", () => {
     expect(known).toContain('role="status"');
     expect(known).not.toContain("停止会话并安装");
   });
-  it("escapes release notes and keeps a failed download retryable without offering installation", () => {
-    const html = render({
+  it("renders the published Markdown inside the update notes disclosure", async () => {
+    const html = await renderWithNotes({
+      phase: "available",
+      canDownload: true,
+      release: { version: "0.4.0", notes: releaseNotes },
+    });
+    expect(html).toMatch(
+      /<details>[\s\S]*<summary[^>]*>更新说明<\/summary>[\s\S]*<h2>更新日志<\/h2>[\s\S]*<\/details>/,
+    );
+    expect(html).toContain("<ul>");
+    expect(html.match(/<li><strong>/g)).toHaveLength(6);
+    expect(html).toContain("<strong>命令补全</strong>");
+    expect(html).not.toContain("**命令补全**");
+  });
+  it("escapes release notes and keeps a failed download retryable without offering installation", async () => {
+    const html = await renderWithNotes({
       phase: "error",
       error: "download",
       canDownload: true,

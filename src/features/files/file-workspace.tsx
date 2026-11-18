@@ -1317,7 +1317,7 @@ export function FilePane(p: PaneProps) {
       data-native-file-drop
       data-file-side={p.side}
       data-file-target={canRead && !p.disabledDrop ? dir?.id : undefined}
-      className={`files-pane themed-surface ${hoverTarget && hoverTarget === dir?.id ? "files-drop-hover" : ""}`}
+      className={`files-pane themed-surface workspace-pane-card ${hoverTarget && hoverTarget === dir?.id ? "files-drop-hover" : ""}`}
     >
       <div className="files-pane-title">
         <div className="files-pane-heading">{p.title}</div>

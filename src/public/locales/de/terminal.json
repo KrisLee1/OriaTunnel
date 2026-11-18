@@ -1,4 +1,5 @@
 {
+  "detachPane": "Bereich ziehen oder per Klick in die Tableiste verschieben",
   "savedCommands": "Gespeicherte Befehle",
   "saveCommand": "Befehl speichern",
   "commandKeywords": "Schlüsselwörter",
@@ -23,6 +24,7 @@
   "recentCommands": "Letzte Befehle",
   "completions": "Vervollständigungen",
   "workspace": "Terminal",
+  "terminalGroup": "Terminalgruppe",
   "localTerminal": "Lokales Terminal",
   "foregroundCloseHint": "Ein Befehl läuft im Vordergrund. Diesen Terminaltab schließen?",
   "open": "SSH-Terminal öffnen",

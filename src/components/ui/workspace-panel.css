@@ -12,6 +12,15 @@
 .workspace-panel[data-open="false"] {
   pointer-events: none;
 }
+.workspace-pane-card {
+  border: var(--oria-border-width-default) solid var(--oria-color-border);
+  border-radius: var(--oria-radius-xl);
+  overflow: hidden;
+  background: transparent;
+}
+.workspace-pane-card::before {
+  background: var(--oria-color-surface);
+}
 .workspace-panel-header {
   display: flex;
   align-items: center;

@@ -460,10 +460,13 @@ export function CommandEditor({
     }
   }, [line, cursor, mode, width, inputRef]);
   useEffect(() => {
+    const focused = document.activeElement;
+    const pane = inputRef.current?.closest(".terminal-session-panel");
     if (
       visible &&
+      !(pane?.contains(focused) && focused?.matches("button,input,[role=combobox]")) &&
       !window.getSelection()?.toString() &&
-      !document.activeElement?.closest(".shell-block pre") &&
+      !focused?.closest(".shell-block pre") &&
       !document.querySelector('[role="dialog"][data-open]')
     )
       inputRef.current?.focus();
