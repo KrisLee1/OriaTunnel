@@ -512,11 +512,6 @@ body,
   text-align: center;
   pointer-events: none;
 }
-.canvas-hint p {
-  font-size: 13px;
-  color: var(--oria-color-muted-fg);
-  margin: 8px;
-}
 .app-footnote {
   position: absolute;
   z-index: 10;
@@ -796,15 +791,6 @@ body,
   border: 1px solid var(--oria-color-border);
   border-radius: var(--oria-radius-xl);
   overflow: hidden;
-}
-.host-discovery-empty {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--oria-color-muted-fg);
-  font-size: 12px;
 }
 .host-discovery-options {
   display: grid;
@@ -1883,6 +1869,7 @@ body,
 .terminal-start { display: flex; flex: 1; min-height: 0; overflow: auto; flex-direction: column; align-items: stretch; gap: 2px; padding: 6px var(--terminal-content-inset, 8px); }
 .terminal-target-menu { width: max-content; min-width: min(14rem, 85vw); max-width: min(24rem, 85vw); }
 .terminal-target { justify-content: flex-start; flex: none; min-width: 0; height: auto; gap: 8px; padding: 6px 8px; text-align: start; }
+.terminal-start .terminal-target { width: 100%; min-height: 48px; gap: 12px; padding: 8px 12px; border-radius: var(--oria-radius-xl); }
 .terminal-target-text { display: grid; min-width: 0; }
 .terminal-target-text > * { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .terminal-target-text small { color: var(--oria-color-muted-fg); font-size: 12px; }

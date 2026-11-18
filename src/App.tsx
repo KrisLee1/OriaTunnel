@@ -2949,10 +2949,7 @@ function TunnelCanvas({
   return (
     <div className="canvas">
       {!data.rules.length && (
-        <div className="canvas-hint">
-          <span className="eyebrow">OriaTunnel</span>
-          <p>{t("empty")}</p>
-        </div>
+        <PageEmptyState compact className="canvas-hint w-fit" icon={<GraphStarIcon />} title={t("empty")} />
       )}
       <div className="canvas-mask">
         <CanvasFlow

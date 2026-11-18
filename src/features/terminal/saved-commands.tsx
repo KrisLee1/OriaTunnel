@@ -1,3 +1,4 @@
+import { PageEmptyState } from "@/components/page-empty-state";
 import {
   createContext,
   useCallback,
@@ -10,7 +11,7 @@ import {
 } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { BookText, Pencil, Trash2 } from "lucide-react";
+import { BookText, Pencil, SearchX, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Field, Modal, ModalActions } from "@/components/tunnel-form";
 import { Button } from "@/components/ui/button";
@@ -312,9 +313,24 @@ export function SavedCommandsProvider({
                   </div>
                 ))}
                 {loaded && !filtered.length && !error && (
-                  <p className="text-sm text-muted-foreground">
-                    {t(query ? "noMatches" : "libraryEmpty")}
-                  </p>
+                  <PageEmptyState
+                    compact
+                    icon={query ? <SearchX /> : <BookText />}
+                    title={t(query ? "noMatches" : "savedCommands")}
+                    description={!query && t("libraryEmpty")}
+                    action={
+                      query && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setQuery("")}
+                        >
+                          {t("clearFilters", { ns: "tunnel" })}
+                        </Button>
+                      )
+                    }
+                  />
                 )}
               </div>
             </>

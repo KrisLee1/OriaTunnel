@@ -16,22 +16,25 @@ import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Task, TransferFolder } from "./api";
 import { TransferItem } from "./transfer-item";
+import { TIME_HEADING_HEIGHT, timeGroupLabel } from "./time-groups";
 import type { TransferGroup } from "./transfer-list";
 
 export function TransferTaskList({
   groups,
+  day,
   grouped,
   conflictIds,
   onAction,
   children,
 }: {
   groups: TransferGroup[];
+  day: number;
   grouped: boolean;
   conflictIds?: string[];
   onAction: (task: Task, action: string, folder?: TransferFolder) => void;
   children: ReactNode;
 }) {
-  const { t } = useTranslation("files");
+  const { t, i18n } = useTranslation("files");
   const viewport = useRef<HTMLDivElement>(null);
   const rows = useMemo(
     () =>
@@ -39,6 +42,7 @@ export function TransferTaskList({
         group.tasks.map((task, i) => ({
           task,
           group,
+          indexInGroup: i,
           heading: grouped && i === 0,
         })),
       ),
@@ -107,16 +111,17 @@ export function TransferTaskList({
         },
       }}
     >
-      {!rows.length && <p className="files-empty">{t("noTransfers")}</p>}
       <div style={{ position: "relative", height: list.getTotalSize() }}>
         {Array.from(visibleGroups, ([group, items]) => {
-          const label = group.host
-            ? group.host.name || t(group.host.remote ? "remote" : "local")
-            : t(
-                group.direction === "relay"
-                  ? "remoteTransfer"
-                  : group.direction || "transfers",
-              );
+          const label = group.time
+            ? timeGroupLabel(group.time, t, i18n.language, day)
+            : group.host
+              ? group.host.name || t(group.host.remote ? "remote" : "local")
+              : t(
+                  group.direction === "relay"
+                    ? "remoteTransfer"
+                    : group.direction || "transfers",
+                );
           const Icon = group.host
             ? group.host.remote
               ? Server
@@ -126,12 +131,36 @@ export function TransferTaskList({
               : group.direction === "download"
                 ? Download
                 : ArrowRightLeft;
+          const firstIndex = items[0].index - rows[items[0].index].indexInGroup;
+          const top = group.time ? list.measurementsCache[firstIndex].start : 0;
+          const bounds = group.time
+            ? {
+                position: "absolute" as const,
+                insetInline: 0,
+                top,
+                height:
+                  list.measurementsCache[firstIndex + group.tasks.length - 1]
+                    .end - top,
+              }
+            : undefined;
           return (
             <section
               key={group.id}
               className="files-transfer-group"
+              style={bounds}
               aria-label={grouped ? label : undefined}
             >
+              {group.time && (
+                <h3
+                  className="files-time-heading"
+                  style={{ height: TIME_HEADING_HEIGHT }}
+                >
+                  <span>
+                    {label}
+                    <small>{group.count ?? group.tasks.length}</small>
+                  </span>
+                </h3>
+              )}
               {items.map((item) => {
                 const { task, heading } = rows[item.index];
                 return (
@@ -140,13 +169,17 @@ export function TransferTaskList({
                     className="files-queue-entry"
                     ref={list.measureElement}
                     data-index={item.index}
-                    style={{ transform: `translateY(${item.start}px)` }}
+                    style={{
+                      transform: `translateY(${item.start - top}px)`,
+                      paddingTop:
+                        heading && group.time ? TIME_HEADING_HEIGHT : undefined,
+                    }}
                   >
-                    {heading && (
+                    {heading && !group.time && (
                       <h3 className="files-transfer-group-heading">
                         <Icon />
                         <span title={label}>{label}</span>
-                        <small>{group.tasks.length}</small>
+                        <small>{group.count ?? group.tasks.length}</small>
                       </h3>
                     )}
                     <TransferItem

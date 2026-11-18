@@ -146,6 +146,10 @@ describe("transfer list ordering and grouping", () => {
       grouping: "type",
       order: "newest",
     });
+    values.set(TRANSFER_LIST_KEY, '{"grouping":"time","order":"oldest"}');
+    expect(readTransferListPreferences()).toEqual({grouping:"type",order:"oldest"});
+    saveTransferListPreferences({grouping:"time",order:"oldest"});
+    expect(readTransferListPreferences().grouping).toBe("time");
     values.set(TRANSFER_LIST_KEY, "broken");
     expect(readTransferListPreferences().order).toBe("newest");
     vi.stubGlobal("localStorage", {
@@ -227,13 +231,14 @@ describe("batch statuses from native evidence", () => {
       sources: ["/dir", "/directory", "/later"],
       sourceKinds: ["directory", "directory", "file"],
       completed: ["/dir/a"],
+      completedArchive: { roots: { "/dir": 250_000 } },
       currentSource: "/directory/b",
       phase: "failed",
     });
     expect(
       transferBatchItems(batch).map((i) => [i.phase, i.completedCount]),
     ).toEqual([
-      ["unconfirmed", 1],
+      ["unconfirmed", 250_001],
       ["failed", 0],
       ["unconfirmed", 0],
     ]);

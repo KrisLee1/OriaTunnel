@@ -1,3 +1,4 @@
+import { PageEmptyState } from "@/components/page-empty-state";
 import {
   lazy,
   Suspense,
@@ -111,10 +112,7 @@ function SvgImagePreview({ source, name }: { source: string; name: string }) {
     };
   }, [source]);
   return image.error ? (
-    <div className="files-preview-state files-preview-error" role="alert">
-      <TriangleAlert />
-      <p>{t("previewUnsupported")}</p>
-    </div>
+    <PageEmptyState compact className="files-preview-state files-preview-error" role="alert" icon={<TriangleAlert />} title={t("previewUnsupported")} />
   ) : image.url ? (
     <ScrollArea
       className="files-preview-image"
@@ -128,9 +126,7 @@ function SvgImagePreview({ source, name }: { source: string; name: string }) {
       />
     </ScrollArea>
   ) : (
-    <div className="files-preview-state" role="status">
-      <LoaderCircle className="files-preview-spinner" />
-    </div>
+    <PageEmptyState compact className="files-preview-state" role="status" icon={<LoaderCircle className="files-preview-spinner" />} title={t("loading")} />
   );
 }
 
@@ -313,15 +309,9 @@ function PreviewContent({
   );
   const stateClass = `files-preview-state${hasPreview || !imageType ? "" : " files-inspector-card"}`;
   const content = initialLoading ? (
-    <div className={stateClass} role="status">
-      <LoaderCircle className="files-preview-spinner" />
-      <p>{t("loading")}</p>
-    </div>
+    <PageEmptyState compact className={stateClass} role="status" icon={<LoaderCircle className="files-preview-spinner" />} title={t("loading")} />
   ) : error ? (
-    <div className={`${stateClass} files-preview-error`} role="alert">
-      <TriangleAlert />
-      <p>{t(error, { defaultValue: error })}</p>
-    </div>
+    <PageEmptyState compact className={`${stateClass} files-preview-error`} role="alert" icon={<TriangleAlert />} title={t(error, { defaultValue: error })} />
   ) : showCode && editor.document ? (
     <FileTextEditor
       value={editor.draft}
@@ -340,10 +330,7 @@ function PreviewContent({
       actions={actions}
     />
   ) : imageError ? (
-    <div className={`${stateClass} files-preview-error`} role="alert">
-      <TriangleAlert />
-      <p>{t("previewUnsupported")}</p>
-    </div>
+    <PageEmptyState compact className={`${stateClass} files-preview-error`} role="alert" icon={<TriangleAlert />} title={t("previewUnsupported")} />
   ) : vector ? (
     <SvgImagePreview source={displayText} name={entry.name} />
   ) : imageType && url ? (
@@ -365,10 +352,7 @@ function PreviewContent({
       </Suspense>
     </ScrollArea>
   ) : (
-    <div className={stateClass}>
-      <FileText />
-      <p>{t("emptyFile")}</p>
-    </div>
+    <PageEmptyState compact className={stateClass} icon={<FileText />} title={t("emptyFile")} />
   );
   return (
     <>

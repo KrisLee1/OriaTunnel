@@ -1,3 +1,4 @@
+import { PageEmptyState } from "@/components/page-empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { useId, useState, type CSSProperties } from "react";
 import {
@@ -316,9 +317,7 @@ export function ConnectionIconPicker({
           </Button>
         ))}
         {!entries.length && (
-          <p className="muted connection-icon-empty" role="status">
-            {t("noMatchingIcons")}
-          </p>
+          <PageEmptyState compact role="status" className="connection-icon-empty" icon={<SearchIcon />} title={t("noMatchingIcons")} />
         )}
       </ScrollArea>
     );

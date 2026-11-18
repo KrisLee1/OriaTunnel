@@ -1,5 +1,8 @@
+import { PageEmptyState } from "@/components/page-empty-state";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useMemo, useState } from "react";
 import {
+  CalendarDays,
   ClockArrowDown,
   ClockArrowUp,
   ArrowRightLeft,
@@ -9,6 +12,7 @@ import {
   HardDriveUpload,
   Layers,
   ListTree,
+  ListFilter,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -28,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { canClearTransfer, type Task, type TransferFolder } from "./api";
+import { useLocalDay } from "./time-groups";
 import { TransferTaskList } from "./transfer-task-list";
 import {
   groupTransfers,
@@ -43,12 +48,14 @@ import {
 
 const groupLabels: Record<TransferGrouping, string> = {
   none: "noGrouping",
+  time: "groupTime",
   source: "groupSourceHost",
   target: "groupTargetHost",
   type: "groupTransferType",
 };
 const groupIcons = {
   none: Layers,
+  time: CalendarDays,
   source: HardDriveUpload,
   target: HardDriveDownload,
   type: ArrowRightLeft,
@@ -72,13 +79,17 @@ export function TransferQueue({
   orientation?: "horizontal" | "vertical";
 }) {
   const { t } = useTranslation("files");
+  const day = useLocalDay();
   const [filter, setFilter] = useState("all");
   const [preferences, setPreferences] = useState<TransferListPreferences>(
     readTransferListPreferences,
   );
   const [limit, setLimit] = useState(200);
   const GroupIcon = groupIcons[preferences.grouping];
-  useEffect(() => saveTransferListPreferences(preferences), [preferences]);
+  function changePreferences(next: TransferListPreferences) {
+    setPreferences(next);
+    saveTransferListPreferences(next);
+  }
   useEffect(() => setLimit(200), [filter, preferences]);
   const filtered = useMemo(
     () =>
@@ -89,8 +100,15 @@ export function TransferQueue({
     [tasks, filter, preferences.order],
   );
   const groups = useMemo(
-    () => groupTransfers(filtered.slice(0, limit), preferences.grouping),
-    [filtered, limit, preferences.grouping],
+    () =>
+      groupTransfers(
+        filtered,
+        preferences.grouping,
+        day,
+        preferences.order,
+        limit,
+      ),
+    [filtered, limit, preferences.grouping, preferences.order, day],
   );
   const canClear = tasks.some(canClearTransfer);
   if (!expanded && orientation === "horizontal")
@@ -175,7 +193,7 @@ export function TransferQueue({
                 />
                 <DropdownMenuContent
                   align="end"
-                  className="files-options-popup files-queue-options"
+                  className="files-queue-options"
                 >
                   <DropdownMenuGroup>
                     {transferOrders.map((order) => (
@@ -184,7 +202,7 @@ export function TransferQueue({
                         role="menuitemradio"
                         aria-checked={preferences.order === order}
                         onClick={() =>
-                          setPreferences((current) => ({ ...current, order }))
+                          changePreferences({ ...preferences, order })
                         }
                       >
                         {order === "newest" ? (
@@ -216,7 +234,7 @@ export function TransferQueue({
                 />
                 <DropdownMenuContent
                   align="end"
-                  className="files-options-popup files-queue-options"
+                  className="files-queue-options"
                 >
                   <DropdownMenuGroup>
                     {transferGroupings.map((grouping) => {
@@ -227,10 +245,7 @@ export function TransferQueue({
                           role="menuitemradio"
                           aria-checked={preferences.grouping === grouping}
                           onClick={() =>
-                            setPreferences((current) => ({
-                              ...current,
-                              grouping,
-                            }))
+                            changePreferences({ ...preferences, grouping })
                           }
                         >
                           <Icon />
@@ -259,24 +274,49 @@ export function TransferQueue({
           </Button>
         </div>
       </div>
-      {expanded && (
-        <TransferTaskList
-          groups={groups}
-          grouped={preferences.grouping !== "none"}
-          conflictIds={conflictIds}
-          onAction={onAction}
-        >
-          {filtered.length > limit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setLimit((current) => current + 200)}
-            >
-              {t("loadMoreTasks")}
-            </Button>
-          )}
-        </TransferTaskList>
-      )}
+      {expanded &&
+        (!filtered.length ? (
+          <ScrollArea
+            className="min-h-0 flex-1"
+            contentClassName="files-empty-content"
+          >
+            <PageEmptyState
+              compact
+              icon={tasks.length ? <ListFilter /> : <ArrowRightLeft />}
+              title={t(tasks.length ? "noMatchingTransfers" : "noTransfers")}
+              description={!tasks.length && t("emptyTransferHint")}
+              action={
+                tasks.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFilter("all")}
+                  >
+                    {t("clearFilters", { ns: "tunnel" })}
+                  </Button>
+                )
+              }
+            />
+          </ScrollArea>
+        ) : (
+          <TransferTaskList
+            day={day}
+            groups={groups}
+            grouped={preferences.grouping !== "none"}
+            conflictIds={conflictIds}
+            onAction={onAction}
+          >
+            {filtered.length > limit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLimit((current) => current + 200)}
+              >
+                {t("loadMoreTasks")}
+              </Button>
+            )}
+          </TransferTaskList>
+        ))}
     </section>
   );
 }

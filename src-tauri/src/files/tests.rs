@@ -15,6 +15,8 @@ struct Server {
     root: PathBuf,
     channels: Arc<Mutex<HashMap<ChannelId, Channel<server::Msg>>>>,
     reject: bool,
+    password: String,
+    sftp_binary: Option<PathBuf>,
     direct: Option<Arc<direct_tests::Fixture>>,
     children: Arc<Mutex<HashMap<ChannelId, CancellationToken>>>,
     native_client: bool,
@@ -90,7 +92,7 @@ impl server::Handler for Server {
         })
     }
     async fn auth_password(&mut self, _: &str, p: &str) -> std::result::Result<Auth, Self::Error> {
-        Ok(if p == "fixture-only" {
+        Ok(if p == self.password {
             Auth::Accept
         } else {
             Auth::reject()
@@ -126,6 +128,28 @@ impl server::Handler for Server {
         }
         let c = self.channels.lock().unwrap().remove(&id).unwrap();
         s.channel_success(id)?;
+        if let Some(exe) = &self.sftp_binary {
+            use std::process::Stdio;
+            let mut child = tokio::process::Command::new(exe)
+                .arg("-R")
+                .arg("-d")
+                .arg(&self.root)
+                .current_dir(&self.root)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .unwrap();
+            let input = child.stdin.take().unwrap();
+            let output = child.stdout.take().unwrap();
+            tokio::spawn(async move {
+                let mut process = tokio::io::join(output, input);
+                let _ = tokio::io::copy_bidirectional(&mut c.into_stream(), &mut process).await;
+                let _ = child.wait().await;
+            });
+            return Ok(());
+        }
         let handler = Sftp {
             app_reads: if self.native_client {
                 None
@@ -151,10 +175,23 @@ impl server::Handler for Server {
 struct Sftp {
     app_reads: Option<Arc<std::sync::atomic::AtomicUsize>>,
     delayed: bool,
-    verification_reader: Option<String>,
+    verification_reader: Option<Vec<u8>>,
     root: PathBuf,
-    files: HashMap<String, tokio::fs::File>,
-    dirs: HashMap<String, Option<String>>,
+    files: HashMap<Vec<u8>, tokio::fs::File>,
+    dirs: HashMap<Vec<u8>, std::fs::ReadDir>,
+}
+fn fixture_attrs(m: &std::fs::Metadata) -> FileAttributes {
+    let mut a = FileAttributes::from(m);
+    if m.is_file() {
+        a.set_regular(true);
+    }
+    if m.is_dir() {
+        a.set_dir(true);
+    }
+    if m.file_type().is_symlink() {
+        a.set_symlink(true);
+    }
+    a
 }
 fn status(id: u32) -> Status {
     Status {
@@ -223,7 +260,7 @@ impl russh_sftp::server::Handler for Sftp {
     async fn stat(&mut self, id: u32, path: String) -> std::result::Result<Attrs, Self::Error> {
         self.lstat(id, path).await
     }
-    async fn fstat(&mut self, id: u32, handle: String) -> std::result::Result<Attrs, Self::Error> {
+    async fn fstat(&mut self, id: u32, handle: Vec<u8>) -> std::result::Result<Attrs, Self::Error> {
         let metadata = self
             .files
             .get(&handle)
@@ -251,7 +288,7 @@ impl russh_sftp::server::Handler for Sftp {
     async fn fsetstat(
         &mut self,
         id: u32,
-        _: String,
+        _: Vec<u8>,
         _: FileAttributes,
     ) -> std::result::Result<Status, Self::Error> {
         Ok(status(id))
@@ -268,16 +305,7 @@ impl russh_sftp::server::Handler for Sftp {
     }
     async fn lstat(&mut self, id: u32, path: String) -> std::result::Result<Attrs, Self::Error> {
         let m = std::fs::symlink_metadata(self.path(&path)?).map_err(|_| StatusCode::NoSuchFile)?;
-        let mut a = FileAttributes::from(&m);
-        if m.is_file() {
-            a.set_regular(true);
-        }
-        if m.is_dir() {
-            a.set_dir(true);
-        }
-        if m.file_type().is_symlink() {
-            a.set_symlink(true);
-        }
+        let a = fixture_attrs(&m);
         Ok(Attrs { id, attrs: a })
     }
     async fn opendir(&mut self, id: u32, path: String) -> std::result::Result<Handle, Self::Error> {
@@ -285,32 +313,34 @@ impl russh_sftp::server::Handler for Sftp {
             return Err(StatusCode::NoSuchFile);
         }
         // The UI and verifier can independently enumerate the same directory.
-        let handle = uuid::Uuid::new_v4().to_string();
-        self.dirs.insert(handle.clone(), Some(path));
+        let mut handle = uuid::Uuid::new_v4().into_bytes().to_vec();
+        handle[0] = 0xff; // Opaque binary token, including invalid UTF-8.
+        let entries = std::fs::read_dir(self.path(&path)?).map_err(|_| StatusCode::Failure)?;
+        self.dirs.insert(handle.clone(), entries);
         Ok(Handle { id, handle })
     }
-    async fn readdir(&mut self, id: u32, handle: String) -> std::result::Result<Name, Self::Error> {
-        let path = self
-            .dirs
-            .get_mut(&handle)
-            .ok_or(StatusCode::Failure)?
-            .take()
-            .ok_or(StatusCode::Eof)?;
-        let mut files = vec![];
-        for e in std::fs::read_dir(self.path(&path)?).map_err(|_| StatusCode::Failure)? {
-            let e = e.unwrap();
-            let a = self
-                .lstat(
-                    id,
-                    format!(
-                        "{}/{}",
-                        path.trim_end_matches('/'),
-                        e.file_name().to_str().unwrap()
-                    ),
-                )
-                .await?
-                .attrs;
-            files.push(File::new(e.file_name().to_str().unwrap(), a));
+    async fn readdir(
+        &mut self,
+        id: u32,
+        handle: Vec<u8>,
+    ) -> std::result::Result<Name, Self::Error> {
+        let entries = self.dirs.get_mut(&handle).ok_or(StatusCode::BadMessage)?;
+        let mut files = Vec::new();
+        let page_size = if self.root.join(".large-pages").exists() {
+            2048
+        } else {
+            128
+        };
+        for entry in entries.take(page_size) {
+            let entry = entry.map_err(|_| StatusCode::Failure)?;
+            let meta = std::fs::symlink_metadata(entry.path()).map_err(|_| StatusCode::Failure)?;
+            files.push(File::new(
+                entry.file_name().to_str().unwrap(),
+                fixture_attrs(&meta),
+            ));
+        }
+        if files.is_empty() {
+            return Err(StatusCode::Eof);
         }
         Ok(Name { id, files })
     }
@@ -329,14 +359,15 @@ impl russh_sftp::server::Handler for Sftp {
             .open(self.path(&path)?)
             .await
             .map_err(|_| StatusCode::PermissionDenied)?;
-        let handle = uuid::Uuid::new_v4().to_string();
+        let mut handle = uuid::Uuid::new_v4().into_bytes().to_vec();
+        handle[0] = 0xff; // Opaque binary token, including invalid UTF-8.
         self.files.insert(handle.clone(), f);
         Ok(Handle { id, handle })
     }
     async fn read(
         &mut self,
         id: u32,
-        handle: String,
+        handle: Vec<u8>,
         offset: u64,
         len: u32,
     ) -> std::result::Result<Data, Self::Error> {
@@ -355,6 +386,9 @@ impl russh_sftp::server::Handler for Sftp {
         if let Some(reads) = &self.app_reads {
             reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }
+        if self.root.join(".paced-reads").is_file() {
+            tokio::time::sleep(Duration::from_millis(8)).await;
+        }
         let f = self.files.get_mut(&handle).ok_or(StatusCode::Failure)?;
         f.seek(std::io::SeekFrom::Start(offset)).await.unwrap();
         let mut data = vec![0; len as usize];
@@ -368,7 +402,7 @@ impl russh_sftp::server::Handler for Sftp {
     async fn write(
         &mut self,
         id: u32,
-        handle: String,
+        handle: Vec<u8>,
         offset: u64,
         data: Vec<u8>,
     ) -> std::result::Result<Status, Self::Error> {
@@ -381,7 +415,11 @@ impl russh_sftp::server::Handler for Sftp {
         f.write_all(&data).await.map_err(|_| StatusCode::Failure)?;
         Ok(status(id))
     }
-    async fn close(&mut self, id: u32, handle: String) -> std::result::Result<Status, Self::Error> {
+    async fn close(
+        &mut self,
+        id: u32,
+        handle: Vec<u8>,
+    ) -> std::result::Result<Status, Self::Error> {
         if self.files.remove(&handle).is_some()
             && self.verification_reader.as_ref() == Some(&handle)
         {
@@ -528,6 +566,16 @@ async fn start_fixture(
     reject: bool,
     direct: Option<Arc<direct_tests::Fixture>>,
 ) -> (u16, tokio::task::JoinHandle<()>) {
+    start_fixture_backend(root, reject, direct, None, "fixture-only".into()).await
+}
+
+async fn start_fixture_backend(
+    root: PathBuf,
+    reject: bool,
+    direct: Option<Arc<direct_tests::Fixture>>,
+    sftp_binary: Option<PathBuf>,
+    password: String,
+) -> (u16, tokio::task::JoinHandle<()>) {
     use server::Server as _;
     let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = socket.local_addr().unwrap().port();
@@ -542,6 +590,8 @@ async fn start_fixture(
     });
     let mut server = Server {
         root,
+        password,
+        sftp_binary,
         channels: Default::default(),
         reject,
         direct,
@@ -570,6 +620,13 @@ async fn connect_fixture(
 }
 
 async fn fixture_connection(port: u16) -> crate::tunnel::Connection {
+    fixture_connection_with_password(port, "fixture-only".to_owned()).await
+}
+
+async fn fixture_connection_with_password(
+    port: u16,
+    password: String,
+) -> crate::tunnel::Connection {
     let notify: crate::tunnel::Notify = Arc::new(|_| {});
     crate::tunnel::connect(
         vec![crate::tunnel::HopRequest {
@@ -582,7 +639,7 @@ async fn fixture_connection(port: u16) -> crate::tunnel::Connection {
                 auth_method: crate::model::AuthMethod::Password,
                 ..Default::default()
             },
-            secret: "fixture-only".into(),
+            secret: password.into(),
             expected: None,
         }],
         None,
@@ -647,6 +704,35 @@ pub(crate) async fn manager(
     journal: PathBuf,
 ) -> (Arc<Manager>, tokio::task::JoinHandle<()>) {
     let (fs, job) = setup(root, false).await;
+    (manager_with_session(fs, journal), job)
+}
+
+pub(super) async fn native_download_manager(
+    root: PathBuf,
+    journal: PathBuf,
+    executable: PathBuf,
+) -> (Arc<Manager>, tokio::task::JoinHandle<()>) {
+    // The stock server exposes its host namespace. Restrict it to read-only,
+    // localhost and a fresh, in-memory credential private to this test.
+    let password = uuid::Uuid::new_v4().to_string();
+    let (port, job) =
+        start_fixture_backend(root, false, None, Some(executable), password.clone()).await;
+    let connection = fixture_connection_with_password(port, password).await;
+    let remote = fs::Remote::open(
+        connection,
+        &CancellationToken::new(),
+        Duration::from_secs(20),
+        30,
+    )
+    .await
+    .unwrap();
+    (
+        manager_with_session(Fs::Remote(Arc::new(remote)), journal),
+        job,
+    )
+}
+
+fn manager_with_session(fs: Fs, journal: PathBuf) -> Arc<Manager> {
     let m = Arc::new(Manager::new(journal));
     m.remotes.lock().unwrap().insert("session".into(), fs);
     m.sessions.lock().unwrap().insert(
@@ -666,10 +752,13 @@ pub(crate) async fn manager(
         .lock()
         .unwrap()
         .insert("session".into(), "frozen-fixture".into());
-    (m, job)
+    m
 }
 pub(crate) async fn settled(m: &Manager, id: &str) -> Task {
-    tokio::time::timeout(Duration::from_secs(20), async {
+    settled_within(m, id, Duration::from_secs(20)).await
+}
+pub(super) async fn settled_within(m: &Manager, id: &str, timeout: Duration) -> Task {
+    tokio::time::timeout(timeout, async {
         loop {
             let task = m.tasks.lock().unwrap().get(id).cloned().unwrap();
             if !task.active() {
@@ -680,6 +769,143 @@ pub(crate) async fn settled(m: &Manager, id: &str) -> Task {
     })
     .await
     .unwrap()
+}
+
+#[tokio::test]
+async fn remote_directory_handles_and_large_name_pages_are_lossless() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join(".large-pages"), []).unwrap();
+    let folder = root.path().join("wide");
+    std::fs::create_dir(&folder).unwrap();
+    for i in 0..1800 {
+        std::fs::write(folder.join(format!("{i:04}-{}", "n".repeat(155))), []).unwrap();
+    }
+    let (fs, server) = setup(root.path().to_owned(), false).await;
+    let Fs::Remote(remote) = &fs else {
+        unreachable!()
+    };
+    let handle = remote.raw.opendir("/wide").await.unwrap().handle;
+    // The previous text conversion changed 0xff into ef bf bd on READDIR.
+    let damaged = String::from_utf8_lossy(&handle).into_owned().into_bytes();
+    assert!(matches!(remote.raw.readdir(damaged).await,
+        Err(russh_sftp::client::error::Error::Status(status)) if status.status_code == StatusCode::BadMessage));
+    remote.raw.close(handle).await.unwrap();
+    assert_eq!(fs.list("/wide").await.unwrap().len(), 1800);
+    server.abort();
+}
+
+#[test]
+fn socket_and_device_modes_are_not_recursed_as_directories() {
+    for (mode, kind) in [
+        (0o140000, "other"),
+        (0o060000, "other"),
+        (0o010000, "other"),
+        (0o120000, "link"),
+        (0o040000, "directory"),
+        (0o100000, "file"),
+    ] {
+        assert_eq!(
+            fs::remote_meta(FileAttributes {
+                permissions: Some(mode | 0o755),
+                ..Default::default()
+            })
+            .kind,
+            kind
+        );
+    }
+}
+
+#[test]
+fn extended_attributes_do_not_shift_the_next_name_on_a_directory_page() {
+    fn field(buf: &mut Vec<u8>, bytes: &[u8]) {
+        buf.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+        buf.extend_from_slice(bytes);
+    }
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&12u32.to_be_bytes()); // request ID
+    buf.extend_from_slice(&2u32.to_be_bytes()); // entry count
+    field(&mut buf, b"one");
+    field(&mut buf, b"");
+    buf.extend_from_slice(&0x80000000u32.to_be_bytes());
+    buf.extend_from_slice(&1u32.to_be_bytes());
+    field(&mut buf, b"test@example");
+    field(&mut buf, &[0, 255, 0]);
+    field(&mut buf, b"two");
+    field(&mut buf, b"");
+    buf.extend_from_slice(&0u32.to_be_bytes());
+    let page = russh_sftp::de::from_bytes::<Name>(&mut buf.into()).unwrap();
+    assert_eq!(
+        page.files
+            .iter()
+            .map(|f| f.filename.as_str())
+            .collect::<Vec<_>>(),
+        ["one", "two"]
+    );
+}
+
+#[cfg(windows)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "uses the read-only Microsoft Win32-OpenSSH sftp-server specified by ORIA_QA_SFTP_SERVER"]
+async fn downloads_windows_openssh_drive_paths_and_unicode_to_windows() {
+    let remote = tempfile::tempdir().unwrap();
+    let local = tempfile::tempdir().unwrap();
+    let folder = "资料 folder";
+    let relative = PathBuf::from("test-subdirectory-012345678901234567890123456789")
+        .join("second-subdirectory-012345678901234567890123456789")
+        .join("third-subdirectory-012345678901234567890123456789")
+        .join("fourth-subdirectory-012345678901234567890123456789")
+        .join("fifth-subdirectory-012345678901234567890123456789");
+    let deep = remote.path().join(folder).join(&relative);
+    std::fs::create_dir_all(&deep).unwrap();
+    std::fs::write(deep.join("报告.bin"), [0, 255, 2, 3]).unwrap();
+    std::fs::write(remote.path().join(folder).join("empty.txt"), []).unwrap();
+    let link = remote.path().join(folder).join("back");
+    // Use fixed command arguments relative to the isolated test directory.
+    let linked = std::process::Command::new("cmd.exe")
+        .args(["/d", "/c", "mklink", "/J", "back", "."])
+        .current_dir(remote.path().join(folder))
+        .output()
+        .unwrap();
+    assert!(linked.status.success());
+    let exe = std::env::var_os("ORIA_QA_SFTP_SERVER").expect("set ORIA_QA_SFTP_SERVER");
+    let (manager, server) = native_download_manager(
+        remote.path().into(),
+        local.path().join("journal.json"),
+        exe.into(),
+    )
+    .await;
+    let root = manager
+        .directory(Some("session".into()), ".".into())
+        .await
+        .unwrap();
+    let entry = root.entries.iter().find(|e| e.name == folder).unwrap();
+    let destination = manager
+        .directory(None, local.path().to_str().unwrap().into())
+        .await
+        .unwrap();
+    let id = manager
+        .submit(
+            uuid::Uuid::new_v4().to_string(),
+            vec![entry.id.clone()],
+            destination.id,
+        )
+        .await
+        .unwrap();
+    let result = settled(&manager, &id).await;
+    std::fs::remove_dir(link).unwrap();
+    assert_eq!(result.phase, "partial", "{:?}", result.error);
+    assert_eq!((result.count, result.bytes, result.skipped), (2, 4, 1));
+    assert!(!local.path().join(folder).join("back").exists());
+    assert_eq!(
+        std::fs::read(local.path().join(folder).join("empty.txt")).unwrap(),
+        Vec::<u8>::new()
+    );
+    assert_eq!(
+        std::fs::read(local.path().join(folder).join(relative).join("报告.bin")).unwrap(),
+        [0, 255, 2, 3]
+    );
+    manager.shutdown().await;
+    server.abort();
 }
 async fn attach_destination(m: &Manager, root: PathBuf) -> tokio::task::JoinHandle<()> {
     let (fs, job) = setup(root, false).await;
@@ -967,6 +1193,13 @@ async fn real_sftp_roundtrip_directory_background_and_preview() {
     m.submit(id.clone(), vec![source.entries[0].id.clone()], target.id)
         .await
         .unwrap();
+    let created = std::fs::metadata(local.path().join("folder"))
+        .unwrap()
+        .created()
+        .ok()
+        .and_then(|stamp| stamp.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis() as u64);
+    assert_eq!(source.entries[0].created, created);
     let uploaded = settled(&m, &id).await;
     assert_eq!(uploaded.phase, "completed");
     let root = &uploaded.sources[0];
@@ -987,6 +1220,7 @@ async fn real_sftp_roundtrip_directory_background_and_preview() {
         .await
         .unwrap();
     let file = src.entries.iter().find(|e| e.meta.kind == "file").unwrap();
+    assert_eq!(file.created, None);
     let (bytes, truncated) = m.preview(&file.id, 1024).await.unwrap();
     assert_eq!(bytes.len(), 1024);
     assert!(truncated);

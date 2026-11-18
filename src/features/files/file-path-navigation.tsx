@@ -158,7 +158,7 @@ export function FilePathNavigation({
                         />
                         <DropdownMenuContent
                           align="start"
-                          className="files-options-popup files-breadcrumb-menu"
+                          className="files-breadcrumb-menu"
                         >
                           {collapsed.map((parent) => (
                             <DropdownMenuItem

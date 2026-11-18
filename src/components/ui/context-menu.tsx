@@ -41,7 +41,7 @@ export function ContextMenuContent({
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-content"
           className={cn(
-            "floating-surface min-w-44 max-h-(--available-height) overflow-auto rounded-lg p-1 text-sm text-popover-foreground outline-none duration-aide-fast data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "floating-surface min-w-44 max-h-(--available-height) overflow-auto rounded-lg p-1 text-sm text-popover-foreground outline-none duration-aide-fast data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none",
             className,
           )}
           {...props}

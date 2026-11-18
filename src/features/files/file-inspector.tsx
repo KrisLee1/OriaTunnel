@@ -70,6 +70,12 @@ export function FilePropertiesContent({ target }: { target: FileTarget }) {
   const details = [
     ["size", entry.kind === "file" ? size(entry.size) : "—"],
     [
+      "created",
+      entry.created == null
+        ? "—"
+        : new Date(entry.created).toLocaleString(i18n.language),
+    ],
+    [
       "modified",
       entry.modified
         ? new Date(entry.modified).toLocaleString(i18n.language)

@@ -1,4 +1,9 @@
+mod completion;
+use completion::CompletionArchive;
 mod direct;
+mod manifest;
+mod preparation;
+use manifest::Manifest;
 mod text;
 pub use text::{TextDocument, TextSaveError};
 pub mod fs;
@@ -29,6 +34,7 @@ pub struct Entry {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
+    pub created: Option<u64>,
     pub id: String,
     pub name: String,
     #[serde(flatten)]
@@ -63,6 +69,21 @@ pub struct RemoteEndpoint {
     pub route_key: String,
     pub route: Vec<String>,
 }
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct ScanProgress {
+    pub items: usize,
+    pub bytes: u64,
+    pub directory: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PlannedEntry {
+    root: usize,
+    path: String,
+    destination: String,
+    meta: Meta,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SourceDetails {
     pub destination: String,
@@ -104,9 +125,15 @@ pub struct Task {
     pub speed: Option<u64>,
     #[serde(default)]
     pub eta: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elapsed_ms: Option<u64>,
     pub total: u64,
     pub count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scan: Option<ScanProgress>,
     pub completed: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_archive: Option<CompletionArchive>,
     pub skipped: usize,
     pub revision: u64,
     pub error: Option<String>,
@@ -257,6 +284,7 @@ pub struct Manager {
     revision: std::sync::atomic::AtomicU64,
     pub session_cancels: Mutex<HashMap<String, CancellationToken>>,
     journal_lock: Mutex<()>,
+    archive_keys: Mutex<HashSet<String>>,
     pub sessions: Mutex<BTreeMap<String, Session>>,
     pub remotes: Mutex<HashMap<String, Fs>>,
     pub route_keys: Mutex<HashMap<String, String>>,
@@ -297,6 +325,17 @@ impl Manager {
             revision: 0.into(),
             session_cancels: Default::default(),
             journal_lock: Default::default(),
+            archive_keys: Mutex::new(
+                std::fs::read_dir(journal.with_extension("completed"))
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter_map(|entry| {
+                        let key = entry.file_name().into_string().ok()?;
+                        (uuid::Uuid::parse_str(&key).ok()?.to_string() == key).then_some(key)
+                    })
+                    .collect(),
+            ),
             sessions: Default::default(),
             remotes: Default::default(),
             route_keys: Default::default(),
@@ -454,14 +493,34 @@ impl Manager {
         })();
         if outcome.is_err() {
             *self.warning.lock().unwrap() = Some("journalWriteFailed".into());
+        } else {
+            self.prune_archives(&list);
         }
     }
-    pub fn change(&self, id: &str, f: impl FnOnce(&mut Task)) {
+    fn update(&self, id: &str, f: impl FnOnce(&mut Task)) {
         if let Some(t) = self.tasks.lock().unwrap().get_mut(id) {
             f(t);
             t.revision += 1;
         }
+    }
+    pub fn change(&self, id: &str, f: impl FnOnce(&mut Task)) {
+        self.update(id, f);
         self.publish();
+    }
+
+    // Every commit still checkpoints its exact recovery state. Coalesce only the
+    // notifications sent to windows when many small files finish back to back.
+    fn transfer_change(
+        &self,
+        id: &str,
+        reported: &mut Option<std::time::Instant>,
+        f: impl FnOnce(&mut Task),
+    ) {
+        self.update(id, f);
+        if reported.is_none_or(|last| last.elapsed() >= std::time::Duration::from_millis(250)) {
+            self.publish();
+            *reported = Some(std::time::Instant::now());
+        }
     }
     pub fn session_change(&self, id: &str, f: impl FnOnce(&mut Session)) {
         if let Some(s) = self.sessions.lock().unwrap().get_mut(id) {
@@ -511,6 +570,7 @@ impl Manager {
                     session: None,
                 })?;
                 entries.push(FileEntry {
+                    created: None,
                     id,
                     name: path,
                     meta,
@@ -559,7 +619,19 @@ impl Manager {
             session: session.clone(),
         })?;
         let mut entries = Vec::new();
-        for (name, meta) in fs.list(&path).await? {
+        let listing = fs.list(&path).await.map_err(|error| {
+            if error == "directoryLimit" {
+                "directoryBrowseLimit".to_owned()
+            } else {
+                error
+            }
+        })?;
+        for fs::DirectoryChild {
+            name,
+            meta,
+            created,
+        } in listing
+        {
             let p = fs.join(&path, &name)?;
             let id = self.register(Entry {
                 mutable: true,
@@ -568,7 +640,12 @@ impl Manager {
                 meta: meta.clone(),
                 session: session.clone(),
             })?;
-            entries.push(FileEntry { id, name, meta });
+            entries.push(FileEntry {
+                id,
+                name,
+                meta,
+                created,
+            });
         }
         let parent = if session.is_some() {
             path.rsplit_once('/')
@@ -731,7 +808,16 @@ impl Manager {
             .get(id)
             .cloned()
             .ok_or("notConnected")?;
-        if s.phase != "connected" || !self.remotes.lock().unwrap().contains_key(id) {
+        let usable = self
+            .remotes
+            .lock()
+            .unwrap()
+            .get(id)
+            .is_some_and(|fs| match fs {
+                Fs::Local => true,
+                Fs::Remote(remote) => !remote.raw.is_closed(),
+            });
+        if s.phase != "connected" || !usable {
             return Err("notConnected".into());
         }
         Ok(Some(RemoteEndpoint {
@@ -909,9 +995,12 @@ impl Manager {
             bytes: 0,
             speed: None,
             eta: None,
+            elapsed_ms: Some(0),
             total: 0,
             count: 0,
+            scan: None,
             completed: vec![],
+            completed_archive: None,
             skipped: 0,
             revision: 1,
             error: None,
@@ -953,10 +1042,14 @@ impl Manager {
             if let Err(mut e) = result {
                 if e == "cancelled" && c.pause.load(Ordering::SeqCst) {
                     e = "paused".into();
+                } else if e == "cancelled" && manager.closing.load(Ordering::SeqCst) {
+                    e = "interrupted".into();
                 }
                 manager.change(&id, |t| {
                     t.phase = if e == "paused" {
                         "paused"
+                    } else if e == "interrupted" {
+                        "interrupted"
                     } else if e == "cancelled" {
                         "cancelled"
                     } else if e == "conflict" || e == "replaceUnsupported" {
@@ -1025,166 +1118,59 @@ impl Manager {
         });
     }
     async fn run(&self, id: &str, sources: Vec<Entry>, target: Entry, c: &Control) -> Result<()> {
-        let mut root_sizes: BTreeMap<_, Option<u64>> = sources
-            .iter()
-            .map(|source| (source.path.clone(), Some(0)))
-            .collect();
-        self.change(id, |t| {
-            t.phase = "preparing".into();
-            t.source_kinds = sources
-                .iter()
-                .map(|source| source.meta.kind.clone())
-                .collect();
-            t.bytes = 0;
-            t.total = 0;
-            t.count = 0;
-            t.error = None;
-            t.conflict = None;
-            t.conflict_source = None;
-            t.current_source = None;
-            if t.skipped_sources.is_empty() {
-                t.skipped = 0;
-            }
-            t.speed = None;
-            t.eta = None;
-        });
-        let mut pending: Vec<_> = sources
-            .into_iter()
-            .map(|e| {
-                let name = e
-                    .path
-                    .trim_end_matches(['/', '\\'])
-                    .rsplit(['/', '\\'])
-                    .next()
-                    .unwrap_or("")
-                    .to_owned();
-                let root = e.path.clone();
-                (e, target.path.clone(), name, root)
-            })
-            .collect();
-        let mut files = vec![];
-        let mut conflicts = false;
-        let mut conflict_reason = "conflict";
-        let mut visited = 0;
-        while let Some((source, parent, name, root)) = pending.pop() {
-            check(c)?;
-            if source.meta.kind == "file" {
-                if let Some(Some(size)) = root_sizes.get_mut(&root) {
-                    *size = size.saturating_add(source.meta.size);
-                }
-            }
-            if self.tasks.lock().unwrap()[id]
-                .skipped_sources
-                .contains(&source.path)
-            {
-                if source.meta.kind == "directory" {
-                    root_sizes.insert(root, None);
-                }
-                continue;
-            }
-            visited += 1;
-            if visited > 50_000 {
-                return Err("directoryLimit".into());
-            }
-            let mut dest = target.fs.join(&parent, &name)?;
-            if source.path == root {
-                self.change(id, |task| {
-                    task.source_details
-                        .entry(root.clone())
-                        .or_insert(SourceDetails {
-                            destination: dest.clone(),
-                            size: (source.meta.kind == "file").then_some(source.meta.size),
-                        });
-                });
-            }
-            if source.meta.kind == "directory" {
-                match target.fs.meta(&dest).await? {
-                    Some(m) if m.kind == "directory" => {}
-                    Some(_) => {
-                        let policy = self.conflict_policy(id, &source.path, &dest);
-                        if policy == "skip" {
-                            self.mark_skipped(id, &source.path);
-                            root_sizes.insert(root, None);
-                            continue;
-                        }
-                        if policy == "keep" {
-                            let kept = self.tasks.lock().unwrap()[id]
-                                .conflict_choices
-                                .iter()
-                                .find(|choice| {
-                                    choice.source.as_deref() == Some(&source.path)
-                                        && choice.target == dest
-                                })
-                                .and_then(|choice| choice.kept.clone());
-                            if let Some(kept) = kept {
-                                if target
-                                    .fs
-                                    .meta(&kept)
-                                    .await?
-                                    .is_none_or(|meta| meta.kind != "directory")
-                                {
-                                    return Err("targetChanged".into());
-                                }
-                                dest = kept;
-                            } else {
-                                let kept = available_name(&target.fs, &dest, "directory").await?;
-                                target.fs.mkdir(&kept).await?;
-                                self.remember_kept_directory(id, &source.path, &dest, &kept);
-                                dest = kept;
-                            }
-                        } else {
-                            if !conflicts {
-                                self.record_conflict(id, &source.path, &dest);
-                                conflict_reason = if policy == "replace" {
-                                    "replaceUnsupported"
-                                } else {
-                                    "conflict"
-                                };
-                            }
-                            conflicts = true;
-                            root_sizes.insert(root, None);
-                            continue;
-                        }
-                    }
-                    None => target.fs.mkdir(&dest).await?,
-                }
-                if source.path == root {
-                    self.change(id, |task| {
-                        if let Some(detail) = task.source_details.get_mut(&root) {
-                            detail.destination = dest.clone();
+        let start = std::time::Instant::now();
+        let prior_ms = self.tasks.lock().unwrap()[id].elapsed_ms.unwrap_or(0);
+        let elapsed_ms = || prior_ms.saturating_add(start.elapsed().as_millis() as u64);
+        let mut prior_sample: Option<(u64, u64)> = None;
+        let mut tick = tokio::time::interval(std::time::Duration::from_millis(500));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let work = self.copy(id, sources, target, c);
+        tokio::pin!(work);
+        loop {
+            tokio::select! {
+                result = &mut work => {
+                    self.change(id, |t| {
+                        t.elapsed_ms = Some(elapsed_ms());
+                        if result.is_ok() {
+                            t.phase = if t.skipped > 0 { "partial" } else { "completed" }.into();
+                            t.finished = Some(crate::model::timestamp());
+                            t.speed = None;
+                            t.eta = None;
+                            t.conflict = None;
+                            t.conflict_source = None;
                         }
                     });
+                    return result;
                 }
-                for (n, meta) in source.fs.list(&source.path).await? {
-                    let path = source.fs.join(&source.path, &n)?;
-                    pending.push((
-                        Entry {
-                            path,
-                            meta,
-                            ..source.clone()
-                        },
-                        dest.clone(),
-                        n,
-                        root.clone(),
-                    ));
-                }
-            } else if source.meta.kind == "file" {
-                files.push((source, dest));
-            } else {
-                self.mark_skipped(id, &source.path);
+                _ = tick.tick() => self.change(id, |t| {
+                    let ms = elapsed_ms();
+                    t.elapsed_ms = Some(ms);
+                    if matches!(t.phase.as_str(), "transferring" | "committing") {
+                        if let Some((bytes, when)) = prior_sample {
+                            let seconds = (ms - when) as f64 / 1000.0;
+                            if seconds > 0.0 {
+                                let speed = (t.bytes.saturating_sub(bytes) as f64 / seconds).round() as u64;
+                                t.speed = Some(speed);
+                                t.eta = (speed > 0).then(|| t.total.saturating_sub(t.bytes).div_ceil(speed));
+                            }
+                        }
+                        prior_sample = Some((t.bytes, ms));
+                    } else {
+                        prior_sample = None;
+                    }
+                }),
             }
         }
-        let total = files.iter().map(|(s, _)| s.meta.size).sum();
-        self.change(id, |t| {
-            t.total = total;
-            t.count = files.len();
-            for (root, size) in root_sizes {
-                if let (Some(detail), Some(size)) = (t.source_details.get_mut(&root), size) {
-                    detail.size = Some(size);
-                }
-            }
-        });
-        let (mut completed, host_slots) = {
+    }
+
+    async fn copy(&self, id: &str, sources: Vec<Entry>, target: Entry, c: &Control) -> Result<()> {
+        let preparation::Prepared {
+            mut files,
+            mut completed,
+            direct_paths,
+            mut conflict,
+        } = self.prepare(id, &sources, &target, c).await?;
+        let host_slots = {
             let tasks = self.tasks.lock().unwrap();
             let task = &tasks[id];
             let mut host_ids = vec![&task.host_id];
@@ -1194,7 +1180,7 @@ impl Manager {
             host_ids.sort();
             host_ids.dedup();
             let mut hosts = self.hosts.lock().unwrap();
-            let slots: Vec<_> = host_ids
+            host_ids
                 .into_iter()
                 .map(|host| {
                     hosts
@@ -1202,23 +1188,18 @@ impl Manager {
                         .or_insert_with(|| Arc::new(Semaphore::new(2)))
                         .clone()
                 })
-                .collect();
-            (
-                task.completed.iter().cloned().collect::<HashSet<_>>(),
-                slots,
-            )
+                .collect::<Vec<_>>()
         };
-        // Previously completed files are already durable. Account for them in one snapshot.
-        let resumed_bytes = exclude_completed(&mut files, &completed);
-        if resumed_bytes != 0 {
-            self.change(id, |t| t.bytes += resumed_bytes);
-        }
-        let direct_paths = files
-            .iter()
-            .all(|(source, dest)| direct::safe_path(&source.path) && direct::safe_path(dest));
         let mut direct_plan = None;
         let mut direct_checked = false;
-        for (source, mut dest) in files {
+        let mut last_transfer_report = None;
+        while let Some(item) = files.next()? {
+            let mut dest = item.destination;
+            let source = Entry {
+                path: item.path,
+                meta: item.meta,
+                ..sources[item.root].clone()
+            };
             check(c)?;
             if completed.contains(&source.path) {
                 self.change(id, |t| t.bytes += source.meta.size);
@@ -1237,15 +1218,14 @@ impl Manager {
                 } else if policy == "replace" && meta.kind == "file" {
                     replace = true;
                 } else {
-                    if !conflicts {
+                    if conflict.is_none() {
                         self.record_conflict(id, &source.path, &dest);
-                        conflict_reason = if policy == "replace" {
+                        conflict = Some(if policy == "replace" {
                             "replaceUnsupported"
                         } else {
                             "conflict"
-                        };
+                        });
                     }
-                    conflicts = true;
                     continue;
                 }
             }
@@ -1298,7 +1278,7 @@ impl Manager {
                 &parent,
                 &format!(".oria-transfer-{}.part", uuid::Uuid::new_v4()),
             )?;
-            self.change(id, |t| {
+            self.transfer_change(id, &mut last_transfer_report, |t| {
                 t.phase = "transferring".into();
                 t.destination = Some(dest.clone());
                 t.current_source = Some(source.path.clone());
@@ -1317,15 +1297,12 @@ impl Manager {
                     self.change(id, |task| {task.direct_pending = true; task.direct_pid = None;});
                     self.save();
                     let base = self.tasks.lock().unwrap()[id].bytes;
-                    let started = std::time::Instant::now();
                     let mut reported = 0; let mut known_pid = None;
                     let copied = plan.copy(&source.path, &target.fs, &temp, source.meta.size, &c.cancel,
                         |bytes, pid, stopped| {
                             let changed_pid = pid != known_pid; known_pid = pid; reported = bytes;
-                            let speed = (bytes as f64 / started.elapsed().as_secs_f64().max(0.001)) as u64;
                             self.change(id, |task| {
-                                task.bytes = base + bytes; task.speed = Some(speed);
-                                task.eta = (speed > 0).then(|| task.total.saturating_sub(task.bytes) / speed.max(1));
+                                task.bytes = base + bytes;
                                 task.direct_pid = pid;
                                 if stopped {task.direct_pending = false;}
                             });
@@ -1350,9 +1327,12 @@ impl Manager {
                 let mut last = std::time::Instant::now();
                 let mut reported = 0;
                 let copied: Result<()> = async {
-                    loop {
+                    while offset < source.meta.size {
                         check(c)?;
-                        let bytes = tokio::select!{_=c.cancel.cancelled()=>return Err("cancelled".into()),bytes=reader.read(offset)=>bytes?};
+                        let remaining = source.meta.size - offset;
+                        // A relay destination may accept smaller writes than its source's reads.
+                        let length = if matches!(target.fs, Fs::Remote(_)) { remaining.min(32768) } else { remaining };
+                        let bytes = tokio::select!{_=c.cancel.cancelled()=>return Err("cancelled".into()),bytes=reader.read_at_most(offset, length)=>bytes?};
                         if bytes.is_empty() {
                             break;
                         }
@@ -1360,14 +1340,7 @@ impl Manager {
                         tokio::select!{_=c.cancel.cancelled()=>return Err("cancelled".into()),result=writer.write(offset,bytes)=>result?};
                         offset += len;
                         if last.elapsed().as_millis() >= 250 {
-                            let speed =
-                                ((offset - reported) as f64 / last.elapsed().as_secs_f64()) as u64;
-                            self.change(id, |t| {
-                                t.bytes += offset - reported;
-                                t.speed = Some(speed);
-                                t.eta = (speed > 0)
-                                    .then(|| t.total.saturating_sub(t.bytes) / speed.max(1));
-                            });
+                            self.change(id, |t| t.bytes += offset - reported);
                             reported = offset;
                             last = std::time::Instant::now();
                         }
@@ -1392,7 +1365,7 @@ impl Manager {
                 if replace && target.fs.meta(&dest).await? != before {
                     return Err("targetChanged".into());
                 }
-                self.change(id, |t| {
+                self.transfer_change(id, &mut last_transfer_report, |t| {
                     t.phase = "committing".into();
                     t.commit_target = Some(dest.clone());
                     t.commit_source = Some(source.path.clone());
@@ -1412,7 +1385,7 @@ impl Manager {
                     }
                     return Err(error);
                 }
-                self.change(id, |t| {
+                self.transfer_change(id, &mut last_transfer_report, |t| {
                     t.bytes += offset - reported;
                     t.completed.push(source.path.clone());
                     t.phase = "transferring".into();
@@ -1437,24 +1410,12 @@ impl Manager {
             }
             result?;
             completed.insert(source.path);
+            self.archive_completed(id)?;
             self.save();
         }
-        if conflicts {
-            return Err(conflict_reason.into());
+        if let Some(reason) = conflict {
+            return Err(reason.into());
         }
-        self.change(id, |t| {
-            t.phase = if t.skipped > 0 {
-                "partial"
-            } else {
-                "completed"
-            }
-            .into();
-            t.finished = Some(crate::model::timestamp());
-            t.speed = None;
-            t.eta = None;
-            t.conflict = None;
-            t.conflict_source = None;
-        });
         Ok(())
     }
     pub async fn control(
@@ -1693,7 +1654,7 @@ impl Manager {
                 {
                     return Err("targetChanged".into());
                 }
-                if !task.completed.iter().any(|p| p == source) {
+                if !self.completed_paths(&task)?.contains(source) {
                     task.completed.push(source.into());
                 }
             }
@@ -1888,8 +1849,8 @@ impl Manager {
                         };
                         if m.kind == "directory" && !visited {
                             pending.push((path.clone(), true));
-                            for (n, _) in entry.fs.list(&path).await? {
-                                pending.push((entry.fs.join(&path, &n)?, false));
+                            for child in entry.fs.list(&path).await? {
+                                pending.push((entry.fs.join(&path, &child.name)?, false));
                             }
                         } else {
                             entry.fs.remove(&path, m.kind == "directory").await?;
@@ -1937,19 +1898,6 @@ fn local_parent(path: &str) -> Result<String> {
         .map(str::to_owned)
         .ok_or("invalidPath".into())
 }
-fn exclude_completed(files: &mut Vec<(Entry, String)>, completed: &HashSet<String>) -> u64 {
-    let mut bytes = 0;
-    files.retain(|(entry, _)| {
-        if completed.contains(&entry.path) {
-            bytes += entry.meta.size;
-            false
-        } else {
-            true
-        }
-    });
-    bytes
-}
-
 fn check(c: &Control) -> Result<()> {
     if c.cancel.is_cancelled() {
         Err("cancelled".into())

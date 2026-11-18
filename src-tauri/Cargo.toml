@@ -31,7 +31,7 @@ flate2 = "1"
 data-encoding = "2"
 zeroize = "1.9.1"
 sha2 = "0.10.9"
-russh-sftp = "=3.0.1"
+russh-sftp = { version = "=3.0.1", path = "vendor/russh-sftp" }
 trash = "=5.2.9"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 rfd = { version = "0.16.0", default-features = false }

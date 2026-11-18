@@ -1,4 +1,6 @@
 {
+  "clearFilters": "清除篩選",
+  "noActivityYet": "目前沒有記錄",
   "active": "執行中",
   "activity": "記錄",
   "activityHint": "保留最近 1,000 條執行事件；本地記錄按 1 MiB × 3 輪轉。不記錄認證資訊、命令正文或轉發內容。",

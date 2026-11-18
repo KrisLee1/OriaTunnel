@@ -4,6 +4,8 @@ import i18n from "@/i18n";
 import { TransferItem } from "./transfer-item";
 import { TransferBatchDetails } from "./transfer-batch-details";
 import { TransferQueue } from "./transfer-queue";
+import { TransferDetails } from "./transfer-details";
+import { FileTransferDetailsContext } from "./transfer-state";
 import type { Task } from "./api";
 const task: Task = {
   id: "fixture",
@@ -29,6 +31,15 @@ const task: Task = {
   eta: null,
 };
 describe("transfer item information", () => {
+  it("shows live scan evidence in both row widths without a premature total or percentage", () => {
+    const html = renderToStaticMarkup(
+      <TransferItem task={{ ...task, phase: "preparing", scan: { items: 250001, bytes: 60 * 1024 ** 3, directory: "/folder/nested" } }} onAction={() => {}} />,
+    );
+    expect(html).toContain("已扫描 250,001 项 · 60.0 GiB");
+    expect(html).toContain('aria-hidden="true">已扫描 250,001 项');
+    expect(html).toContain("/folder/nested");
+    expect(html).toContain('aria-valuenow="0"');
+  });
   it("keeps clear unavailable until recovery and remote process checks are settled", () => {
     const label = (key: string) => 'aria-label="' + i18n.t(key, { ns: "files" }) + '"';
     const row = (changes: Partial<Task>) => renderToStaticMarkup(
@@ -131,7 +142,7 @@ describe("transfer item information", () => {
       <TransferQueue
         tasks={[
           task,
-          { ...task, id: "new", direction: "upload", started: 100 },
+          { ...task, id: "new", direction: "upload", started: Date.now() },
         ]}
         expanded
         onToggle={() => {}}
@@ -146,6 +157,7 @@ describe("transfer item information", () => {
     expect(html.indexOf('data-transfer-task="new"')).toBeLessThan(
       html.indexOf('data-transfer-task="fixture"'),
     );
+    expect(html).not.toContain("files-time-heading");
     expect((html.match(/files-transfer-group-heading/g) || []).length).toBe(2);
   });
   it("keeps a long queue windowed while counting every task and offering the next page", () => {
@@ -271,7 +283,8 @@ describe("transfer item information", () => {
           phase: "transferring",
           bytes: 42,
           speed: 21,
-          eta: 2,
+          eta: 3661,
+          elapsedMs: 65000,
           finished: null,
         }}
         onAction={() => {}}
@@ -279,8 +292,18 @@ describe("transfer item information", () => {
     );
     expect(html).toContain('data-slot="progress"');
     expect(html).toContain("21 B/s");
-    expect(html).toContain("2s");
+    expect(html).toContain("<dt>预计剩余</dt><dd>1小时 1分 1秒</dd>");
+    expect(html).toContain("<dt>已用时间</dt><dd>1分 5秒</dd>");
     expect(html).toContain("lucide-pause");
     expect(html).not.toContain("lucide-trash-2");
+  });
+  it("formats measured durations and a stalled rate in the connection edge hover card", () => {
+    const entry = { ...task, phase: "transferring", finished: null, speed: 0, eta: 90061, elapsedMs: 59000 };
+    const html = renderToStaticMarkup(<FileTransferDetailsContext.Provider value={[entry]}>
+      <TransferDetails taskIds={[entry.id]} />
+    </FileTransferDetailsContext.Provider>);
+    expect(html).toContain("1天 1小时 1分 1秒");
+    expect(html).toContain("59秒");
+    expect(html).toContain("0 B/s");
   });
 });

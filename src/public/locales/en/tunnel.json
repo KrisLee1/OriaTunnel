@@ -1,4 +1,6 @@
 {
+  "clearFilters": "Clear filters",
+  "noActivityYet": "No logs yet",
   "serviceProtocol": "Service protocol",
   "openService": "Open service",
   "serviceSelectProtocol": "Select a service protocol first",

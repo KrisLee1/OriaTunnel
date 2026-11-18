@@ -1,4 +1,6 @@
 {
+  "clearFilters": "Filter zurücksetzen",
+  "noActivityYet": "Noch keine Protokolle",
   "serviceProtocol": "Dienstprotokoll",
   "openService": "Dienst öffnen",
   "serviceSelectProtocol": "Wählen Sie zuerst ein Dienstprotokoll",

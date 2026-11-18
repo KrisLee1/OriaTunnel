@@ -1,4 +1,6 @@
 {
+  "clearFilters": "필터 지우기",
+  "noActivityYet": "아직 로그가 없습니다",
   "serviceProtocol": "서비스 프로토콜",
   "openService": "서비스 열기",
   "serviceSelectProtocol": "먼저 서비스 프로토콜을 선택하세요",

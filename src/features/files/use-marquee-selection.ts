@@ -69,22 +69,14 @@ type Gesture = {
 };
 export function useMarqueeSelection({
   viewport,
-  ids,
-  columns,
-  rowHeight,
-  gapX = 0,
-  gapY = 0,
+  hitTest,
   selected,
   onChange,
   onClick,
   onActivate,
 }: {
   viewport: RefObject<HTMLDivElement | null>;
-  ids: string[];
-  columns: number;
-  rowHeight: number;
-  gapX?: number;
-  gapY?: number;
+  hitTest: (rect: SelectionRect, width: number) => string[];
   selected: string[];
   onChange: (ids: string[]) => void;
   onClick: (id: string, ctrl: boolean, shift: boolean) => void;
@@ -97,21 +89,13 @@ export function useMarqueeSelection({
     suppressActivation = useRef(false),
     last = useRef(selected);
   const latest = useRef({
-    ids,
-    columns,
-    rowHeight,
-    gapX,
-    gapY,
+    hitTest,
     onChange,
     onClick,
     onActivate,
   });
   latest.current = {
-    ids,
-    columns,
-    rowHeight,
-    gapX,
-    gapY,
+    hitTest,
     onChange,
     onClick,
     onActivate,
@@ -144,19 +128,7 @@ export function useMarqueeSelection({
         : rect,
     );
     const p = latest.current;
-    const next = mergeMarquee(
-      g.base,
-      marqueeHits(
-        p.ids,
-        rect,
-        el.clientWidth,
-        p.columns,
-        p.rowHeight,
-        p.gapX,
-        p.gapY,
-      ),
-      g.mode,
-    );
+    const next = mergeMarquee(g.base, p.hitTest(rect, el.clientWidth), g.mode);
     if (
       next.length !== last.current.length ||
       next.some((id, i) => id !== last.current[i])

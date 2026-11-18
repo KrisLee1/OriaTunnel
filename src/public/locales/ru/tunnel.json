@@ -1,4 +1,6 @@
 {
+  "clearFilters": "Сбросить фильтры",
+  "noActivityYet": "Записей в журнале пока нет",
   "serviceProtocol": "Протокол службы",
   "openService": "Открыть службу",
   "serviceSelectProtocol": "Сначала выберите протокол службы",

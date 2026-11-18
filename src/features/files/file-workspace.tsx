@@ -1,3 +1,5 @@
+import { PageEmptyState } from "@/components/page-empty-state";
+import { FileDirectoryEmpty } from "./file-directory-empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   FileActivityContext,
@@ -11,7 +13,14 @@ import { motion } from "motion/react";
 import { FilePathNavigation } from "./file-path-navigation";
 import { toast } from "@/components/ui/toast";
 import { readLocalDirectory, saveLocalDirectory } from "./local-directory";
-import { useMarqueeSelection } from "./use-marquee-selection";
+import {
+  groupByTime,
+  TIME_HEADING_HEIGHT,
+  useLocalDay,
+  timeGroupLabel,
+} from "./time-groups";
+import { fileSectionLayout } from "./file-section-layout";
+import { marqueeHits, useMarqueeSelection } from "./use-marquee-selection";
 import { FileArtwork } from "./file-artwork";
 import { FilePropertiesDialog, type FileTarget } from "./file-inspector";
 import { FilePreviewDialog } from "./file-preview";
@@ -23,6 +32,7 @@ import { FileWorkspacePanel } from "./file-panel-layout";
 import {
   FileOptionsMenu,
   FileSortOptions,
+  FileTimeGroupOption,
   FileCreateOptions,
 } from "./file-options-menu";
 import {
@@ -119,6 +129,7 @@ import {
   type TransferFolder,
 } from "./api";
 import "./files.css";
+import { recoverTransfer, type FileSide } from "./recover-transfer";
 const Context = createContext<{ open: (host?: string) => void; count: number }>(
   { open: () => {}, count: 0 },
 );
@@ -217,6 +228,20 @@ export function FileWorkspaceProvider({
   const { queue, changeQueue } = queueControl;
   const savedDirectories = useRef<Record<string, string>>({});
   const connectionGeneration = useRef({ local: 0, remote: 0 });
+  const recoveryQueue = useRef(Promise.resolve());
+  const recoveringIds = useRef(new Set<string>());
+  const waitingConnection = useRef<{
+    taskId: string;
+    host: string;
+    side: FileSide;
+    session?: string;
+    finish: (id?: string) => void;
+  } | null>(null);
+  const finishConnection = useCallback((id?: string) => {
+    const pending = waitingConnection.current;
+    waitingConnection.current = null;
+    pending?.finish(id);
+  }, []);
   const pendingRemote = useRef<number | null>(null);
   const authSide = useRef<"local" | "remote">("remote");
   const dirs = useRef<{ local: Directory | null; remote: Directory | null }>({
@@ -292,6 +317,11 @@ export function FileWorkspaceProvider({
       side: "local" | "remote" = "remote",
     ) => {
       const generation = ++connectionGeneration.current[side];
+      const waiting = waitingConnection.current;
+      if (waiting?.side === side) {
+        if (waiting.host === id) waiting.session = undefined;
+        else finishConnection();
+      }
       if (side === "remote") pendingRemote.current = generation;
       if (side === "local") {
         setSourceHost(id);
@@ -301,19 +331,34 @@ export function FileWorkspaceProvider({
         setSid(null);
       }
       dirs.current[side] = null;
+      let opened = false;
       await perform(async () => {
         const session = await api.connect(id, secrets, remember);
         if (generation !== connectionGeneration.current[side]) {
           await api.disconnect(session);
           return;
         }
+        opened = true;
+        if (
+          waiting &&
+          waitingConnection.current === waiting &&
+          waiting.side === side
+        )
+          waiting.session = session;
         if (side === "local") setSourceSid(session);
         else setSid(session);
       });
+      if (
+        !opened &&
+        generation === connectionGeneration.current[side] &&
+        waiting?.side === side &&
+        waitingConnection.current === waiting
+      )
+        finishConnection();
       if (side === "remote" && pendingRemote.current === generation)
         pendingRemote.current = null;
     },
-    [perform],
+    [perform, finishConnection],
   );
   useEffect(() => {
     mounted.current = true;
@@ -344,6 +389,34 @@ export function FileWorkspaceProvider({
   }, [viewer]);
   const current = snapshot.sessions.find((s) => s.id === sid);
   const sourceCurrent = snapshot.sessions.find((s) => s.id === sourceSid);
+  useEffect(() => {
+    const waiting = waitingConnection.current;
+    if (!waiting?.session) return;
+    const session = snapshot.sessions.find((s) => s.id === waiting.session);
+    if (session?.phase === "connected") finishConnection(session.id);
+    else if (
+      session &&
+      (session.phase === "disconnected" ||
+        session.phase === "credentialsRequired")
+    ) {
+      const canPrompt =
+        (session.phase === "credentialsRequired" ||
+          session.error === "authenticationFailed") &&
+        session.route.some((id) =>
+          data.hosts.some(
+            (host) => host.id === id && host.authMethod !== "agent",
+          ),
+        );
+      if (!canPrompt) finishConnection();
+    }
+  }, [snapshot.sessions, sid, sourceSid, data.hosts, finishConnection]);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+      finishConnection();
+    },
+    [finishConnection],
+  );
   const connected = current?.phase === "connected";
   const sourceConnected = sourceCurrent?.phase === "connected";
   const verification = [sourceCurrent, current].find(
@@ -351,13 +424,19 @@ export function FileWorkspaceProvider({
   );
   useEffect(() => {
     for (const session of [sourceCurrent, current]) {
-      if (!session || (!session.error && session.phase !== "credentialsRequired"))
+      if (
+        !session ||
+        (!session.error && session.phase !== "credentialsRequired")
+      )
         continue;
       const key = JSON.stringify([session.id, session.phase, session.error]);
       if (notifiedSessions.current.has(key)) continue;
       if (
-        (session.phase === "credentialsRequired" || session.error === "authenticationFailed") &&
-        session.route.some((id) => data.hosts.some((h) => h.id === id && h.authMethod !== "agent"))
+        (session.phase === "credentialsRequired" ||
+          session.error === "authenticationFailed") &&
+        session.route.some((id) =>
+          data.hosts.some((h) => h.id === id && h.authMethod !== "agent"),
+        )
       ) {
         if (auth) continue;
         notifiedSessions.current.add(key);
@@ -387,7 +466,12 @@ export function FileWorkspaceProvider({
           pendingRemote.current !== null ||
           (sid &&
             (!current ||
-              !["failed", "disconnected", "closed", "credentialsRequired"].includes(current.phase)))
+              ![
+                "failed",
+                "disconnected",
+                "closed",
+                "credentialsRequired",
+              ].includes(current.phase)))
         )
           return;
         id = host || preferredHost;
@@ -439,7 +523,10 @@ export function FileWorkspaceProvider({
       if (!d || d.pointerId !== e.pointerId) return;
       dragRef.current = { ...d, x: e.clientX, y: e.clientY };
       if (dragPreview.current)
-        dragPreview.current.style.transform = dragTransform(e.clientX, e.clientY);
+        dragPreview.current.style.transform = dragTransform(
+          e.clientX,
+          e.clientY,
+        );
       updateTarget();
     };
     const cancel = () => {
@@ -510,12 +597,62 @@ export function FileWorkspaceProvider({
   };
   const taskAction = (task: Task, action: string, folder?: TransferFolder) => {
     if (action === "resolveConflict") conflict.show(task);
-    else
+    else if (action === "resume" || action === "verify") {
+      if (recoveringIds.current.has(task.id)) return;
+      recoveringIds.current.add(task.id);
+      recoveryQueue.current = recoveryQueue.current.then(async () => {
+        try {
+          if (!mounted.current) return;
+          const record = stateRef.current.tasks.find((t) => t.id === task.id);
+          if (
+            !record ||
+            active(record) ||
+            (record.phase === "cancelled" &&
+              !record.directPending &&
+              record.error !== "commitUnknown")
+          )
+            return;
+          await perform(() =>
+            recoverTransfer(
+              record,
+              action,
+              async (hostId, savedId, side, reconnect) => {
+                if (!mounted.current) return;
+                const sessions = stateRef.current.sessions.filter(
+                  (s) => s.hostId === hostId && s.phase === "connected",
+                );
+                const existing =
+                  sessions.find((s) => s.id === savedId) ?? sessions[0];
+                if (!reconnect && existing) return existing.id;
+                return new Promise<string | undefined>((finish) => {
+                  waitingConnection.current = {
+                    taskId: task.id,
+                    host: hostId,
+                    side,
+                    finish,
+                  };
+                  void connect(hostId, {}, [], side);
+                });
+              },
+              api.control,
+            ),
+          );
+        } finally {
+          recoveringIds.current.delete(task.id);
+        }
+      });
+    } else {
+      if (
+        (action === "clear" || action === "cancel") &&
+        waitingConnection.current?.taskId === task.id
+      )
+        finishConnection();
       void perform(() =>
         action === "openFolder" && folder
           ? api.openTransferFolder(task.id, folder)
           : controlTask(task, action),
       );
+    }
   };
   const previousActivities = useRef<FileActivity[]>([]);
   const activities = useMemo(
@@ -562,18 +699,14 @@ export function FileWorkspaceProvider({
           const status = left ? sourceCurrent : current;
           const ready = !remote || (left ? sourceConnected : connected);
           const otherRemote = left || !!sourceHost;
-          const otherReady = left
-            ? connected
-            : !sourceHost || sourceConnected;
+          const otherReady = left ? connected : !sourceHost || sourceConnected;
           const otherSide = left ? "remote" : "local";
           const transferKind =
             remote && otherRemote ? "relay" : remote ? "download" : "upload";
           return (
             <FilePane
               key={
-                session ||
-                selectedHost ||
-                (left ? "computer" : "disconnected")
+                session || selectedHost || (left ? "computer" : "disconnected")
               }
               side={side}
               remote={remote}
@@ -607,6 +740,8 @@ export function FileWorkspaceProvider({
                       return;
                     }
                     connectionGeneration.current[side]++;
+                    if (waitingConnection.current?.side === side)
+                      finishConnection();
                     if (left) {
                       setSourceHost(id);
                       setSourceSid(null);
@@ -649,7 +784,10 @@ export function FileWorkspaceProvider({
                 dragRef.current = value;
                 setDrag(value);
                 setDragTarget(
-                  dropTarget(document.elementFromPoint(value.x, value.y), value.side),
+                  dropTarget(
+                    document.elementFromPoint(value.x, value.y),
+                    value.side,
+                  ),
                 );
               }}
               dragTarget={dragTarget}
@@ -708,6 +846,8 @@ export function FileWorkspaceProvider({
         open={!!auth}
         onOpenChange={(v) => {
           if (!v) {
+            if (auth && waitingConnection.current?.session === auth.id)
+              finishConnection();
             setAuth(null);
             setSecrets({});
           }
@@ -715,7 +855,11 @@ export function FileWorkspaceProvider({
       >
         <DialogContent>
           <DialogTitle>{t("authentication")}</DialogTitle>
-          {auth?.error && <p className="inline-error" role="alert">{t(auth.error)}</p>}
+          {auth?.error && (
+            <p className="inline-error" role="alert">
+              {t(auth.error)}
+            </p>
+          )}
           {auth?.route
             .map((id) => data.hosts.find((h) => h.id === id))
             .filter((h) => !!h)
@@ -917,18 +1061,25 @@ type PaneProps = {
   onDrop: (ids: string[], target: string) => Promise<void>;
 };
 export function FilePane(p: PaneProps) {
-  const { t } = useTranslation("files");
+  const day = useLocalDay();
+  const { t, i18n } = useTranslation("files");
   const [dir, setDir] = useState<Directory | null>(null),
     [editPathRequest, requestPathEdit] = useState(0),
     [query, setQuery] = useState(""),
     [view, setView] = useState(
       () => localStorage.getItem(`oria-tunnel.files-view.${p.side}`) || "list",
     ),
+    [grouped, setGrouped] = useState(
+      () =>
+        localStorage.getItem(`oria-tunnel.files-group-time.${p.side}`) ===
+        "true",
+    ),
     [hidden, setHidden] = useState(false),
     [sort, setSort] = useState("name"),
     [descending, setDescending] = useState(false),
     [selected, setSelected] = useState<string[]>([]),
     [loading, setLoading] = useState(false),
+    [readError, setReadError] = useState<{ path: string; message: string }>(),
     [nativeTarget, setNativeTarget] = useState<string>(),
     [scroll, setScroll] = useState(0),
     [cols, setCols] = useState(3),
@@ -953,6 +1104,7 @@ export function FilePane(p: PaneProps) {
     async (next: string, record = true) => {
       const g = ++generation.current;
       setLoading(true);
+      setReadError(undefined);
       try {
         const d = await api.list(p.session || null, next);
         if (g !== generation.current) return false;
@@ -972,7 +1124,10 @@ export function FilePane(p: PaneProps) {
         }
         return true;
       } catch (e) {
-        if (g === generation.current) p.onError(String(e));
+        if (g === generation.current) {
+          setReadError({ path: next, message: String(e) });
+          p.onError(String(e));
+        }
         return false;
       } finally {
         if (g === generation.current) setLoading(false);
@@ -999,36 +1154,74 @@ export function FilePane(p: PaneProps) {
   useEffect(() => {
     setSelected([]);
   }, [query, hidden]);
-  const items = useMemo(
+  const sortedItems = useMemo(
     () => sorted(dir?.entries ?? [], query, hidden, sort, descending),
     [dir?.entries, query, hidden, sort, descending],
   );
-  const ordered = useMemo(() => items.map((item) => item.id), [items]);
+  const dateField = sort === "created" ? "created" : "modified";
+  const byTime = grouped && dir?.path !== ":computer:";
+  const newest = (sort !== "created" && sort !== "modified") || descending;
+  const sections = useMemo(() => {
+    const groups = byTime
+      ? groupByTime(
+          sortedItems,
+          (entry) =>
+            dateField === "created" ? entry.created : entry.modified || null,
+          day,
+          newest,
+        )
+      : [{ time: null, items: sortedItems }];
+    return groups.map((group) => ({
+      ...group,
+      ids: group.items.map((entry) => entry.id),
+    }));
+  }, [byTime, dateField, sortedItems, day, newest]);
+  const items = useMemo(
+    () => sections.flatMap((section) => section.items),
+    [sections],
+  );
+  const ordered = useMemo(
+    () => sections.flatMap((section) => section.ids),
+    [sections],
+  );
+  const changeGrouping = (value: boolean) => {
+    setGrouped(value);
+    localStorage.setItem(
+      `oria-tunnel.files-group-time.${p.side}`,
+      String(value),
+    );
+  };
   const rowHeight = view === "list" ? 40 : 100;
   const gapY = view === "list" ? 4 : 8;
   const gapX = view === "list" ? 0 : 8;
-  const rowCount =
-    view === "list" ? items.length : Math.ceil(items.length / cols);
-  const start = Math.max(0, Math.floor(scroll / rowHeight) - 5),
-    end = Math.min(
-      rowCount,
-      Math.ceil((scroll + viewportHeight) / rowHeight) + 5,
-    );
-  const visible =
-    view === "list"
-      ? items.slice(start, end)
-      : items.slice(start * cols, end * cols);
+  const columns = view === "list" ? 1 : cols;
+  const layout = useMemo(
+    () => fileSectionLayout(sections, columns, rowHeight),
+    [sections, columns, rowHeight],
+  );
+  const visibleTop = scroll - 5 * rowHeight;
+  const visibleBottom = scroll + viewportHeight + 5 * rowHeight;
   const chooseEntry = (id: string, ctrl: boolean, shift: boolean) => {
     setSelected(selection(selected, id, ordered, ctrl, shift, anchor.current));
     anchor.current = id;
   };
   const marquee = useMarqueeSelection({
     viewport,
-    ids: ordered,
-    columns: view === "list" ? 1 : cols,
-    rowHeight,
-    gapX,
-    gapY,
+    hitTest: (rect, width) =>
+      layout.sections.flatMap((section, index) =>
+        rect.top >= section.bottom ||
+        rect.top + rect.height <= section.contentTop
+          ? []
+          : marqueeHits(
+              sections[index].ids,
+              { ...rect, top: rect.top - section.contentTop },
+              width,
+              columns,
+              rowHeight,
+              gapX,
+              gapY,
+            ),
+      ),
     selected,
     onChange: setSelected,
     onClick: chooseEntry,
@@ -1037,7 +1230,9 @@ export function FilePane(p: PaneProps) {
       if (entry) openEntry(entry);
     },
   });
-  const hoverTarget = p.disabledDrop ? undefined : nativeTarget ?? p.dragTarget;
+  const hoverTarget = p.disabledDrop
+    ? undefined
+    : (nativeTarget ?? p.dragTarget);
   useNativeFileDrop(
     root,
     p.remote && canRead && !p.disabledDrop,
@@ -1119,7 +1314,7 @@ export function FilePane(p: PaneProps) {
       });
   };
   const menu = (e?: Entry) => (
-    <ContextMenuContent className="files-options-popup">
+    <ContextMenuContent className="files-options-menu">
       {e ? (
         <>
           <ContextMenuItem
@@ -1230,7 +1425,7 @@ export function FilePane(p: PaneProps) {
               <Plus />
               {t("create")}
             </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="files-options-popup">
+            <ContextMenuSubContent className="files-options-menu">
               <FileCreateOptions
                 canCreate={!!dir?.id}
                 onCreate={() => action("mkdir")}
@@ -1253,6 +1448,10 @@ export function FilePane(p: PaneProps) {
             {view === "list" ? <LayoutGrid /> : <List />}
             {t(view === "list" ? "iconView" : "listView")}
           </ContextMenuItem>
+          <FileTimeGroupOption
+            grouped={grouped}
+            onGroupChange={changeGrouping}
+          />
           <ContextMenuItem onClick={() => setHidden(!hidden)}>
             {hidden ? <EyeOff /> : <Eye />}
             {t(hidden ? "hideHidden" : "showHidden")}
@@ -1263,7 +1462,7 @@ export function FilePane(p: PaneProps) {
               <ArrowDownAZ />
               {t("sortBy")}
             </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="files-options-popup">
+            <ContextMenuSubContent className="files-options-menu">
               <FileSortOptions
                 sort={sort}
                 descending={descending}
@@ -1394,8 +1593,10 @@ export function FilePane(p: PaneProps) {
               </Button>
             }
           />
-          <DropdownMenuContent align="end" className="files-options-popup">
+          <DropdownMenuContent align="end" className="files-options-menu">
             <FileOptionsMenu
+              grouped={grouped}
+              onGroupChange={changeGrouping}
               remote={p.remote}
               hidden={hidden}
               sort={sort}
@@ -1421,15 +1622,20 @@ export function FilePane(p: PaneProps) {
         </DropdownMenu>
       </div>
       {!canRead ? (
-        <div className="files-empty">
-          {t(p.status?.phase || "notConnected")}
-        </div>
+        <PageEmptyState
+          compact
+          role="status"
+          icon={<Server />}
+          title={t(p.status?.phase || "chooseHost")}
+          description={p.status ? undefined : t("notConnected")}
+        />
       ) : (
         <ContextMenu>
           <ScrollArea
             className="files-pane-scroll"
             viewportRef={viewport}
             viewportClassName="files-viewport scroll-fade"
+            contentClassName={items.length ? undefined : "files-empty-content"}
             viewportProps={{
               render: <ContextMenuTrigger />,
               ...marquee.handlers,
@@ -1495,151 +1701,221 @@ export function FilePane(p: PaneProps) {
                   );
                   if (items[next]) {
                     setSelected([items[next].id]);
-                    viewport.current?.scrollTo({
-                      top:
-                        Math.floor(next / (view === "list" ? 1 : cols)) *
-                        rowHeight,
-                    });
+                    let indexInGroup = next;
+                    for (const section of layout.sections) {
+                      if (indexInGroup < section.items.length) {
+                        viewport.current?.scrollTo({
+                          top:
+                            section.top +
+                            Math.floor(indexInGroup / columns) * rowHeight,
+                        });
+                        break;
+                      }
+                      indexInGroup -= section.items.length;
+                    }
                   }
                 }
               },
             }}
           >
-            <div style={{ height: rowCount * rowHeight, position: "relative" }}>
-              {visible.map((e, index) => {
-                const position =
-                  view === "list" ? start + index : start * cols + index;
-                const chosen = selected.includes(e.id);
+            <div style={{ height: layout.height, position: "relative" }}>
+              {layout.sections.map((section) => {
+                if (section.bottom < visibleTop || section.top > visibleBottom)
+                  return null;
+                const start =
+                  Math.max(
+                    0,
+                    Math.floor((visibleTop - section.contentTop) / rowHeight),
+                  ) * columns;
+                const end =
+                  Math.max(
+                    0,
+                    Math.ceil((visibleBottom - section.contentTop) / rowHeight),
+                  ) * columns;
+                const label = section.time
+                  ? timeGroupLabel(section.time, t, i18n.language, day)
+                  : undefined;
                 return (
-                  <ContextMenu key={e.id}>
-                    <ContextMenuTrigger
-                      render={
-                        <motion.div
-                          initial="rest"
-                          animate={hoverTarget === e.id ? "artwork-hover" : "rest"}
-                          whileHover="artwork-hover"
-                          whileFocus="artwork-hover"
-                          role="row"
-                          tabIndex={-1}
-                          aria-selected={chosen}
-                          className={`files-entry ${view === "grid" ? "files-icon-entry" : ""} ${chosen ? "selected" : ""}`}
-                          style={{
-                            position: "absolute",
-                            top:
-                              Math.floor(
-                                position / (view === "list" ? 1 : cols),
-                              ) *
-                                rowHeight +
-                              gapY / 2,
-                            left:
-                              view === "list"
-                                ? 0
-                                : `calc(${((position % cols) * 100) / cols}% + ${gapX / 2}px)`,
-                            width:
-                              view === "list"
-                                ? "100%"
-                                : `calc(${100 / cols}% - ${gapX}px)`,
-                            height: rowHeight - gapY,
-                          }}
-                          data-file-target={
-                            e.kind === "directory" && !p.disabledDrop
-                              ? e.id
-                              : undefined
-                          }
-                          data-file-side={p.side}
-                          data-file-entry={e.id}
-                          data-drop-hover={hoverTarget === e.id || undefined}
-                          onContextMenu={() => {
-                            if (!chosen) setSelected([e.id]);
-                          }}
-                          onClick={(event) => {
-                            if (mac && event.ctrlKey) return;
-                            setSelected(
-                              selection(
-                                selected,
-                                e.id,
-                                ordered,
-                                event.ctrlKey || event.metaKey,
-                                event.shiftKey,
-                                anchor.current,
-                              ),
-                            );
-                            anchor.current = e.id;
-                          }}
-                          onPointerDown={(event) => {
-                            if (event.button !== 0 || (mac && event.ctrlKey))
-                              return;
-                            pointer.current = {
-                              x: event.clientX,
-                              y: event.clientY,
-                              id: e.id,
-                              ids: chosen ? selected : [e.id],
-                            };
-                            event.currentTarget.setPointerCapture(
-                              event.pointerId,
-                            );
-                          }}
-                          onPointerMove={(event) => {
-                            const point = pointer.current;
-                            if (
-                              point &&
-                              Math.hypot(
-                                event.clientX - point.x,
-                                event.clientY - point.y,
-                              ) > 8
-                            ) {
-                              p.onDrag({
-                                side: p.side,
-                                ids: point.ids,
-                                pointerId: event.pointerId,
-                                name: e.name,
-                                kind: !p.remote && dir?.path === ":computer:" ? "drive" : e.kind,
-                                x: event.clientX,
-                                y: event.clientY,
-                              });
-                              pointer.current = null;
-                            }
-                          }}
-                          onLostPointerCapture={() => {
-                            pointer.current = null;
-                          }}
-                          onPointerUp={() => {
-                            pointer.current = null;
-                          }}
-                        />
-                      }
-                    >
-                      <span
-                        role="gridcell"
-                        className="files-entry-name"
-                        title={e.name}
+                  <div
+                    key={section.time?.key ?? "all"}
+                    role="rowgroup"
+                    aria-label={label}
+                    style={{
+                      position: "absolute",
+                      insetInline: 0,
+                      top: section.top,
+                      height: section.bottom - section.top,
+                    }}
+                  >
+                    {section.time && (
+                      <div
+                        role="row"
+                        className="files-time-heading"
+                        style={{ height: TIME_HEADING_HEIGHT }}
                       >
-                        <FileArtwork
-                          name={e.name}
-                          kind={
-                            !p.remote && dir?.path === ":computer:"
-                              ? "drive"
-                              : e.kind
-                          }
-                          large={view === "grid"}
-                        />
-                        <span>{e.name}</span>
-                      </span>
-                      {view === "list" && (
-                        <>
-                          <span role="gridcell" className="files-size">
-                            {e.kind === "file" ? size(e.size) : "—"}
-                          </span>
-                          <span role="gridcell" className="files-date">
-                            {e.modified
-                              ? new Date(e.modified).toLocaleDateString()
-                              : "—"}
-                          </span>
-                        </>
-                      )}
-                    </ContextMenuTrigger>
-                    {menu(e)}
-                  </ContextMenu>
+                        <span role="gridcell">
+                          {label}
+                          <small>{section.items.length}</small>
+                        </span>
+                      </div>
+                    )}
+                    {section.items.slice(start, end).map((e, index) => {
+                      const position = start + index;
+                      const date =
+                        dateField === "created"
+                          ? e.created
+                          : e.modified || null;
+                      const chosen = selected.includes(e.id);
+                      return (
+                        <ContextMenu key={e.id}>
+                          <ContextMenuTrigger
+                            render={
+                              <motion.div
+                                initial="rest"
+                                animate={
+                                  hoverTarget === e.id
+                                    ? "artwork-hover"
+                                    : "rest"
+                                }
+                                whileHover="artwork-hover"
+                                whileFocus="artwork-hover"
+                                role="row"
+                                tabIndex={-1}
+                                aria-selected={chosen}
+                                className={`files-entry ${view === "grid" ? "files-icon-entry" : ""} ${chosen ? "selected" : ""}`}
+                                style={{
+                                  position: "absolute",
+                                  top:
+                                    section.contentTop -
+                                    section.top +
+                                    Math.floor(position / columns) * rowHeight +
+                                    gapY / 2,
+                                  left:
+                                    view === "list"
+                                      ? 0
+                                      : `calc(${((position % cols) * 100) / cols}% + ${gapX / 2}px)`,
+                                  width:
+                                    view === "list"
+                                      ? "100%"
+                                      : `calc(${100 / cols}% - ${gapX}px)`,
+                                  height: rowHeight - gapY,
+                                }}
+                                data-file-target={
+                                  e.kind === "directory" && !p.disabledDrop
+                                    ? e.id
+                                    : undefined
+                                }
+                                data-file-side={p.side}
+                                data-file-entry={e.id}
+                                data-drop-hover={
+                                  hoverTarget === e.id || undefined
+                                }
+                                onContextMenu={() => {
+                                  if (!chosen) setSelected([e.id]);
+                                }}
+                                onClick={(event) => {
+                                  if (mac && event.ctrlKey) return;
+                                  setSelected(
+                                    selection(
+                                      selected,
+                                      e.id,
+                                      ordered,
+                                      event.ctrlKey || event.metaKey,
+                                      event.shiftKey,
+                                      anchor.current,
+                                    ),
+                                  );
+                                  anchor.current = e.id;
+                                }}
+                                onPointerDown={(event) => {
+                                  if (
+                                    event.button !== 0 ||
+                                    (mac && event.ctrlKey)
+                                  )
+                                    return;
+                                  pointer.current = {
+                                    x: event.clientX,
+                                    y: event.clientY,
+                                    id: e.id,
+                                    ids: chosen ? selected : [e.id],
+                                  };
+                                  event.currentTarget.setPointerCapture(
+                                    event.pointerId,
+                                  );
+                                }}
+                                onPointerMove={(event) => {
+                                  const point = pointer.current;
+                                  if (
+                                    point &&
+                                    Math.hypot(
+                                      event.clientX - point.x,
+                                      event.clientY - point.y,
+                                    ) > 8
+                                  ) {
+                                    p.onDrag({
+                                      side: p.side,
+                                      ids: point.ids,
+                                      pointerId: event.pointerId,
+                                      name: e.name,
+                                      kind:
+                                        !p.remote && dir?.path === ":computer:"
+                                          ? "drive"
+                                          : e.kind,
+                                      x: event.clientX,
+                                      y: event.clientY,
+                                    });
+                                    pointer.current = null;
+                                  }
+                                }}
+                                onLostPointerCapture={() => {
+                                  pointer.current = null;
+                                }}
+                                onPointerUp={() => {
+                                  pointer.current = null;
+                                }}
+                              />
+                            }
+                          >
+                            <span
+                              role="gridcell"
+                              className="files-entry-name"
+                              title={e.name}
+                            >
+                              <FileArtwork
+                                name={e.name}
+                                kind={
+                                  !p.remote && dir?.path === ":computer:"
+                                    ? "drive"
+                                    : e.kind
+                                }
+                                large={view === "grid"}
+                              />
+                              <span>{e.name}</span>
+                            </span>
+                            {view === "list" && (
+                              <>
+                                <span role="gridcell" className="files-size">
+                                  {e.kind === "file" ? size(e.size) : "—"}
+                                </span>
+                                <span
+                                  role="gridcell"
+                                  className="files-date"
+                                  title={t(dateField)}
+                                >
+                                  {date == null
+                                    ? "—"
+                                    : new Date(date).toLocaleDateString(
+                                        i18n.language,
+                                      )}
+                                </span>
+                              </>
+                            )}
+                          </ContextMenuTrigger>
+                          {menu(e)}
+                        </ContextMenu>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
@@ -1651,9 +1927,22 @@ export function FilePane(p: PaneProps) {
               />
             )}
             {items.length === 0 && (
-              <p className="files-empty">
-                {t(loading ? "loading" : query ? "noResults" : "empty")}
-              </p>
+              <div role="row" className="flex flex-1">
+                <div role="gridcell" className="flex flex-1">
+                  <FileDirectoryEmpty
+                    directory={dir}
+                    loading={loading}
+                    error={readError?.message}
+                    query={query}
+                    clearSearch={() => setQuery("")}
+                    showHidden={() => setHidden(true)}
+                    createFolder={() => action("mkdir")}
+                    retry={() =>
+                      void load(readError?.path ?? p.initialPath ?? "", false)
+                    }
+                  />
+                </div>
+              </div>
             )}
           </ScrollArea>
           {menu()}

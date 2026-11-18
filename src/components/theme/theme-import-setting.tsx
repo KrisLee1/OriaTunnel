@@ -1,5 +1,6 @@
+import { PageEmptyState } from "@/components/page-empty-state"
 import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react"
-import { CheckCircle2, FileJson, Plus, Trash2, Upload } from "lucide-react"
+import { CheckCircle2, FileJson, Palette, Plus, Trash2, Upload } from "lucide-react"
 import { useOriaTheme } from "@oriatheme/react"
 import { useTranslation } from "react-i18next"
 
@@ -262,7 +263,7 @@ export function CustomThemeList() {
   const { t } = useTranslation()
 
   if (snapshot.customThemes.length === 0) {
-    return <p className="py-1 text-sm text-muted-foreground">{t("theme.custom.empty")}</p>
+    return <PageEmptyState compact icon={<Palette />} title={t("theme.custom.empty")} />
   }
 
   return (

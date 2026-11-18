@@ -1,4 +1,6 @@
 {
+  "clearFilters": "Effacer les filtres",
+  "noActivityYet": "Aucun journal pour le moment",
   "serviceProtocol": "Protocole du service",
   "openService": "Ouvrir le service",
   "serviceSelectProtocol": "Sélectionnez d’abord un protocole de service",

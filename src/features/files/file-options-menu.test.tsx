@@ -28,7 +28,7 @@ describe("opened file options menu", () => {
           <FileUploadOptions canUpload onUpload={() => {}} />
         </Root>,
       );
-      expect(html.match(/data-slot="dropdown-menu-item"/g)).toHaveLength(10);
+      expect(html.match(/data-slot="dropdown-menu-item"/g)).toHaveLength(11);
       expect(html).toContain("lucide-folder-plus");
       expect(html).toContain("lucide-file-plus-2");
       expect(html).toContain("lucide-folder-up");

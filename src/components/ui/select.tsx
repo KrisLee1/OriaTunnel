@@ -35,7 +35,7 @@ function SelectContent({ className, children, side = "bottom", sideOffset = 4, a
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} alignOffset={alignOffset} alignItemWithTrigger={alignItemWithTrigger} className="isolate z-50">
-        <SelectPrimitive.Popup data-slot="select-content" data-align-trigger={alignItemWithTrigger} className={cn("floating-surface relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg p-1 duration-aide-fast data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className)} {...props}>
+        <SelectPrimitive.Popup data-slot="select-content" data-align-trigger={alignItemWithTrigger} className={cn("floating-surface relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 overflow-x-hidden overflow-y-auto rounded-lg p-1 duration-aide-fast data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none", className)} {...props}>
           <SelectScrollUpButton />
           <SelectPrimitive.List>{children}</SelectPrimitive.List>
           <SelectScrollDownButton />

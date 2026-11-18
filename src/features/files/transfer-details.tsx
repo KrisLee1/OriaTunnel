@@ -1,8 +1,9 @@
 import { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Progress } from "@/components/ui/progress";
-import { active, displayPath, size, type Task } from "./api";
+import { active, transferPercent, displayPath, size, type Task } from "./api";
 import { FileTransferDetailsContext } from "./transfer-state";
+import { TransferMetrics, useTransferMetrics } from "./transfer-metrics";
 
 export function TransferDetails({ taskIds }: { taskIds: string[] }) {
   const tasks = useContext(FileTransferDetailsContext).filter((task) =>
@@ -23,7 +24,8 @@ export function TransferDetails({ taskIds }: { taskIds: string[] }) {
 }
 
 function TransferDetail({ task }: { task: Task }) {
-  const { t } = useTranslation("files");
+  const { t, i18n } = useTranslation("files");
+  const timing = useTransferMetrics(task);
   const source =
     task.sourceRemote?.hostName ||
     (task.direction === "download" ? task.hostName : t("local"));
@@ -40,6 +42,7 @@ function TransferDetail({ task }: { task: Task }) {
       : task.direction;
   const phase = task.directPending ? "directUnknown" : task.phase;
   const running = active(task);
+  const scan = task.phase === "preparing" ? task.scan : null;
   return (
     <section className="files-edge-detail">
       <strong>
@@ -60,27 +63,21 @@ function TransferDetail({ task }: { task: Task }) {
       </div>
       <div className="files-edge-detail-line">
         <span>
-          {size(task.bytes)}
-          {task.total > 0 ? ` / ${size(task.total)}` : ""}
-        </span>
-        <span>
-          {running && task.speed != null && task.speed > 0
-            ? `${size(task.speed)}/s`
-            : ""}
-          {running && task.eta != null
-            ? ` · ${t("remaining")}: ${task.eta}s`
-            : ""}
+          {scan
+            ? t("scannedItems", {
+                items: scan.items.toLocaleString(i18n.language),
+              })
+            : size(task.bytes)}
+          {scan
+            ? ` · ${size(scan.bytes)}`
+            : task.total > 0
+              ? ` / ${size(task.total)}`
+              : ""}
         </span>
       </div>
+      <TransferMetrics items={timing} />
       {running && (
-        <Progress
-          aria-label={t("progress")}
-          value={
-            task.total > 0
-              ? Math.min(100, (task.bytes / task.total) * 100)
-              : null
-          }
-        />
+        <Progress aria-label={t("progress")} value={transferPercent(task)} />
       )}
     </section>
   );

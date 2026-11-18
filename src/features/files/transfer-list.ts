@@ -1,6 +1,7 @@
+import { groupByTime, type TimeGroup } from "./time-groups";
 import { active, type Task } from "./api";
 
-export type TransferGrouping = "none" | "target" | "source" | "type";
+export type TransferGrouping = "none" | "target" | "source" | "type" | "time";
 export type TransferOrder = "newest" | "oldest";
 export type TransferListPreferences = {
   grouping: TransferGrouping;
@@ -9,6 +10,7 @@ export type TransferListPreferences = {
 export const TRANSFER_LIST_KEY = "oria-tunnel.files-transfer-list.v1";
 export const transferGroupings: TransferGrouping[] = [
   "none",
+  "time",
   "target",
   "source",
   "type",
@@ -60,13 +62,39 @@ export type TransferGroup = {
   id: string;
   host?: TransferHost;
   direction?: string;
+  time?: TimeGroup;
+  count?: number;
   tasks: Task[];
 };
 // The input is already time-ordered. First occurrence determines group order.
 export function groupTransfers(
   tasks: Task[],
   grouping: TransferGrouping,
+  day = new Date().setHours(0, 0, 0, 0),
+  order: TransferOrder = "newest",
+  limit = tasks.length,
 ): TransferGroup[] {
+  if (grouping === "time") {
+    const result: TransferGroup[] = [];
+    let remaining = limit;
+    for (const { time, items } of groupByTime(
+      tasks,
+      (task) => task.started,
+      day,
+      order === "newest",
+    )) {
+      if (remaining <= 0) break;
+      result.push({
+        id: String(time.key),
+        time,
+        count: items.length,
+        tasks: items.slice(0, remaining),
+      });
+      remaining -= items.length;
+    }
+    return result;
+  }
+  if (limit < tasks.length) tasks = tasks.slice(0, limit);
   if (grouping === "none") return [{ id: "all", tasks }];
   const groups = new Map<string, TransferGroup>();
   for (const task of tasks) {
@@ -92,9 +120,11 @@ export function readTransferListPreferences(): TransferListPreferences {
   try {
     const value = JSON.parse(localStorage.getItem(TRANSFER_LIST_KEY) || "null");
     return {
-      grouping: transferGroupings.includes(value?.grouping)
-        ? value.grouping
-        : defaults.grouping,
+      grouping:
+        transferGroupings.includes(value?.grouping) &&
+        (value.grouping !== "time" || value.version === 2)
+          ? value.grouping
+          : defaults.grouping,
       order: transferOrders.includes(value?.order)
         ? value.order
         : defaults.order,
@@ -105,7 +135,10 @@ export function readTransferListPreferences(): TransferListPreferences {
 }
 export function saveTransferListPreferences(value: TransferListPreferences) {
   try {
-    localStorage.setItem(TRANSFER_LIST_KEY, JSON.stringify(value));
+    localStorage.setItem(
+      TRANSFER_LIST_KEY,
+      JSON.stringify({ ...value, version: 2 }),
+    );
   } catch {
     /* Session preferences remain usable. */
   }
@@ -148,7 +181,8 @@ export function transferBatchItems(task: Task) {
     const kind = task.sourceKinds?.[index] || "file";
     const isDirectory = kind === "directory";
     const completedCount = isDirectory
-      ? descendantCount(completedPaths, path)
+      ? descendantCount(completedPaths, path) +
+        (task.completedArchive?.roots[path] ?? 0)
       : Number(completed.has(path));
     const hasSkips = isDirectory && descendantCount(skippedPaths, path) > 0;
     const currentPath = task.currentSource || task.commitSource;

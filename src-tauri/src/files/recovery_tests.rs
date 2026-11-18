@@ -1,6 +1,123 @@
 use super::*;
 
 #[tokio::test]
+async fn resumes_download_after_the_original_sftp_channel_closes() {
+    for shutdown in [false, true] {
+        let local = tempfile::tempdir().unwrap();
+        let remote = tempfile::tempdir().unwrap();
+        let batch = remote.path().join("batch");
+        std::fs::create_dir(&batch).unwrap();
+        std::fs::write(remote.path().join(".paced-reads"), []).unwrap();
+        for i in 0..24u8 {
+            std::fs::write(batch.join(i.to_string()), [i; 8192]).unwrap();
+        }
+        let journal = local.path().join("history.json");
+        let (m, original_server) = manager(remote.path().into(), journal.clone()).await;
+        let directory = m
+            .directory(Some("session".into()), "/".into())
+            .await
+            .unwrap();
+        let batch_id = &directory
+            .entries
+            .iter()
+            .find(|e| e.name == "batch")
+            .unwrap()
+            .id;
+        let dest = m
+            .directory(None, local.path().to_str().unwrap().into())
+            .await
+            .unwrap();
+        let id = m
+            .submit(
+                uuid::Uuid::new_v4().to_string(),
+                vec![batch_id.clone()],
+                dest.id,
+            )
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(20), async {
+            while m.tasks.lock().unwrap()[&id].completed.is_empty() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let stale = m.remotes.lock().unwrap()["session"].clone();
+        let Fs::Remote(stale) = stale else {
+            unreachable!()
+        };
+        if shutdown {
+            m.shutdown().await;
+        } else {
+            m.control(&id, "pause", None).await.unwrap();
+        }
+        let paused = settled(&m, &id).await;
+        assert_eq!(
+            paused.phase,
+            if shutdown { "interrupted" } else { "paused" }
+        );
+        assert!((1..24).contains(&paused.completed.len()));
+        stale.raw.close_session().unwrap();
+        tokio::time::timeout(Duration::from_secs(3), stale.raw.closed())
+            .await
+            .unwrap();
+        assert_eq!(
+            stale.raw.opendir("/").await.unwrap_err().to_string(),
+            "session closed"
+        );
+        let m = if shutdown {
+            Arc::new(Manager::new(journal))
+        } else {
+            m
+        };
+        assert_eq!(
+            m.control(&id, "resume", Some("session".into()))
+                .await
+                .unwrap_err(),
+            "notConnected"
+        );
+        let (fresh, server) = setup(remote.path().into(), false).await;
+        let new_id = "reconnected";
+        m.remotes.lock().unwrap().insert(new_id.into(), fresh);
+        m.sessions.lock().unwrap().insert(
+            new_id.into(),
+            Session {
+                id: new_id.into(),
+                host_id: "fixture".into(),
+                host_name: "loopback".into(),
+                phase: "connected".into(),
+                route: vec!["fixture".into()],
+                fingerprint: None,
+                endpoint: None,
+                error: None,
+            },
+        );
+        m.route_keys
+            .lock()
+            .unwrap()
+            .insert(new_id.into(), "frozen-fixture".into());
+        let committed = std::path::Path::new(&paused.completed[0])
+            .file_name()
+            .unwrap();
+        // Change the already delivered source. Retrying it would overwrite the original or prompt.
+        std::fs::write(batch.join(committed), b"changed after pause").unwrap();
+        m.control(&id, "resume", Some(new_id.into())).await.unwrap();
+        let done = settled(&m, &id).await;
+        assert_eq!(done.phase, "completed", "{:?}", done.error);
+        assert_eq!(done.completed.len(), 24);
+        for i in 0..24u8 {
+            assert_eq!(
+                std::fs::read(local.path().join("batch").join(i.to_string())).unwrap(),
+                [i; 8192]
+            );
+        }
+        m.shutdown().await;
+        original_server.abort();
+        server.abort();
+    }
+}
+
+#[tokio::test]
 async fn case_alias_cannot_rename_a_leased_remote_file() {
     let local = tempfile::tempdir().unwrap();
     let remote = tempfile::tempdir().unwrap();

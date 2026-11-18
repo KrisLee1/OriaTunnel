@@ -624,12 +624,22 @@ async fn windows_ssh_interactive_shell_uses_the_powershell_editor() {
                     if text.contains(&ready) {
                         return false;
                     }
+                    if manager.list()[0].finished_at.is_some() {
+                        panic!("remote {shell} exited before the editor handshake: {text}");
+                    }
                 }
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("remote PowerShell startup");
+        .unwrap_or_else(|_| {
+            let data = bytes.lock().unwrap();
+            let tail = String::from_utf8_lossy(&data[data.len().saturating_sub(1400)..]);
+            panic!(
+                "remote {shell} startup timed out: {:?}; output tail: {tail:?}",
+                manager.list()
+            );
+        });
         if prime_history {
             send("\r");
         }

@@ -300,7 +300,10 @@ impl server::Handler for Fixture {
     ) -> Result<(), Self::Error> {
         const SHELL_PROBE: &str = r#"echo "oria-shell~$0~%OS%~\$env:OS""#;
         if let Some(shell) = self.editor_shell {
-            if command == SHELL_PROBE.as_bytes() && !self.pairs.lock().unwrap().contains_key(&ch) {
+            let cmd_probe = shell == "cmd" && command == br#"if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" echo oria-powershell"#;
+            if (command == SHELL_PROBE.as_bytes() || cmd_probe)
+                && !self.pairs.lock().unwrap().contains_key(&ch)
+            {
                 #[cfg(unix)]
                 let mut probe = {
                     let mut process = tokio::process::Command::new(shell);
@@ -314,7 +317,7 @@ impl server::Handler for Fixture {
                     process
                 };
                 #[cfg(windows)]
-                let mut probe = platform::editor_probe(shell, SHELL_PROBE);
+                let mut probe = platform::editor_probe(shell, std::str::from_utf8(command)?);
                 let output = probe.output().await?;
                 session.channel_success(ch)?;
                 session.data(ch, output.stdout)?;

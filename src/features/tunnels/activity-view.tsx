@@ -1,3 +1,4 @@
+import { PageEmptyState } from "@/components/page-empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,7 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { SearchIcon } from "lucide-react";
+import { ScrollText, SearchX } from "lucide-react";
 import {
   activityRows,
   filterActivity,
@@ -121,13 +122,14 @@ export function ActivityView({ data }: { data: Snapshot }) {
         </span>
       </header>
       <div className="host-toolbar activity-toolbar">
-        <SearchInput containerClassName="host-search"
-            type="search"
-            aria-label={t("searchLogs")}
-            placeholder={t("searchLogs")}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+        <SearchInput
+          containerClassName="host-search"
+          type="search"
+          aria-label={t("searchLogs")}
+          placeholder={t("searchLogs")}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
         <div className="host-toolbar-controls">
           {picker(
             t("filterLogHost"),
@@ -179,7 +181,28 @@ export function ActivityView({ data }: { data: Snapshot }) {
         </div>
       </div>
       {!records.length ? (
-        <p className="muted">{t("noActivity")}</p>
+        <PageEmptyState
+          className="min-h-70"
+          icon={rows.length ? <SearchX /> : <ScrollText />}
+          title={t(rows.length ? "noActivity" : "noActivityYet")}
+          action={
+            rows.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setQuery("");
+                  setWarnings(false);
+                  setHost("all");
+                  setForward("all");
+                  setStatus("all");
+                }}
+              >
+                {t("clearFilters")}
+              </Button>
+            )
+          }
+        />
       ) : (
         <ActivityList
           key={JSON.stringify([

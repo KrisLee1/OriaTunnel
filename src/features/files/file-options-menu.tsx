@@ -4,6 +4,8 @@ import {
   ArrowDownWideNarrow,
   Check,
   Clock,
+  CalendarPlus,
+  CalendarDays,
   Eye,
   EyeOff,
   FolderPlus,
@@ -29,6 +31,8 @@ import {
 interface Props {
   remote: boolean;
   hidden: boolean;
+  grouped: boolean;
+  onGroupChange: (grouped: boolean) => void;
   sort: string;
   descending: boolean;
   canCreate: boolean;
@@ -41,6 +45,27 @@ interface Props {
   onUpload: (folder: boolean) => void;
 }
 
+export function FileTimeGroupOption({
+  grouped,
+  onGroupChange,
+}: Pick<Props, "grouped" | "onGroupChange">) {
+  const { t } = useTranslation("files");
+  return (
+    <DropdownMenuItem
+      role="menuitemcheckbox"
+      aria-checked={grouped}
+      onClick={() => onGroupChange(!grouped)}
+    >
+      <CalendarDays />
+      {t("groupTime")}
+      <Check
+        aria-hidden="true"
+        className={grouped ? "ml-auto" : "invisible ml-auto"}
+      />
+    </DropdownMenuItem>
+  );
+}
+
 export function FileSortOptions(
   props: Pick<
     Props,
@@ -51,7 +76,7 @@ export function FileSortOptions(
   return (
     <>
       <DropdownMenuGroup>
-        {["name", "type", "size", "modified"].map((sort) => (
+        {["name", "type", "size", "modified", "created"].map((sort) => (
           <DropdownMenuItem
             key={sort}
             role="menuitemradio"
@@ -64,6 +89,8 @@ export function FileSortOptions(
               <FileType2 />
             ) : sort === "size" ? (
               <Ruler />
+            ) : sort === "created" ? (
+              <CalendarPlus />
             ) : (
               <Clock />
             )}
@@ -139,6 +166,7 @@ export function FileOptionsMenu(props: Props) {
     <>
       <DropdownMenuGroup>
         <DropdownMenuLabel>{t("viewOptions")}</DropdownMenuLabel>
+        <FileTimeGroupOption {...props} />
         <DropdownMenuItem onClick={() => props.onHiddenChange(!props.hidden)}>
           {props.hidden ? <EyeOff /> : <Eye />}
           {t(props.hidden ? "hideHidden" : "showHidden")}
@@ -151,7 +179,7 @@ export function FileOptionsMenu(props: Props) {
             <ArrowDownAZ />
             {t("sortBy")}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="files-options-popup">
+          <DropdownMenuSubContent className="files-options-menu">
             <FileSortOptions {...props} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -164,7 +192,7 @@ export function FileOptionsMenu(props: Props) {
             <Plus />
             {t("create")}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="files-options-popup">
+          <DropdownMenuSubContent className="files-options-menu">
             <FileCreateOptions {...props} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -174,7 +202,7 @@ export function FileOptionsMenu(props: Props) {
               <Upload />
               {t("upload")}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="files-options-popup">
+            <DropdownMenuSubContent className="files-options-menu">
               <FileUploadOptions {...props} />
             </DropdownMenuSubContent>
           </DropdownMenuSub>

@@ -20,6 +20,7 @@ export function FileSearchButton({
 }) {
   const { t } = useTranslation("files");
   const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLSpanElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const focusOnOpen = useRef(false);
   return (
@@ -31,28 +32,31 @@ export function FileSearchButton({
         setOpen(next);
       }}
     >
-      <PopoverTrigger
-        openOnHover
-        delay={150}
-        closeDelay={150}
-        disabled={disabled}
-        onClick={() => input.current?.focus()}
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={`files-search-trigger ${value ? "bg-muted" : ""}`}
-            data-filtered={!!value}
-            aria-label={t("search")}
-            title={value ? `${t("search")}: ${value}` : t("search")}
-          >
-            <Search />
-          </Button>
-        }
-      />
+      <span ref={anchor} className="inline-flex shrink-0">
+        <PopoverTrigger
+          openOnHover
+          delay={150}
+          closeDelay={150}
+          disabled={disabled}
+          onClick={() => input.current?.focus({ preventScroll: true })}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={`files-search-trigger ${value ? "bg-muted" : ""}`}
+              data-filtered={!!value}
+              aria-label={t("search")}
+              title={value ? `${t("search")}: ${value}` : t("search")}
+            >
+              <Search />
+            </Button>
+          }
+        />
+      </span>
       <PopoverContent
+        anchor={anchor}
         align="end"
-        className="files-search-popup files-options-popup overflow-hidden p-0"
+        className="files-search-popup overflow-hidden p-0"
         aria-label={t("search")}
         initialFocus={() => (focusOnOpen.current ? input.current : false)}
       >

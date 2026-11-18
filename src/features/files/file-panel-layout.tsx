@@ -216,7 +216,7 @@ export function FileLayoutMenu({ layout }: { layout: FileLayoutState }) {
       />
       <DropdownMenuContent
         align="end"
-        className="files-options-popup files-layout-options"
+        className="files-layout-options"
       >
         <DropdownMenuRadioGroup
           value={layout.mode}

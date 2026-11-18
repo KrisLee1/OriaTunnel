@@ -1,3 +1,5 @@
+import { PageEmptyState } from "@/components/page-empty-state";
+import { SearchX } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { formatUiError } from "@/lib/ui-message";
 import { useEffect, useId, useRef, useState } from "react";
@@ -149,9 +151,22 @@ export function ServiceTemplateDialog({
             </section>
           ))}
           {groups.length === 0 && (
-            <p className="muted" role="status">
-              {t("templates.noResults")}
-            </p>
+            <PageEmptyState
+              compact
+              role="status"
+              icon={<SearchX />}
+              title={t("templates.noResults")}
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSearch("")}
+                >
+                  {t("clearFilters", { ns: "tunnel" })}
+                </Button>
+              }
+            />
           )}
         </fieldset>
         <p className="muted">{t("templates.replaceHint")}</p>

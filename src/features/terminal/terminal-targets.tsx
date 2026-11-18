@@ -1,4 +1,5 @@
-import { Monitor, Server, SquarePlusIcon } from "lucide-react";
+import { PageEmptyState } from "@/components/page-empty-state";
+import { Monitor, Server, SquarePlusIcon, SquareTerminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,7 +50,7 @@ export function TerminalTargets({
         {content}
       </DropdownMenuItem>
     ) : (
-      <Button key={host?.id ?? ""} type="button" variant="ghost" {...props}>
+      <Button key={host?.id ?? ""} type="button" variant="outline" {...props}>
         {content}
       </Button>
     );
@@ -61,7 +62,13 @@ export function TerminalTargets({
         data-terminal-start=""
         aria-label={t("new")}
       >
-        {targets}
+        <PageEmptyState
+          compact
+          className="my-auto flex-none"
+          icon={<SquareTerminal />}
+          title={t("new")}
+          action={<div className="grid w-full gap-2">{targets}</div>}
+        />
       </div>
     );
   return (

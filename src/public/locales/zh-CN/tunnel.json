@@ -1,4 +1,6 @@
 {
+  "clearFilters": "清除筛选",
+  "noActivityYet": "暂无日志",
   "serviceProtocol": "服务协议",
   "openService": "打开服务",
   "serviceSelectProtocol": "请先选择服务协议",

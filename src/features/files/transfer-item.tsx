@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   active,
+  transferPercent,
   canClearTransfer,
   size,
   displayPath,
@@ -42,6 +43,7 @@ import {
 } from "./transfer-list";
 import { TransferBatchDetails } from "./transfer-batch-details";
 import { TransferPaths } from "./transfer-paths";
+import { TransferMetrics, useTransferMetrics } from "./transfer-metrics";
 
 export function TransferItem({
   task,
@@ -55,6 +57,7 @@ export function TransferItem({
   onBatchOpenChange?: (id: string, open: boolean) => void;
 }) {
   const { t, i18n } = useTranslation("files");
+  const timing = useTransferMetrics(task);
   const [batchOpen, setBatchOpen] = useState(false);
   useLayoutEffect(() => {
     if (!batchOpen || !onBatchOpenChange) return;
@@ -67,7 +70,8 @@ export function TransferItem({
     finished = ["completed", "partial", "cancelled", "failed"].includes(
       task.phase,
     );
-  const needsVerification = task.directPending || task.error === "commitUnknown";
+  const needsVerification =
+    task.directPending || task.error === "commitUnknown";
   const upload = task.direction === "upload",
     relay = task.direction === "relay";
   const endpoints = transferHosts(task);
@@ -91,22 +95,37 @@ export function TransferItem({
   const error =
     task.error &&
     ![task.phase, "paused", "cancelled", "interrupted"].includes(task.error)
-      ? t(task.error, { defaultValue: task.error })
+      ? t(task.error, { nsSeparator: false, defaultValue: task.error })
       : null;
-  const metrics = [
-    [t("transferredSize"), size(task.bytes)],
-    [t("totalSize"), totalText],
-    [
-      t("completedItems"),
-      `${task.completed.length}${running ? ` / ${task.count}` : ""}`,
-    ],
-    ...(task.skipped > 0 ? [[t("skippedItems"), `${task.skipped}`]] : []),
-    ...(running && task.speed != null && task.speed > 0
-      ? [[t("transferSpeed"), `${size(task.speed)}/s`]]
-      : []),
-    ...(running && task.eta != null ? [[t("remaining"), `${task.eta}s`]] : []),
-  ];
-  const metricsLabel = metrics
+  const scan = task.phase === "preparing" ? task.scan : null;
+  const scanned = scan
+    ? t("scannedItems", { items: scan.items.toLocaleString(i18n.language) })
+    : "";
+  const scannedSize = scan ? size(scan.bytes) : "";
+  const completedCount =
+    task.completed.length +
+    Object.values(task.completedArchive?.roots ?? {}).reduce(
+      (sum, n) => sum + n,
+      0,
+    );
+  const metrics = scan
+    ? [
+        [t("preparing"), scanned],
+        [t("discoveredSize"), scannedSize],
+        ...(scan.directory
+          ? [[t("scanningPath"), displayPath(scan.directory)]]
+          : []),
+      ]
+    : [
+        [t("transferredSize"), size(task.bytes)],
+        [t("totalSize"), totalText],
+        [
+          t("completedItems"),
+          `${completedCount}${running ? ` / ${task.count}` : ""}`,
+        ],
+        ...(task.skipped > 0 ? [[t("skippedItems"), `${task.skipped}`]] : []),
+      ];
+  const metricsLabel = [...metrics, ...timing]
     .map(([label, value]) => `${label}: ${value}`)
     .join(" · ");
   const iconAction = (
@@ -129,6 +148,7 @@ export function TransferItem({
     <motion.article
       className="files-transfer-row"
       data-transfer-task={task.id}
+      data-scanning={scan ? true : undefined}
       initial="rest"
       animate="rest"
       whileHover="artwork-hover"
@@ -192,15 +212,19 @@ export function TransferItem({
             }
           >
             <span className="files-transfer-size-full">
-              {running ? `${size(task.bytes)} / ${totalText}` : totalText}
+              {scan
+                ? `${scanned} · ${scannedSize}`
+                : running
+                  ? `${size(task.bytes)} / ${totalText}`
+                  : totalText}
             </span>
             <span className="files-transfer-size-compact" aria-hidden="true">
-              {totalText}
+              {scan ? scanned : totalText}
             </span>
           </TooltipTrigger>
           <TooltipContent className="files-transfer-info" role="tooltip">
             <dl>
-              {metrics.map(([label, value]) => (
+              {[...metrics, ...timing].map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
                   <dd>{value}</dd>
@@ -270,39 +294,38 @@ export function TransferItem({
         </div>
       </div>
       <div className="files-transfer-subline">
-        <TransferPaths
-          source={{
-            host: endpoints.source,
-            path: batch ? null : task.sources[0],
-            description: t("multipleSources", { count: task.sources.length }),
-            onOpen: batch
-              ? undefined
-              : () =>
-                  onAction("openFolder", {
-                    source: task.sources[0],
-                    side: "source",
-                  }),
-          }}
-          target={{
-            host: endpoints.target,
-            path: target,
-            onOpen: () => onAction("openTarget"),
-          }}
-        />
-        {error && (
-          <span className="files-transfer-error" title={error}>
-            {error}
-          </span>
-        )}
+        <div className="files-transfer-location">
+          <TransferPaths
+            source={{
+              host: endpoints.source,
+              path: batch ? null : task.sources[0],
+              description: t("multipleSources", { count: task.sources.length }),
+              onOpen: batch
+                ? undefined
+                : () =>
+                    onAction("openFolder", {
+                      source: task.sources[0],
+                      side: "source",
+                    }),
+            }}
+            target={{
+              host: endpoints.target,
+              path: target,
+              onOpen: () => onAction("openTarget"),
+            }}
+          />
+          {error && (
+            <span className="files-transfer-error" title={error}>
+              {error}
+            </span>
+          )}
+        </div>
+        <TransferMetrics items={timing} />
         {running && (
           <Progress
             className="files-transfer-progress"
             aria-label={t("progress")}
-            value={
-              task.total > 0
-                ? Math.min(100, (task.bytes / task.total) * 100)
-                : null
-            }
+            value={transferPercent(task)}
           />
         )}
       </div>

@@ -3,8 +3,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import "@/i18n";
 import { FilePathNavigation } from "./file-path-navigation";
 import { FileSearchButton } from "./file-search-button";
+import { FileDirectoryEmpty } from "./file-directory-empty";
 
 describe("compact file navigation", () => {
+  it("distinguishes an empty folder from a search with no results", () => {
+    const props = {
+      directory: { id: "folder", path: "/folder", parent: "/", entries: [] },
+      loading: false, error: undefined, clearSearch() {}, showHidden() {}, createFolder() {}, retry() {},
+    };
+    const folder = renderToStaticMarkup(<FileDirectoryEmpty {...props} query="" />);
+    expect(folder).toContain('data-slot="empty"');
+    expect(folder).toContain("新建文件夹");
+    const search = renderToStaticMarkup(<FileDirectoryEmpty {...props} query="report" />);
+    expect(search).toContain("没有搜索到文件");
+    expect(search).toContain("清除搜索");
+    expect(search).not.toContain("新建文件夹");
+  });
   it("collapses intermediate directories while keeping this computer and the final hierarchy", () => {
     const html = renderToStaticMarkup(
       <FilePathNavigation
@@ -41,7 +55,7 @@ describe("compact file navigation", () => {
       <FileSearchButton value="report" onChange={() => {}} />,
     );
     expect(html).toContain('data-filtered="true"');
-    expect(html).toContain('aria-label="筛选当前目录"');
+    expect(html).toContain('aria-label="搜索当前目录"');
     expect(html).toContain("report");
     expect(html).not.toContain('type="search"');
   });

@@ -85,7 +85,7 @@ pub async fn spawn_shell(
     let directory = tempfile::tempdir().unwrap();
     // Absolute system path and no profile: never execute user PowerShell setup.
     let system = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap());
-    let powershell = system.join("System32/WindowsPowerShell/v1.0");
+    let powershell = system.join(r"System32\WindowsPowerShell\v1.0");
     let mut process = CommandBuilder::new(powershell.join("powershell.exe"));
     process.env_clear();
     // Preserve only OS metadata needed by the Windows/.NET module loader, never
@@ -125,19 +125,22 @@ pub async fn spawn_shell(
     // Keep child PowerShell profiles and history isolated as well as the outer shell.
     let command = if let Some(shell) = editor_shell {
         process.env("ORIATUNNEL_TEST_DATA_DIR", directory.path());
-        let command = command.replace(" -NoLogo -NoExit ", " -NoLogo -NoProfile -NoExit ");
-        if shell == "cmd" {
-            // A batch file passes the SSH exec string verbatim through cmd's parser.
-            std::fs::write(
-                directory.path().join("fixture-ssh.cmd"),
-                format!("@echo off\r\n{command}\r\n"),
-            )
-            .unwrap();
-            r#"& "$env:SystemRoot\System32\cmd.exe" /d /c fixture-ssh.cmd; exit $LASTEXITCODE"#
-                .into()
+        let command = command.replace("-NoLogo -NoExit ", "-NoLogo -NoProfile -NoExit ");
+        // Win32-OpenSSH builds the PTY command line as shell + switch + raw SSH
+        // command. Batch files and PowerShell argument arrays have different quoting.
+        let (executable, args) = if shell == "cmd" {
+            (system.join(r"System32\cmd.exe"), format!("/d /c {command}"))
         } else {
-            command
-        }
+            (
+                powershell.join("powershell.exe"),
+                format!("-NoLogo -NoProfile -Command {command}"),
+            )
+        };
+        process.env("ORIA_FIXTURE_SHELL", executable);
+        process.env("ORIA_FIXTURE_ARGUMENTS", args);
+        "$info = New-Object Diagnostics.ProcessStartInfo; $info.FileName = $env:ORIA_FIXTURE_SHELL; \
+         $info.Arguments = $env:ORIA_FIXTURE_ARGUMENTS; $info.UseShellExecute = $false; \
+         $child = [Diagnostics.Process]::Start($info); $child.WaitForExit(); exit $child.ExitCode".into()
     } else {
         command
     };

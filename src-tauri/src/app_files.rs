@@ -189,8 +189,9 @@ pub async fn file_connect(
             if cancel.is_cancelled() {
                 return Err("cancelled".into());
             }
-            remotes.insert(sid.clone(), Fs::Remote(Arc::new(remote)));
-            Ok::<_, String>(())
+            let remote = Arc::new(remote);
+            remotes.insert(sid.clone(), Fs::Remote(remote.clone()));
+            Ok::<_, String>(remote)
         }
         .await;
         task_state.trust.lock().unwrap().remove(&sid);
@@ -201,14 +202,20 @@ pub async fn file_connect(
                 s.error = None;
                 return;
             }
-            let (phase, error) = match result {
-                Ok(()) => ("connected", None),
+            let (phase, error) = match &result {
+                Ok(_) => ("connected", None),
                 Err(e) if e == "credentialsRequired" => ("credentialsRequired", None),
-                Err(e) => ("disconnected", Some(e)),
+                Err(e) => ("disconnected", Some(e.clone())),
             };
             s.phase = phase.into();
             s.error = error;
         });
+        if let Ok(remote) = result {
+            tokio::select! {
+                _ = cancel.cancelled() => (),
+                _ = remote.raw.closed() => disconnect(&task_state, &sid),
+            }
+        }
     });
     state.files.track(job);
     state.files.publish();

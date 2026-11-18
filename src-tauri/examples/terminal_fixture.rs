@@ -5,14 +5,19 @@ mod server;
 #[tokio::main]
 async fn main() {
     let fixture = server::Fixture::default();
-    #[cfg(unix)]
     let fixture = {
         let mut fixture = fixture;
         fixture.editor_shell = match std::env::args().nth(1).as_deref() {
+            #[cfg(unix)]
             Some("bash") => Some("/bin/bash"),
+            #[cfg(unix)]
             Some("zsh") => Some("/bin/zsh"),
+            #[cfg(windows)]
+            Some("cmd") => Some("cmd"),
+            #[cfg(windows)]
+            Some("powershell") => Some("powershell"),
             None => None,
-            _ => panic!("expected bash or zsh"),
+            _ => panic!("unsupported shell for this platform"),
         };
         fixture
     };

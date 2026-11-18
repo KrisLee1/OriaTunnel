@@ -1,8 +1,9 @@
+import { PageEmptyState } from "@/components/page-empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { formatNativeMessage } from "@/lib/native-message";
 import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { LoaderCircleIcon, RefreshCwIcon, ServerIcon } from "lucide-react";
+import { LoaderCircleIcon, SearchX, RefreshCwIcon, ServerIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/tunnel-form";
 import { Button } from "@/components/ui/button";
@@ -158,21 +159,40 @@ export function HostDiscovery({
             </div>
           </ScrollArea>
         ) : (
-          <div className="host-discovery-empty" role="status">
-            {busy && (
-              <LoaderCircleIcon
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-            )}
-            {t(
+          <PageEmptyState
+            compact
+            role="status"
+            className="h-full"
+            icon={
+              busy ? (
+                <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />
+              ) : query.trim() ? (
+                <SearchX />
+              ) : (
+                <ServerIcon />
+              )
+            }
+            title={t(
               busy
                 ? "discoveringHosts"
                 : query.trim()
                   ? "noMatchingHosts"
                   : "noDiscoveredHosts",
             )}
-          </div>
+            action={
+              !busy &&
+              query.trim() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuery("")}
+                >
+                  {t("clearFilters")}
+                </Button>
+              )
+            }
+          />
         )}
       </div>
       {diagnostics.map((message, index) => (

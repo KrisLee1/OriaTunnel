@@ -6,6 +6,7 @@ export type Entry = {
   hidden?: boolean;
   size: number;
   modified: number;
+  created?: number | null;
   permissions: number | null;
 };
 export type Directory = {
@@ -50,9 +51,12 @@ export type Task = {
   bytes: number;
   speed: number | null;
   eta: number | null;
+  elapsedMs?: number | null;
   total: number;
   count: number;
   completed: string[];
+  completedArchive?: { roots: Record<string, number> };
+  scan?: { items: number; bytes: number; directory: string };
   skipped: number;
   revision: number;
   error: string | null;
@@ -84,8 +88,18 @@ export type TextDocument = {
 };
 export const canClearTransfer = (t: Task) =>
   ["completed", "partial", "cancelled", "failed"].includes(t.phase) &&
-  !t.temp && !t.directPending && !t.commitSource && !t.commitTarget &&
-  t.error !== "commitUnknown" && t.error !== "directUnknown";
+  !t.temp &&
+  !t.directPending &&
+  !t.commitSource &&
+  !t.commitTarget &&
+  t.error !== "commitUnknown" &&
+  t.error !== "directUnknown";
+
+export function transferPercent(task: Task) {
+  if (task.phase === "preparing" || task.phase === "queued" || task.total <= 0)
+    return 0;
+  return Math.min(100, (task.bytes / task.total) * 100);
+}
 
 export const active = (t: Task) =>
   ![
@@ -166,14 +180,18 @@ export function sorted(
   return items.sort((a, b) => {
     const group =
       Number(b.kind === "directory") - Number(a.kind === "directory");
+    if (sort === "created" && (a.created == null) !== (b.created == null))
+      return a.created == null ? 1 : -1;
     const value =
-      sort === "size"
-        ? a.size - b.size
-        : sort === "modified"
-          ? a.modified - b.modified
-          : sort === "type"
-            ? entryType(a).localeCompare(entryType(b))
-            : 0;
+      sort === "created"
+        ? (a.created ?? 0) - (b.created ?? 0)
+        : sort === "size"
+          ? a.size - b.size
+          : sort === "modified"
+            ? a.modified - b.modified
+            : sort === "type"
+              ? entryType(a).localeCompare(entryType(b))
+              : 0;
     return (
       (group || value || a.name.localeCompare(b.name)) * (descending ? -1 : 1)
     );

@@ -1,4 +1,6 @@
 {
+  "clearFilters": "絞り込みを解除",
+  "noActivityYet": "ログはまだありません",
   "serviceProtocol": "サービスプロトコル",
   "openService": "サービスを開く",
   "serviceSelectProtocol": "先にサービスプロトコルを選択してください",

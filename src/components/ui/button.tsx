@@ -51,11 +51,12 @@ function Button({
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   const reducedMotion = useReducedMotion()
+  const popupTrigger = props["aria-haspopup"] && props["aria-haspopup"] !== "false"
   return (
     <ButtonPrimitive
       render={
         <motion.button
-          whileTap={reducedMotion || props.disabled ? undefined : { scale: 0.96 }}
+          whileTap={reducedMotion || props.disabled || popupTrigger ? undefined : { scale: 0.96 }}
           transition={interactionSpring}
         />
       }

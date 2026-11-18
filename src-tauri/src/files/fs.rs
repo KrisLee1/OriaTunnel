@@ -111,6 +111,11 @@ pub struct Meta {
     pub modified: u64,
     pub permissions: Option<u32>,
 }
+pub(super) struct DirectoryChild {
+    pub name: String,
+    pub meta: Meta,
+    pub created: Option<u64>,
+}
 #[derive(Clone)]
 pub enum Fs {
     Local,
@@ -119,6 +124,7 @@ pub enum Fs {
 pub struct Remote {
     pub raw: RawSftpSession,
     pub extensions: std::collections::HashMap<String, String>,
+    read_size: u32,
     pub(crate) _connection: crate::tunnel::Connection,
 }
 impl Remote {
@@ -131,12 +137,47 @@ impl Remote {
         let initialize = async move {
             let channel = connection.open_session().await.map_err(err)?;
             channel.request_subsystem(true, "sftp").await.map_err(err)?;
-            let raw = RawSftpSession::new(channel.into_stream());
+            // Directory NAME pages may be much larger than an individual file READ.
+            let raw = RawSftpSession::new_with_config(
+                channel.into_stream(),
+                russh_sftp::client::Config {
+                    max_packet_len: 4 * 1024 * 1024,
+                    ..Default::default()
+                },
+            );
             raw.set_timeout(request_timeout_secs);
             let version = raw.init().await.map_err(|_| "sftpUnavailable".to_owned())?;
+            let read_size = if version
+                .extensions
+                .get("limits@openssh.com")
+                .map(String::as_str)
+                == Some("1")
+            {
+                match raw.limits().await {
+                    Ok(limits) => {
+                        let mut size = 256 * 1024_u64;
+                        if limits.max_read_len > 0 {
+                            size = size.min(limits.max_read_len);
+                        }
+                        if limits.max_packet_len > 0 {
+                            size = size.min(limits.max_packet_len.saturating_sub(13));
+                        }
+                        if size == 0 {
+                            return Err("sftpUnavailable".to_owned());
+                        }
+                        size as u32
+                    }
+                    // Some servers advertise the extension but disallow this optional request.
+                    Err(Error::Status(_)) => 32768,
+                    Err(e) => return Err(err(e)),
+                }
+            } else {
+                32768
+            };
             Ok(Self {
                 raw,
                 extensions: version.extensions,
+                read_size,
                 _connection: connection,
             })
         };
@@ -174,6 +215,43 @@ pub fn local_name_ok(s: &str) -> bool {
     true
 }
 impl Fs {
+    pub(super) async fn is_windows_directory_link(&self, path: &str) -> Result<bool> {
+        let Self::Remote(remote) = self else {
+            return Ok(false);
+        };
+        let volume = path.strip_prefix('/').unwrap_or(path);
+        if !volume
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphabetic)
+            || volume.as_bytes().get(1..3) != Some(b":/")
+            || volume.len() == 3
+        {
+            return Ok(false);
+        }
+        // Win32-OpenSSH can advertise an NTFS junction as a plain directory in
+        // both READDIR and LSTAT. READLINK distinguishes it from a normal folder.
+        match remote.raw.readlink(path).await {
+            Ok(_) => Ok(true),
+            Err(Error::Status(s)) if s.status_code == StatusCode::BadMessage => {
+                // POSIX servers can return BAD_MESSAGE (EINVAL) for every non-link.
+                // Compare with the drive root before applying the Windows convention.
+                let drive_root = &path[..path.len() - volume.len() + 3];
+                Ok(matches!(remote.raw.readlink(drive_root).await,
+                    Err(Error::Status(status)) if status.status_code == StatusCode::Failure))
+            }
+            Err(Error::Status(s))
+                if matches!(
+                    s.status_code,
+                    StatusCode::Failure | StatusCode::OpUnsupported | StatusCode::PermissionDenied
+                ) =>
+            {
+                Ok(false)
+            }
+            Err(e) => Err(format!("SFTP READLINK {path}: {e}")),
+        }
+    }
+
     pub fn join(&self, parent: &str, name: &str) -> Result<String> {
         if !name_ok(name) || (matches!(self, Self::Local) && !local_name_ok(name)) {
             return Err("invalidName".into());
@@ -209,60 +287,7 @@ impl Fs {
     pub async fn meta(&self, p: &str) -> Result<Option<Meta>> {
         match self {
             Self::Local => match tokio::fs::symlink_metadata(p).await {
-                Ok(m) => {
-                    let link = m.file_type().is_symlink();
-                    #[cfg(windows)]
-                    let link = {
-                        use std::os::windows::fs::MetadataExt;
-                        link || m.file_attributes() & 0x400 != 0
-                    };
-                    Ok(Some(Meta {
-                        hidden: {
-                            #[cfg(windows)]
-                            {
-                                use std::os::windows::fs::MetadataExt;
-                                m.file_attributes() & (0x2 | 0x4) != 0
-                            }
-                            #[cfg(target_os = "macos")]
-                            {
-                                use std::os::macos::fs::MetadataExt;
-                                m.st_flags() & libc::UF_HIDDEN != 0
-                            }
-                            #[cfg(not(any(windows, target_os = "macos")))]
-                            {
-                                false
-                            }
-                        },
-                        kind: if link {
-                            "link"
-                        } else if m.is_dir() {
-                            "directory"
-                        } else if m.is_file() {
-                            "file"
-                        } else {
-                            "other"
-                        }
-                        .into(),
-                        size: m.len(),
-                        modified: m
-                            .modified()
-                            .ok()
-                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                            .map(|t| t.as_millis() as u64)
-                            .unwrap_or(0),
-                        permissions: {
-                            #[cfg(unix)]
-                            {
-                                use std::os::unix::fs::PermissionsExt;
-                                Some(m.permissions().mode() & 0o7777)
-                            }
-                            #[cfg(not(unix))]
-                            {
-                                None
-                            }
-                        },
-                    }))
-                }
+                Ok(m) => Ok(Some(local_meta(m))),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(err(e)),
             },
@@ -273,27 +298,94 @@ impl Fs {
             },
         }
     }
-    pub async fn list(&self, p: &str) -> Result<Vec<(String, Meta)>> {
+    pub(super) async fn list(&self, p: &str) -> Result<Vec<DirectoryChild>> {
         let mut result = Vec::new();
+        self.visit_directory(p, &tokio_util::sync::CancellationToken::new(), |entry| {
+            if result.len() >= 20_000 {
+                return Err("directoryLimit".into());
+            }
+            result.push(entry);
+            Ok(())
+        })
+        .await?;
+        result.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(result)
+    }
+
+    pub(super) async fn visit_directory(
+        &self,
+        p: &str,
+        cancel: &tokio_util::sync::CancellationToken,
+        mut visit: impl FnMut(DirectoryChild) -> Result<()>,
+    ) -> Result<()> {
         match self {
             Self::Local => {
-                let mut rd = tokio::fs::read_dir(p).await.map_err(err)?;
-                while let Some(e) = rd.next_entry().await.map_err(err)? {
-                    let n = e.file_name().into_string().map_err(|_| "invalidName")?;
-                    let path = self.join(p, &n)?;
-                    if let Some(m) = self.meta(&path).await? {
-                        result.push((n, m));
+                let path = p.to_owned();
+                let mut entries = tokio::task::spawn_blocking(move || std::fs::read_dir(path))
+                    .await
+                    .map_err(err)?
+                    .map_err(err)?;
+                loop {
+                    let token = cancel.clone();
+                    let (next, page) = tokio::task::spawn_blocking(move || {
+                        let mut page = Vec::with_capacity(256);
+                        for _ in 0..256 {
+                            if token.is_cancelled() {
+                                return Err("cancelled".to_owned());
+                            }
+                            let Some(entry) = entries.next() else {
+                                return Ok((None, page));
+                            };
+                            let entry = entry.map_err(err)?;
+                            let name =
+                                entry.file_name().into_string().map_err(|_| "invalidName")?;
+                            if !local_name_ok(&name) {
+                                return Err("invalidName".into());
+                            }
+                            // DirEntry metadata does not follow links and is cached by Windows enumeration.
+                            match entry.metadata() {
+                                Ok(metadata) => page.push(DirectoryChild {
+                                    name,
+                                    created: metadata
+                                        .created()
+                                        .ok()
+                                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                                        .map(|duration| duration.as_millis() as u64),
+                                    meta: local_meta(metadata),
+                                }),
+                                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                                Err(e) => return Err(err(e)),
+                            }
+                        }
+                        Ok((Some(entries), page))
+                    })
+                    .await
+                    .map_err(err)??;
+                    for entry in page {
+                        visit(entry)?;
                     }
-                    if result.len() > 20_000 {
-                        return Err("directoryLimit".into());
-                    }
+                    let Some(cursor) = next else {
+                        break;
+                    };
+                    entries = cursor;
                 }
+                Ok(())
             }
             Self::Remote(r) => {
-                let h = r.raw.opendir(p).await.map_err(err)?.handle;
+                let h = r
+                    .raw
+                    .opendir(p)
+                    .await
+                    .map_err(|e| format!("SFTP OPENDIR {p}: {e}"))?
+                    .handle;
                 let outcome = async {
                     loop {
-                        match r.raw.readdir(&h).await {
+                        let page = tokio::select! {
+                            biased;
+                            _ = cancel.cancelled() => return Err("cancelled".into()),
+                            page = r.raw.readdir(h.as_slice()) => page,
+                        };
+                        match page {
                             Ok(page) => {
                                 for f in page.files {
                                     if f.filename == "." || f.filename == ".." {
@@ -302,25 +394,29 @@ impl Fs {
                                     if !name_ok(&f.filename) {
                                         return Err("invalidName".into());
                                     }
-                                    result.push((f.filename, remote_meta(f.attrs)));
-                                    if result.len() > 20_000 {
-                                        return Err("directoryLimit".into());
-                                    }
+                                    visit(DirectoryChild {
+                                        name: f.filename,
+                                        meta: remote_meta(f.attrs),
+                                        created: None,
+                                    })?;
                                 }
                             }
                             Err(Error::Status(s)) if s.status_code == StatusCode::Eof => break,
-                            Err(e) => return Err(err(e)),
+                            Err(e) => return Err(format!("SFTP READDIR {p}: {e}")),
                         }
                     }
                     Ok(())
                 }
                 .await;
-                let _ = r.raw.close(h).await;
+                let closed = r
+                    .raw
+                    .close(h)
+                    .await
+                    .map_err(|e| format!("SFTP CLOSE {p}: {e}"));
                 outcome?;
+                closed.map(|_| ())
             }
         }
-        result.sort_by(|a, b| a.0.cmp(&b.0));
-        Ok(result)
     }
     pub async fn mkdir(&self, p: &str) -> Result<()> {
         match self {
@@ -457,17 +553,69 @@ impl Fs {
         }
     }
 }
-fn remote_meta(a: FileAttributes) -> Meta {
+fn local_meta(m: std::fs::Metadata) -> Meta {
+    let link = m.file_type().is_symlink();
+    #[cfg(windows)]
+    let link = {
+        use std::os::windows::fs::MetadataExt;
+        link || m.file_attributes() & 0x400 != 0
+    };
     Meta {
-        hidden: false,
-        kind: if a.is_symlink() {
+        hidden: {
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::MetadataExt;
+                m.file_attributes() & (0x2 | 0x4) != 0
+            }
+            #[cfg(target_os = "macos")]
+            {
+                use std::os::macos::fs::MetadataExt;
+                m.st_flags() & libc::UF_HIDDEN != 0
+            }
+            #[cfg(not(any(windows, target_os = "macos")))]
+            {
+                false
+            }
+        },
+        kind: if link {
             "link"
-        } else if a.is_dir() {
+        } else if m.is_dir() {
             "directory"
-        } else if a.is_regular() {
+        } else if m.is_file() {
             "file"
         } else {
             "other"
+        }
+        .into(),
+        size: m.len(),
+        modified: m
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|t| t.as_millis() as u64)
+            .unwrap_or(0),
+        permissions: {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                Some(m.permissions().mode() & 0o7777)
+            }
+            #[cfg(not(unix))]
+            {
+                None
+            }
+        },
+    }
+}
+
+pub(super) fn remote_meta(a: FileAttributes) -> Meta {
+    Meta {
+        hidden: false,
+        kind: match a.permissions.unwrap_or(0) & 0o170000 {
+            0o120000 => "link",
+            0o040000 => "directory",
+            0o100000 => "file",
+            _ => "other",
         }
         .into(),
         size: a.size.unwrap_or(0),
@@ -477,7 +625,7 @@ fn remote_meta(a: FileAttributes) -> Meta {
 }
 pub enum Reader {
     Local(tokio::fs::File),
-    Remote(Arc<Remote>, String),
+    Remote(Arc<Remote>, Vec<u8>),
 }
 // READ and a WRITE of identical bytes to the same exclusive temporary handle and
 // offset are replay-safe. Never apply this policy to rename/remove/open/create.
@@ -496,16 +644,21 @@ where
 }
 impl Reader {
     pub async fn read(&mut self, offset: u64) -> Result<Vec<u8>> {
+        self.read_at_most(offset, 32768).await
+    }
+    pub async fn read_at_most(&mut self, offset: u64, remaining: u64) -> Result<Vec<u8>> {
         match self {
             Self::Local(f) => {
-                let mut b = vec![0; 32768];
+                let mut b = vec![0; remaining.min(32768) as usize];
                 let n = f.read(&mut b).await.map_err(err)?;
                 b.truncate(n);
                 Ok(b)
             }
             Self::Remote(r, h) => {
-                match retry_timeout(|| r.raw.read(h.clone(), offset, 32768)).await {
-                    Ok(d) => Ok(d.data),
+                let len = remaining.min(r.read_size.into()) as u32;
+                match retry_timeout(|| r.raw.read(h.clone(), offset, len)).await {
+                    Ok(d) if d.data.len() <= len as usize => Ok(d.data),
+                    Ok(_) => Err("SFTP READ returned more data than requested".into()),
                     Err(Error::Status(s)) if s.status_code == StatusCode::Eof => Ok(vec![]),
                     Err(e) => Err(err(e)),
                 }
@@ -521,7 +674,7 @@ impl Reader {
 }
 pub enum Writer {
     Local(tokio::fs::File),
-    Remote(Arc<Remote>, String),
+    Remote(Arc<Remote>, Vec<u8>),
 }
 impl Writer {
     pub async fn write(&mut self, offset: u64, b: Vec<u8>) -> Result<()> {
@@ -574,25 +727,25 @@ mod tests {
         let entries = Fs::Local.list(root.path().to_str().unwrap()).await.unwrap();
         let hidden = &entries
             .iter()
-            .find(|(name, _)| name == "ordinary-name.txt")
+            .find(|entry| entry.name == "ordinary-name.txt")
             .unwrap()
-            .1;
+            .meta;
         assert!(hidden.hidden);
         assert_eq!(hidden.permissions, Some(0o640));
         assert!(
             !entries
                 .iter()
-                .find(|(name, _)| name == "visible.txt")
+                .find(|entry| entry.name == "visible.txt")
                 .unwrap()
-                .1
+                .meta
                 .hidden
         );
         assert_eq!(
             entries
                 .iter()
-                .find(|(name, _)| name == "link.txt")
+                .find(|entry| entry.name == "link.txt")
                 .unwrap()
-                .1
+                .meta
                 .kind,
             "link"
         );
@@ -649,17 +802,17 @@ mod tests {
         assert!(
             entries
                 .iter()
-                .find(|(name, _)| name == "ordinary-name")
+                .find(|entry| entry.name == "ordinary-name")
                 .unwrap()
-                .1
+                .meta
                 .hidden
         );
         assert!(
             !entries
                 .iter()
-                .find(|(name, _)| name == "$normal")
+                .find(|entry| entry.name == "$normal")
                 .unwrap()
-                .1
+                .meta
                 .hidden
         );
         assert_eq!(serde_json::to_value(&meta).unwrap()["hidden"], true);

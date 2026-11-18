@@ -20,9 +20,25 @@ pub(super) struct Startup {
 }
 
 pub(super) async fn startup(connection: &Connection, id: &str) -> Option<Startup> {
-    let reply = tokio::time::timeout(Duration::from_secs(5), async {
+    let reply = probe(connection, PROBE).await?;
+    let shell = detected_shell(&reply)?;
+    if shell == "cmd" {
+        // Choose the fallback before opening the interactive PTY. Never append
+        // cmd control flow to a child PowerShell invocation.
+        let available = probe(connection, CMD_POWERSHELL_PROBE).await?;
+        if available.lines().next_back()?.trim() != "oria-powershell" {
+            return None;
+        }
+    }
+    editor_startup(shell, id)
+}
+
+const CMD_POWERSHELL_PROBE: &str = r#"if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" echo oria-powershell"#;
+
+async fn probe(connection: &Connection, command: &str) -> Option<String> {
+    tokio::time::timeout(Duration::from_secs(5), async {
         let mut probe = connection.open_session().await.ok()?;
-        probe.exec(true, PROBE).await.ok()?;
+        probe.exec(true, command).await.ok()?;
         let mut name = Vec::new();
         while let Some(message) = probe.wait().await {
             match message {
@@ -38,11 +54,10 @@ pub(super) async fn startup(connection: &Connection, id: &str) -> Option<Startup
         Some(String::from_utf8_lossy(&name).into_owned())
     })
     .await
-    .ok()??;
-    startup_from_reply(&reply, id)
+    .ok()?
 }
 
-fn startup_from_reply(reply: &str, id: &str) -> Option<Startup> {
+fn detected_shell(reply: &str) -> Option<&str> {
     let line = reply
         .trim_end()
         .lines()
@@ -51,16 +66,24 @@ fn startup_from_reply(reply: &str, id: &str) -> Option<Startup> {
         .trim_matches('"');
     let fields: Vec<_> = line.strip_prefix("oria-shell~")?.split('~').collect();
     match fields.as_slice() {
-        ["$0", "Windows_NT", r"\$env:OS"] => windows_startup(WindowsShell::Cmd, id),
-        [_, "%OS%", r"\Windows_NT"] => windows_startup(WindowsShell::PowerShell, id),
+        ["$0", "Windows_NT", r"\$env:OS"] => Some("cmd"),
+        [_, "%OS%", r"\Windows_NT"] => Some("powershell"),
         [shell, "%OS%", "$env:OS"] => {
             let shell = shell.rsplit('/').next()?.trim_start_matches('-');
-            Some(Startup {
-                command: shell_startup(shell, id)?,
-                powershell: false,
-            })
+            matches!(shell, "bash" | "zsh").then_some(shell)
         }
         _ => None,
+    }
+}
+
+fn editor_startup(shell: &str, id: &str) -> Option<Startup> {
+    match shell {
+        "cmd" => windows_startup(WindowsShell::Cmd, id),
+        "powershell" => windows_startup(WindowsShell::PowerShell, id),
+        _ => Some(Startup {
+            command: shell_startup(shell, id)?,
+            powershell: false,
+        }),
     }
 }
 
@@ -82,24 +105,32 @@ fn windows_startup(shell: WindowsShell, id: &str) -> Option<Startup> {
     .ok()?;
     gzip.write_all(include_bytes!("editor.ps1")).ok()?;
     let archive = BASE64.encode(&gzip.finish().ok()?);
-    let script = format!(
-        "if ($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage') {{ \
+    // Separate the compact hook data from the fixed bootstrap. Neither cmd's
+    // parser nor a parent PowerShell should interpret the bootstrap's syntax.
+    let script = "$oriaHook = $env:ORIA_TERMINAL_HOOK; Remove-Item Env:ORIA_TERMINAL_HOOK; \
+        if ($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage') { \
         . ([ScriptBlock]::Create([IO.StreamReader]::new([IO.Compression.GZipStream]::new(\
-        [IO.MemoryStream]::new([Convert]::FromBase64String('{archive}')),\
-        [IO.Compression.CompressionMode]::Decompress)).ReadToEnd())) }}"
+        [IO.MemoryStream]::new([Convert]::FromBase64String($oriaHook)),\
+        [IO.Compression.CompressionMode]::Decompress)).ReadToEnd())) }; Remove-Variable oriaHook";
+    let bootstrap = BASE64.encode(
+        &script
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>(),
     );
     let command = if matches!(shell, WindowsShell::Cmd) {
-        // Use the same system PowerShell as a local Windows terminal. Keep cmd
-        // interactive on installations without Windows PowerShell.
+        // Use the same system PowerShell as a local Windows terminal.
         let exe = r#"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"#;
         format!(
-            r#"if exist "{exe}" ("{exe}" -NoLogo -NoExit -Command "{script}") else ("%ComSpec%")"#
+            r#"set ORIA_TERMINAL_HOOK={archive}&& "{exe}" -NoLogo -NoExit -EncodedCommand {bootstrap}"#
         )
     } else {
-        // Keep the configured edition and install location, including PowerShell 7.
+        // Keep the configured edition and attach the child to the existing PTY.
+        // Start-Process also handles SSH environments with no PATHEXT.
         format!(
-            "& (Get-Process -Id $PID).Path -NoLogo -NoExit -Command '{}'; exit $LASTEXITCODE",
-            script.replace('\'', "''")
+            "$env:ORIA_TERMINAL_HOOK='{archive}'; $oriaChild = Start-Process -FilePath (Get-Process -Id $PID).Path \
+             -ArgumentList '-NoLogo -NoExit -EncodedCommand {bootstrap}' -NoNewWindow -PassThru; \
+             Wait-Process -InputObject $oriaChild; exit $oriaChild.ExitCode"
         )
     };
     Some(Startup {
@@ -167,7 +198,7 @@ mod tests {
             "oria-shell~-zsh~%OS%~$env:OS",
         ] {
             assert!(
-                !startup_from_reply(reply, "terminal:test")
+                !editor_startup(detected_shell(reply).unwrap(), "terminal:test")
                     .unwrap()
                     .powershell
             );
@@ -179,7 +210,7 @@ mod tests {
             "oria-shell~~%OS%~",
             "oria-shell~$0~%OS%~$env:OS",
         ] {
-            assert!(startup_from_reply(reply, "terminal:test").is_none());
+            assert!(detected_shell(reply).is_none());
         }
     }
 
@@ -191,7 +222,7 @@ mod tests {
             ("\"oria-shell~$0~Windows_NT~\\$env:OS\"\r\n", true),
             ("profile banner\r\noria-shell~~%OS%~\\Windows_NT\r\n", false),
         ] {
-            let startup = startup_from_reply(reply, id).unwrap();
+            let startup = editor_startup(detected_shell(reply).unwrap(), id).unwrap();
             assert!(startup.powershell);
             assert!(startup.command.len() < 8000);
             assert_eq!(
@@ -200,14 +231,17 @@ mod tests {
                     .contains(r"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"),
                 cmd
             );
-            let script = startup.command.replace("''", "'");
-            let archive = script
-                .split_once("FromBase64String('")
-                .unwrap()
-                .1
-                .split_once('\'')
-                .unwrap()
-                .0;
+            let value = startup.command.split_once("ORIA_TERMINAL_HOOK=").unwrap().1;
+            let archive = if cmd {
+                value.split_once("&&").unwrap().0
+            } else {
+                value
+                    .strip_prefix('\'')
+                    .unwrap()
+                    .split_once('\'')
+                    .unwrap()
+                    .0
+            };
             let bytes = BASE64.decode(archive.as_bytes()).unwrap();
             let mut decoded = String::new();
             flate2::read::GzDecoder::new(bytes.as_slice())

@@ -1,9 +1,12 @@
+import { PageEmptyState } from "@/components/page-empty-state";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowUp,
   Folder,
   HardDrive,
+  LoaderCircle,
+  SearchX,
   Monitor,
   type LucideIcon,
 } from "lucide-react";
@@ -249,9 +252,7 @@ export function DirectoryPicker({
               {t("directoryError")}
             </button>
           ) : status || !entries.length ? (
-            <span className="shell-directory-status" role="status">
-              {t(status ? "loading" : "noMatches")}
-            </span>
+            <PageEmptyState compact role="status" icon={status ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <SearchX />} title={t(status ? "loading" : "noMatches")} />
           ) : null}
         </ScrollArea>
       </PopoverContent>

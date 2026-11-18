@@ -244,6 +244,8 @@ pnpm test src/features/terminal src/lib/webview-guards.test.ts
 
 `cargo run --manifest-path src-tauri/Cargo.toml --example terminal_fixture` 在 Windows / Unix 启动手动验证夹具并打印随机回环端口。它会在临时 HOME 中执行任意输入的命令，权限仍为当前开发账号；只在隔离 QA 中输入受控测试命令，结束用 Ctrl+C 关闭。不得配置用户真实主机或读取真实凭据；不把测试密码保存至系统凭据库。
 
+Windows 可在该命令末尾添加 `-- cmd` 或 `-- powershell`，验证两种 SSH 默认 Shell 下的编辑器。自动回归测试为 `cargo test --manifest-path src-tauri/Cargo.toml --test terminal_pty windows_ssh_interactive_shell_uses_the_powershell_editor`。
+
 ## 服务控制开发
 
 E3 的配置/映射、观测结果和有限步骤执行器在 `src-tauri/src/service_control.rs`，本地窗口 IPC、冻结服务/路线校验及转发适配在 `src-tauri/src/app_service.rs`。普通非交互动作也经该控制层执行，继续使用 `commands::Manager` 管理请求去重、同服务互斥、输出和任务上限；更新/退出清理不另建一套生命周期。
@@ -284,6 +286,13 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml --lib files::
 ```
 
 Rust 文件测试使用临时目录和回环 SFTP 服务，不访问用户真实 SSH 主机。自动测试不应直接连接保存的主机或对真实文件执行删除、覆盖及编辑。验证原生文件选择、拖入、废纸篓、浏览器启动或 WebView 偏好时，使用独立应用标识、专用数据目录和空 SSH 来源；调试隔离变量的范围见上文。
+
+在 Windows 上，将 `ORIA_QA_SFTP_SERVER` 设为微软 Win32-OpenSSH 的 `sftp-server.exe` 绝对路径，可通过本机回环 SSH 运行原生 SFTP 下载验证。测试只读启动服务端子进程，使用独立临时目录。第一条命令覆盖盘符、中文、空文件、长路径和目录联接。第二条从空目标下载 250,001 个文件并逐文件读回核对，请为临时目录预留至少 65 GiB。
+
+```powershell
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib downloads_windows_openssh_drive_paths_and_unicode_to_windows -- --ignored
+cargo test --release --locked --manifest-path src-tauri/Cargo.toml --lib full_directory_over_loopback_sftp -- --ignored --nocapture
+```
 
 macOS 通过 NSFileManager 枚举可见挂载卷及使用废纸篓，读取 UF_HIDDEN 和 POSIX 权限；文本原子保存保留原文件的元数据。Windows 读取 Hidden/System 属性，原子保存保留 ACL。跨平台行为需在对应原生目标验证。文件队列参与退出和更新清理，主机间直传结果不明时保留待核对状态；配置包不包含任务记录、文件内容或认证秘密。
 

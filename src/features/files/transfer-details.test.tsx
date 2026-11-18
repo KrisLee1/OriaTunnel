@@ -53,7 +53,7 @@ describe("file edge hover information", () => {
       "D:\\目标\\报告.txt",
       "42 B / 84 B",
       "21 B/s",
-      "2s",
+      "2秒",
       'data-slot="progress"',
     ])
       expect(html).toContain(value);
