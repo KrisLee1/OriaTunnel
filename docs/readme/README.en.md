@@ -45,16 +45,16 @@
 
 ## Download and install
 
-| Platform | Installer v0.4.0 | Installation |
+| Platform | Installer v0.4.1 | Installation |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | Open the disk image and drag OriaTunnel into Applications. |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | Run the installer and follow the prompts. |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | Open the disk image and drag OriaTunnel into Applications. |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | Run the installer and follow the prompts. |
 
 ### Version history
 
-**v0.4.0** · Local and SSH terminals now support completion, a shared command library, multiline editing and collapsible output. Check for updates under **About**.
+**v0.4.1** adds drag-and-drop split panes for terminals, smoother terminal resizing, and faster resumption of large file transfer batches. Check for updates under **About**.
 
-[Release notes (Chinese)](../releases/v0.4.0.md) · [All releases](https://github.com/KrisLee1/OriaTunnel/releases)
+[Release notes (Chinese)](../releases/v0.4.1.md) · [All releases](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## Quick start
 

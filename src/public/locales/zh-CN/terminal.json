@@ -24,6 +24,8 @@
   "recentCommands": "最近命令",
   "completions": "补全候选",
   "workspace": "终端",
+  "closeGroup": "关闭组合终端",
+  "groupCloseHint": "将关闭以下 {{count}} 个终端。正在运行的前台命令可能会中断。",
   "terminalGroup": "组合终端",
   "localTerminal": "本地终端",
   "foregroundCloseHint": "有命令正在前台运行，仍要关闭此终端标签吗？",

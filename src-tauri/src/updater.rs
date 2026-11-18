@@ -470,12 +470,63 @@ pub async fn install_update(
     match result {
         Ok(Ok(())) => {
             lease.commit();
-            // Windows successfully launching the installer exits inside the plugin.
-            app.request_restart();
+            #[cfg(target_os = "macos")]
+            {
+                if let Err(error) = schedule_macos_relaunch(&app) {
+                    eprintln!("Failed to schedule relaunch after update: {error}");
+                }
+                app.exit(0);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                // Windows successfully launching the installer exits inside the plugin.
+                app.request_restart();
+            }
             Ok(state.snapshot())
         }
         _ => Ok(state.fail(&app, Failure::Install)),
     }
+}
+
+#[cfg(target_os = "macos")]
+const RELAUNCH_AFTER_EXIT: &str = r#"
+pid=$1
+bundle=$2
+shift 2
+attempts=0
+while kill -0 "$pid" 2>/dev/null; do
+    [ "$attempts" -lt 300 ] || exit 1
+    attempts=$((attempts + 1))
+    /bin/sleep 0.1
+done
+exec /usr/bin/open "$bundle" --args "$@"
+"#;
+
+#[cfg(target_os = "macos")]
+fn schedule_macos_relaunch(app: &tauri::AppHandle) -> std::io::Result<()> {
+    use std::{
+        os::unix::process::CommandExt,
+        process::{Command, Stdio},
+    };
+
+    let env = app.env();
+    let executable = tauri::process::current_binary(&env)?;
+    let bundle = tauri_plugin_updater::extract_path_from_executable(&executable)
+        .map_err(std::io::Error::other)?;
+    // Tauri's restart forces a new LaunchServices instance while this PID is still
+    // registered. Wait outside this process so Dock can reuse the pinned tile and
+    // the new instance can acquire the profile lock.
+    Command::new("/bin/sh")
+        .args(["-c", RELAUNCH_AFTER_EXIT, "oria-update-relaunch"])
+        .arg(std::process::id().to_string())
+        .arg(bundle)
+        .args(env.args_os.iter().skip(1))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()?;
+    Ok(())
 }
 
 #[cfg(test)]

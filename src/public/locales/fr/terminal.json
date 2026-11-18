@@ -24,6 +24,8 @@
   "recentCommands": "Commandes récentes",
   "completions": "Complétions",
   "workspace": "Terminal",
+  "closeGroup": "Fermer le groupe de terminaux",
+  "groupCloseHint": "Terminaux à fermer : {{count}}. Les commandes en cours peuvent être interrompues.",
   "terminalGroup": "Groupe de terminaux",
   "localTerminal": "Terminal local",
   "foregroundCloseHint": "Une commande est en cours au premier plan. Fermer cet onglet de terminal ?",

@@ -5,7 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
-import { splitSide, type PaneDrop } from "./terminal-splits";
+import { groupEdge, splitSide, type PaneDrop } from "./terminal-splits";
 
 export function usePaneDrag(
   list: RefObject<HTMLDivElement | null>,
@@ -18,7 +18,10 @@ export function usePaneDrag(
     moved: boolean;
     handle: Element;
   } | null>(null);
-  const [preview, setPreview] = useState<PaneDrop | null>(null);
+  const [preview, setPreview] = useState<{
+    source: string;
+    drop: PaneDrop;
+  } | null>(null);
   const swallowClick = useRef(false);
   function cancel() {
     const current = gesture.current;
@@ -55,15 +58,23 @@ export function usePaneDrag(
     const element = document.elementFromPoint(event.clientX, event.clientY);
     if (!element) return null;
     if (list.current?.contains(element)) return grouped ? "tabs" : null;
-    const pane = element.closest<HTMLElement>("[data-terminal-pane]");
-    if (
-      !pane ||
-      pane.dataset.terminalPane === source ||
-      !list.current?.closest(".terminal-tabs")?.contains(pane)
-    )
+    const group = element.closest<HTMLElement>("[data-terminal-group]");
+    if (!group || !list.current?.closest(".terminal-tabs")?.contains(group))
       return null;
+    if (group.hasAttribute("data-split")) {
+      const side = groupEdge(
+        group.getBoundingClientRect(),
+        event.clientX,
+        event.clientY,
+      );
+      if (side)
+        return { scope: "group", target: group.dataset.terminalGroup!, side };
+    }
+    const pane = element.closest<HTMLElement>("[data-terminal-pane]");
+    if (!pane || pane.dataset.terminalPane === source) return null;
     return {
-      pane: pane.dataset.terminalPane!,
+      scope: "pane",
+      target: pane.dataset.terminalPane!,
       side: splitSide(
         pane.getBoundingClientRect(),
         event.clientX,
@@ -97,17 +108,21 @@ export function usePaneDrag(
           return;
         drag.moved = true;
         const next = hit(event, source, grouped);
-        setPreview((old) =>
-          old === next ||
-          (old &&
-            next &&
-            old !== "tabs" &&
-            next !== "tabs" &&
-            old.pane === next.pane &&
-            old.side === next.side)
-            ? old
-            : next,
-        );
+        setPreview((old) => {
+          if (!next) return null;
+          const last = old?.drop;
+          if (
+            last === next ||
+            (last &&
+              last !== "tabs" &&
+              next !== "tabs" &&
+              last.scope === next.scope &&
+              last.target === next.target &&
+              last.side === next.side)
+          )
+            return old;
+          return { source, drop: next };
+        });
       },
       onPointerUp(event: ReactPointerEvent) {
         const drag = gesture.current;

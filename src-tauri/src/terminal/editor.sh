@@ -58,6 +58,10 @@ __oria_prompt() {
         [ "$PS1" != "$__oria_native_prompt" ] || PS1=$__oria_ps1
         unset __oria_ps1 __oria_native_prompt
     fi
+    if [ -n "${__oria_restore_promptsp-}" ]; then
+        setopt promptsp
+        unset __oria_restore_promptsp
+    fi
     if [ -n "${__oria_eol_mark-}" ]; then
         if [ "${PROMPT_EOL_MARK-}" = "$__oria_eol_mark" ]; then
             if [ "$__oria_had_eol" = x ]; then PROMPT_EOL_MARK=$__oria_saved_eol; else unset PROMPT_EOL_MARK; fi
@@ -120,15 +124,14 @@ __oria_prompt() {
                 if [ "$op" = run ]; then
                     draft=$value
                     __oria_submitted=$draft
-                    if [ -n "${ZSH_VERSION-}" ]; then
-                        # Zsh paints an end-of-line marker and pads to the right margin before precmd.
-                        # Capture the command's screen before those prompt decorations arrive.
-                        __oria_saved_eol=${PROMPT_EOL_MARK-}
-                        __oria_had_eol=${PROMPT_EOL_MARK+x}
-                        __oria_eol_mark="%{$(__oria_emit outputEnd "$seq")%}"
-                        PROMPT_EOL_MARK=$__oria_eol_mark
-                    fi
                     native='$ '
+                fi
+                if [ -n "${ZSH_VERSION-}" ]; then
+                    # Snapshot run and raw output before zsh paints its next prompt's padding.
+                    __oria_saved_eol=${PROMPT_EOL_MARK-}
+                    __oria_had_eol=${PROMPT_EOL_MARK+x}
+                    __oria_eol_mark="%{$(__oria_emit outputEnd "$seq")%}"
+                    PROMPT_EOL_MARK=$__oria_eol_mark
                 fi
                 marker=$(__oria_emit release "$seq")
                 if [ -n "${ZSH_VERSION-}" ]; then __oria_native_prompt="$native%{$marker%}"
@@ -176,6 +179,12 @@ if command -v base64 >/dev/null && command -v stty >/dev/null; then
         if command ls --color=auto -d . >/dev/null 2>&1; then alias ls='ls --color=auto'; fi
     fi
     if [ -n "${ZSH_VERSION-}" ]; then
+        # The first precmd archives the startup banner. Suppress both zsh's EOL
+        # glyph and its margin padding, which can wrap at a different xterm width.
+        if [[ -o promptsp ]]; then
+            __oria_restore_promptsp=1
+            unsetopt promptsp
+        fi
         precmd_functions+=(__oria_prompt)
     elif [[ $(declare -p PROMPT_COMMAND 2>/dev/null) == 'declare -a '* ]]; then
         PROMPT_COMMAND+=(__oria_prompt)

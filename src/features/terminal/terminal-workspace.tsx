@@ -179,7 +179,10 @@ export function TerminalWorkspaceProvider({
   } | null>(null);
   const [secrets, setSecrets] = useState<Record<string, string>>({}),
     [remember, setRemember] = useState<Record<string, boolean>>({});
-  const [closing, setClosing] = useState<TerminalSession | null>(null),
+  const [closing, setClosing] = useState<{
+      group: boolean;
+      ids: string[];
+    } | null>(null),
     [busy, setBusy] = useState(false);
   const tabControls = useRef(new Map<string, TerminalTabControls>());
   const submitting = useRef(false),
@@ -402,36 +405,53 @@ export function TerminalWorkspaceProvider({
       { automatic: true },
     );
   };
-  const close = async (session: TerminalSession) => {
-    if (submitting.current) return;
+  const close = async (targets: TerminalSession[]) => {
+    if (submitting.current || !targets.length) return;
     submitting.current = true;
     setBusy(true);
+    setError("");
     try {
-      if (terminalActive(session)) {
-        await tabControls.current.get(session.id)?.logout();
-        await bridge.closeTerminal(session.id, session.clientId);
-      }
-      await bridge.forgetTerminal(session.id, session.clientId);
-      dismissed.current.add(session.id);
-      setSessions((old) => old.filter((s) => s.id !== session.id));
-      setClosing(null);
+      const results = await Promise.allSettled(
+        targets.map(async (session) => {
+          if (terminalActive(session)) {
+            await tabControls.current.get(session.id)?.logout();
+            await bridge.closeTerminal(session.id, session.clientId);
+          }
+          await bridge.forgetTerminal(session.id, session.clientId);
+          dismissed.current.add(session.id);
+        }),
+      );
+      const closed = new Set<string>();
+      const failed: string[] = [];
+      let message = "";
+      results.forEach((result, i) => {
+        const id = targets[i].id;
+        if (result.status === "fulfilled") closed.add(id);
+        else {
+          failed.push(id);
+          message ||= String(result.reason);
+        }
+      });
+      setSessions((old) => old.filter((session) => !closed.has(session.id)));
       const sibling =
         selectedGroup &&
         paneKeys(selectedGroup.tree)
           .map((key) => sessionsByKey.get(key))
-          .find((s) => s && s.id !== session.id);
+          .find((session) => session && !closed.has(session.id));
       setSelected((current) =>
-        current === session.id
+        closed.has(current)
           ? sibling?.id ||
-            sessions.find((s) => s.id !== session.id)?.id ||
+            sessions.find((s) => !closed.has(s.id))?.id ||
             commandTabs[0] ||
             ""
           : current,
       );
-    } catch (e) {
-      setError(String(e));
-      setSelected(session.id);
-      setExpanded(true);
+      if (failed.length) {
+        setClosing((old) => old && { ...old, ids: failed });
+        setError(message);
+        setExpanded(true);
+        if (targets.length === 1) setSelected(failed[0]);
+      } else setClosing(null);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -452,9 +472,10 @@ export function TerminalWorkspaceProvider({
               session.clientId,
             ))))
       ) {
-        setClosing(session);
+        setError("");
+        setClosing({ group: false, ids: [session.id] });
       } else {
-        await close(session);
+        await close([session]);
       }
     } catch (e) {
       setError(String(e));
@@ -511,18 +532,35 @@ export function TerminalWorkspaceProvider({
     }
   };
   const drag = usePaneDrag(tabListRef, place);
-  const closeButton = (session: TerminalSession) => (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={t("closeTab") + " " + session.label}
-      disabled={busy}
-      onClick={() => void requestClose(session)}
-    >
-      <XIcon aria-hidden="true" />
-    </Button>
-  );
+  const closingSessions = closing
+    ? sessions.filter((session) => closing.ids.includes(session.id))
+    : [];
+  if (closing && !busy && !closingSessions.length) setClosing(null);
+  const closeButton = (session: TerminalSession, groupMembers?: string[]) => {
+    const label = groupMembers
+      ? t("closeGroup")
+      : t("closeTab") + " " + session.label;
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={label}
+        title={label}
+        disabled={busy}
+        onClick={() => {
+          if (!groupMembers) return void requestClose(session);
+          setError("");
+          setClosing({
+            group: true,
+            ids: groupMembers.map((key) => sessionsByKey.get(key)!.id),
+          });
+        }}
+      >
+        <XIcon aria-hidden="true" />
+      </Button>
+    );
+  };
   const route = draft
     ? data.hosts.find((h) => h.id === draft.hostId)
     : undefined;
@@ -633,7 +671,7 @@ export function TerminalWorkspaceProvider({
           clientId,
           target.hostId,
         );
-        if (session) await latestActions.current.close(session);
+        if (session) await latestActions.current.close([session]);
       },
     }),
     [sessions, busy, clientId, data.rules],
@@ -684,7 +722,7 @@ export function TerminalWorkspaceProvider({
           >
             <TabsList
               ref={tabListRef}
-              data-drop={drag.preview === "tabs" || undefined}
+              data-drop={drag.preview?.drop === "tabs" || undefined}
               variant="line"
               className="terminal-tab-list"
               data-fade-left={tabEdges.left}
@@ -698,6 +736,8 @@ export function TerminalWorkspaceProvider({
                   !grouped &&
                   selectedKey !== undefined &&
                   group.tab !== activeTab;
+                const canDockGroup =
+                  canDock && typeof selectedGroup?.tree === "object";
                 const title = grouped
                   ? members
                       .map((key) => sessionsByKey.get(key)!.label)
@@ -711,11 +751,19 @@ export function TerminalWorkspaceProvider({
                       {...(canDock && drag.handle(group.tab, false))}
                       aria-keyshortcuts={
                         canDock
-                          ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+                          ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" +
+                            (canDockGroup
+                              ? " Alt+Shift+ArrowLeft Alt+Shift+ArrowRight Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
+                              : "")
                           : undefined
                       }
                       onKeyDownCapture={(event) => {
-                        if (!canDock || !event.altKey) return;
+                        if (
+                          !canDock ||
+                          !event.altKey ||
+                          (event.shiftKey && !canDockGroup)
+                        )
+                          return;
                         const sides: Record<string, SplitSide> = {
                           ArrowLeft: "left",
                           ArrowRight: "right",
@@ -726,7 +774,14 @@ export function TerminalWorkspaceProvider({
                         if (side) {
                           event.preventDefault();
                           event.stopPropagation();
-                          place(group.tab, { pane: selectedKey, side });
+                          place(group.tab, {
+                            scope: event.shiftKey ? "group" : "pane",
+                            target:
+                              event.shiftKey && selectedGroup
+                                ? selectedGroup.tab
+                                : selectedKey,
+                            side,
+                          });
                         }
                       }}
                       title={title}
@@ -754,7 +809,7 @@ export function TerminalWorkspaceProvider({
                       </span>
                       {grouped && <span>{members.length}</span>}
                     </TabsTrigger>
-                    {!grouped && closeButton(s)}
+                    {closeButton(s, grouped ? members : undefined)}
                   </div>
                 );
               })}
@@ -796,6 +851,7 @@ export function TerminalWorkspaceProvider({
             <div className="terminal-view-area">
               <TerminalSplitPanels
                 groups={groups}
+                preview={drag.preview}
                 label={(key) => sessionsByKey.get(key)!.label}
                 resizeLabel={(axis) =>
                   t(axis === "horizontal" ? "resizeWidth" : "resize")
@@ -805,7 +861,7 @@ export function TerminalWorkspaceProvider({
                   const grouped = typeof group.tree !== "string";
                   const visible = activeTab === group.tab;
                   const active = expanded && selectedSession?.id === session.id;
-                  const preview = drag.preview;
+                  const preview = drag.preview?.drop;
                   const profile = unsubmittedPreset(
                     session,
                     data.services || [],
@@ -822,7 +878,10 @@ export function TerminalWorkspaceProvider({
                       data-grouped={grouped}
                       aria-label={session.label}
                       data-drop={
-                        preview && preview !== "tabs" && preview.pane === key
+                        preview &&
+                        preview !== "tabs" &&
+                        preview.scope === "pane" &&
+                        preview.target === key
                           ? preview.side
                           : undefined
                       }
@@ -1016,14 +1075,30 @@ export function TerminalWorkspaceProvider({
             </form>
           </Modal>
         )}
-        {closing && (
+        {closing && closingSessions.length > 0 && (
           <Modal
             key="close"
-            title={t("closeTab")}
-            description={t("foregroundCloseHint")}
-            close={() => setClosing(null)}
+            title={t(closing.group ? "closeGroup" : "closeTab")}
+            description={
+              closing.group
+                ? t("groupCloseHint", { count: closingSessions.length })
+                : t("foregroundCloseHint")
+            }
+            close={() => {
+              if (!submitting.current) setClosing(null);
+            }}
           >
-            <code>{closing.endpoint}</code>
+            {closing.group ? (
+              <ul>
+                {closingSessions.map((session) => (
+                  <li key={session.id}>
+                    {session.label} · <code>{session.endpoint}</code>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <code>{closingSessions[0].endpoint}</code>
+            )}
             {error && (
               <p role="alert" className="inline-error">
                 {formatUiError(error, t)}
@@ -1033,6 +1108,8 @@ export function TerminalWorkspaceProvider({
               <Button
                 type="button"
                 variant="ghost"
+                autoFocus
+                disabled={busy}
                 onClick={() => setClosing(null)}
               >
                 {t("cancel")}
@@ -1041,9 +1118,9 @@ export function TerminalWorkspaceProvider({
                 type="button"
                 variant="destructive"
                 disabled={busy}
-                onClick={() => void close(closing)}
+                onClick={() => void close(closingSessions)}
               >
-                {t("closeTab")}
+                {t(closing.group ? "closeGroup" : "closeTab")}
               </Button>
             </ModalActions>
           </Modal>

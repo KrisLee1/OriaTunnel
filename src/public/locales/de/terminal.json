@@ -24,6 +24,8 @@
   "recentCommands": "Letzte Befehle",
   "completions": "Vervollständigungen",
   "workspace": "Terminal",
+  "closeGroup": "Terminalgruppe schließen",
+  "groupCloseHint": "Zu schließende Terminals: {{count}}. Laufende Befehle können unterbrochen werden.",
   "terminalGroup": "Terminalgruppe",
   "localTerminal": "Lokales Terminal",
   "foregroundCloseHint": "Ein Befehl läuft im Vordergrund. Diesen Terminaltab schließen?",

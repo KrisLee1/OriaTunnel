@@ -45,16 +45,16 @@
 
 ## ダウンロードとインストール
 
-| OS | インストーラー v0.4.0 | インストール方法 |
+| OS | インストーラー v0.4.1 | インストール方法 |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | ディスクイメージを開き、OriaTunnel を「アプリケーション」にドラッグします。 |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | インストーラーを実行し、画面の案内に従います。 |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | ディスクイメージを開き、OriaTunnel を「アプリケーション」にドラッグします。 |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | インストーラーを実行し、画面の案内に従います。 |
 
 ### 更新履歴
 
-**v0.4.0** · ローカルと SSH のターミナルに、コマンド補完、セッション間で共有するコマンド集、複数行編集、長い出力の折りたたみを追加しました。「このアプリについて」から更新を確認できます。
+**v0.4.1** · ドラッグ＆ドロップでターミナルを分割表示できるようになりました。サイズ変更が滑らかになり、大量のファイル転送の再開も高速化しました。「このアプリについて」から更新を確認できます。
 
-[リリースノート（簡体字中国語）](../releases/v0.4.0.md) · [すべてのバージョン](https://github.com/KrisLee1/OriaTunnel/releases)
+[リリースノート（簡体字中国語）](../releases/v0.4.1.md) · [すべてのバージョン](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## クイックスタート
 

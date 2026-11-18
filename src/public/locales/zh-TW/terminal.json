@@ -24,6 +24,8 @@
   "recentCommands": "最近命令",
   "completions": "補全選項",
   "workspace": "終端機",
+  "closeGroup": "關閉組合終端機",
+  "groupCloseHint": "將關閉以下 {{count}} 個終端機。正在前景執行的指令可能會中斷。",
   "terminalGroup": "組合終端機",
   "localTerminal": "本機終端機",
   "foregroundCloseHint": "有指令正在前景執行，仍要關閉此終端分頁嗎？",

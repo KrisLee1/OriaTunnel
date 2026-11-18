@@ -45,16 +45,16 @@
 
 ## 다운로드 및 설치
 
-| 플랫폼 | 설치 파일 v0.4.0 | 설치 방법 |
+| 플랫폼 | 설치 파일 v0.4.1 | 설치 방법 |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | 디스크 이미지를 열고 OriaTunnel을 응용 프로그램 폴더로 드래그하세요. |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | 설치 프로그램을 실행하고 안내를 따르세요. |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | 디스크 이미지를 열고 OriaTunnel을 응용 프로그램 폴더로 드래그하세요. |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | 설치 프로그램을 실행하고 안내를 따르세요. |
 
 ### 버전 기록
 
-**v0.4.0** · 로컬 및 SSH 터미널에 명령 자동 완성, 세션 간 공유 명령 라이브러리, 여러 줄 편집과 긴 출력 접기가 추가되었습니다. 앱 정보에서 업데이트를 확인할 수 있습니다.
+**v0.4.1** · 터미널을 끌어다 놓아 분할할 수 있습니다. 터미널 크기 조절이 더 부드러워지고 대량 파일 전송을 더 빠르게 재개할 수 있습니다. 앱 정보에서 업데이트를 확인할 수 있습니다.
 
-[릴리스 노트(중국어 간체)](../releases/v0.4.0.md) · [전체 버전](https://github.com/KrisLee1/OriaTunnel/releases)
+[릴리스 노트(중국어 간체)](../releases/v0.4.1.md) · [전체 버전](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## 빠른 시작
 

@@ -4,6 +4,7 @@ export type PaneTree =
   | {
       id: string;
       axis: "horizontal" | "vertical";
+      firstSize?: number;
       first: PaneTree;
       second: PaneTree;
     };
@@ -12,7 +13,9 @@ export interface TerminalGroup {
   tab: string;
   tree: PaneTree;
 }
-export type PaneDrop = { pane: string; side: SplitSide } | "tabs";
+export type PaneDrop =
+  | { scope: "pane" | "group"; target: string; side: SplitSide }
+  | "tabs";
 
 export function paneKeys(tree: PaneTree): string[] {
   return typeof tree === "string"
@@ -69,18 +72,31 @@ export function movePane(
     next.splice(groups.indexOf(origin) + 1, 0, { tab: source, tree: source });
     return next;
   }
-  const { pane, side } = drop;
-  const target = groups.find((group) => paneKeys(group.tree).includes(pane));
-  if (source === pane || !target) return groups;
+  const { target, scope, side } = drop;
+  const destination = groups.find((group) =>
+    scope === "group"
+      ? group.tab === target
+      : paneKeys(group.tree).includes(target),
+  );
+  if (!destination || (scope === "pane" && source === target)) return groups;
+  if (scope === "group" && alreadyAtEdge(destination.tree, source, side))
+    return groups;
+  const remaining = keepPanes(destination.tree, (key) => key !== source);
+  if (!remaining) return groups;
+
   const before = side === "left" || side === "top";
+  const axis = splitAxis(side);
   function insert(tree: PaneTree): PaneTree {
-    if (tree === pane)
+    if (scope === "group" || tree === target) {
+      const share = dockShare(tree, side);
       return {
         id: splitId,
-        axis: side === "left" || side === "right" ? "horizontal" : "vertical",
+        axis,
+        ...(share !== 50 && { firstSize: before ? share : 100 - share }),
         first: before ? source : tree,
         second: before ? tree : source,
       };
+    }
     if (typeof tree === "string") return tree;
     const first = insert(tree.first),
       second = insert(tree.second);
@@ -88,17 +104,69 @@ export function movePane(
       ? tree
       : { ...tree, first, second };
   }
-  return filterGroups(groups, (key) => key !== source).map((group) => {
-    const tree = insert(group.tree);
-    return tree === group.tree ? group : { tab: target.tab, tree };
+  return groups.flatMap((group) => {
+    if (group === destination)
+      return [{ tab: group.tab, tree: insert(remaining) }];
+    return group === origin
+      ? filterGroups([group], (key) => key !== source)
+      : [group];
   });
 }
 
-export function splitSide(
-  rect: Pick<DOMRect, "left" | "top" | "width" | "height">,
+function splitAxis(side: SplitSide) {
+  return side === "left" || side === "right" ? "horizontal" : "vertical";
+}
+
+// Count adjacent columns (or rows) as peers, preserving their internal ratios.
+function dockShare(tree: PaneTree, side: SplitSide) {
+  const axis = splitAxis(side);
+  function tracks(node: PaneTree): number {
+    return typeof node === "string" || node.axis !== axis
+      ? 1
+      : tracks(node.first) + tracks(node.second);
+  }
+  return Math.max(12, 100 / (1 + tracks(tree)));
+}
+
+function alreadyAtEdge(tree: PaneTree, source: string, side: SplitSide) {
+  if (typeof tree === "string") return tree === source;
+  const before = side === "left" || side === "top";
+  return (
+    tree.axis === splitAxis(side) &&
+    (before ? tree.first : tree.second) === source
+  );
+}
+
+export function groupPreviewShare(
+  tree: PaneTree,
+  source: string,
+  side: SplitSide,
+) {
+  if (alreadyAtEdge(tree, source, side)) return null;
+  const remaining = keepPanes(tree, (key) => key !== source);
+  return remaining ? dockShare(remaining, side) : 50;
+}
+
+type DropRect = Pick<DOMRect, "left" | "top" | "width" | "height">;
+
+export function groupEdge(
+  rect: DropRect,
   x: number,
   y: number,
-): SplitSide {
+): SplitSide | null {
+  const dx = x - rect.left;
+  const dy = y - rect.top;
+  const horizontal = Math.min(dx, rect.width - dx);
+  const vertical = Math.min(dy, rect.height - dy);
+  if (Math.min(horizontal, vertical) < 0) return null;
+  // Leave the interior available for splitting even a small individual pane.
+  const band = Math.min(32, rect.width / 8, rect.height / 8);
+  if (Math.min(horizontal, vertical) > band) return null;
+  if (horizontal < vertical) return dx < rect.width / 2 ? "left" : "right";
+  return dy < rect.height / 2 ? "top" : "bottom";
+}
+
+export function splitSide(rect: DropRect, x: number, y: number): SplitSide {
   const horizontal = (x - rect.left) / rect.width;
   const vertical = (y - rect.top) / rect.height;
   if (Math.min(horizontal, 1 - horizontal) < Math.min(vertical, 1 - vertical))

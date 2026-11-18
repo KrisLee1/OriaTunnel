@@ -514,7 +514,15 @@ async fn shell_editor_runs_commands_and_changes_real_directory_on_loopback() {
                 .input(&s.id, "client", sequence, value.to_vec())
                 .unwrap();
         };
-        wait_text(&bytes, 0, "]6973;editor;ready;0;").await;
+        let ready = wait_text(&bytes, 0, "]6973;editor;ready;0;").await;
+        if shell == "/bin/zsh" {
+            // zsh emits its reverse-video EOL decoration even when the startup screen is empty.
+            let bytes = bytes.lock().unwrap();
+            let startup = &bytes[..ready];
+            assert!(!startup
+                .windows(2)
+                .any(|pair| pair == b"m%" || pair == b"m#"));
+        }
         send(b"#oria commands 1 cHJpbnRm\n");
         let prefix = "]6973;editor;matches;1;";
         let start = wait_text(&bytes, 0, prefix).await + prefix.len();
@@ -546,6 +554,20 @@ async fn shell_editor_runs_commands_and_changes_real_directory_on_loopback() {
         wait_text(&bytes, mark, "ready;0;").await;
         send(b"#oria raw 8 \n");
         wait_text(&bytes, mark, "release;8;").await;
+        if shell == "/bin/zsh" {
+            let mark = bytes.lock().unwrap().len();
+            send(&[3]); // Cancel native input and return to the integrated prompt.
+            wait_text(&bytes, mark, "outputEnd;8;").await;
+            wait_text(&bytes, mark, "ready;0;").await;
+            send(b"#oria run 9 cHJpbnRmICclJSc=\n");
+            wait_text(&bytes, mark, "release;9;").await;
+            let mark = bytes.lock().unwrap().len();
+            send(b"printf '%%'\r");
+            wait_text(&bytes, mark, "%\x1b]6973;editor;outputEnd;9;").await;
+            wait_text(&bytes, mark, "ready;0;").await;
+            send(b"#oria raw 10 \n");
+            wait_text(&bytes, mark, "release;10;").await;
+        }
         send(&[4]);
         tokio::time::timeout(Duration::from_secs(8), job)
             .await

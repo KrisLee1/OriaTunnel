@@ -45,16 +45,16 @@
 
 ## Herunterladen und installieren
 
-| Plattform | Installationspaket v0.4.0 | Installation |
+| Plattform | Installationspaket v0.4.1 | Installation |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | Öffnen Sie das Image und ziehen Sie OriaTunnel in den Ordner „Programme“. |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | Führen Sie das Installationsprogramm aus und folgen Sie dem Assistenten. |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | Öffnen Sie das Image und ziehen Sie OriaTunnel in den Ordner „Programme“. |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | Führen Sie das Installationsprogramm aus und folgen Sie dem Assistenten. |
 
 ### Versionsverlauf
 
-**v0.4.0** · Lokale und SSH-Terminals unterstützen Befehlsvervollständigung, eine gemeinsame Befehlsbibliothek, mehrzeilige Eingaben und einklappbare Ausgaben. Unter **Über** können Sie nach Updates suchen.
+**v0.4.1** · Kombinieren Sie Terminals per Drag-and-drop in einer geteilten Ansicht. Die Größenänderung läuft flüssiger und die Fortsetzung großer Dateiübertragungen ist schneller. Unter **Über** können Sie nach Updates suchen.
 
-[Versionshinweise (Chinesisch)](../releases/v0.4.0.md) · [Alle Versionen](https://github.com/KrisLee1/OriaTunnel/releases)
+[Versionshinweise (Chinesisch)](../releases/v0.4.1.md) · [Alle Versionen](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## Schnellstart
 

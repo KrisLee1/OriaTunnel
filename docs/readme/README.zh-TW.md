@@ -45,16 +45,16 @@
 
 ## 下載與安裝
 
-| 平台 | 安裝檔 v0.4.0 | 安裝方式 |
+| 平台 | 安裝檔 v0.4.1 | 安裝方式 |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | 開啟磁碟映像檔，將 OriaTunnel 拖入「應用程式」。 |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | 執行安裝程式，依畫面提示完成安裝。 |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | 開啟磁碟映像檔，將 OriaTunnel 拖入「應用程式」。 |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | 執行安裝程式，依畫面提示完成安裝。 |
 
 ### 版本記錄
 
-**v0.4.0** · 本機與 SSH 終端機新加入指令補全、跨工作階段指令庫、多行編輯與長輸出摺疊。已安裝的使用者可在「關於」中檢查更新。
+**v0.4.1** · 新增終端機組合面板，可拖放分割窗格，改善終端機縮放卡頓並加快大量檔案的續傳。已安裝的使用者可在「關於」中檢查更新。
 
-[本版更新說明（簡體中文）](../releases/v0.4.0.md) · [所有版本](https://github.com/KrisLee1/OriaTunnel/releases)
+[本版更新說明（簡體中文）](../releases/v0.4.1.md) · [所有版本](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## 快速上手
 

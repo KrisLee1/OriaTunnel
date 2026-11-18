@@ -24,6 +24,8 @@
   "recentCommands": "最近のコマンド",
   "completions": "補完候補",
   "workspace": "ターミナル",
+  "closeGroup": "ターミナルグループを閉じる",
+  "groupCloseHint": "以下の {{count}} 個のターミナルを閉じます。実行中のコマンドが中断される場合があります。",
   "terminalGroup": "ターミナルグループ",
   "localTerminal": "ローカルターミナル",
   "foregroundCloseHint": "フォアグラウンドでコマンドを実行中です。この端末タブを閉じますか？",

@@ -24,6 +24,8 @@
   "recentCommands": "Recent commands",
   "completions": "Completions",
   "workspace": "Terminal",
+  "closeGroup": "Close terminal group",
+  "groupCloseHint": "Terminals to close: {{count}}. Closing these sessions may interrupt running commands.",
   "terminalGroup": "Terminal group",
   "localTerminal": "Local terminal",
   "foregroundCloseHint": "A command is running in the foreground. Close this terminal tab?",

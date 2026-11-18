@@ -45,16 +45,16 @@
 
 ## Télécharger et installer
 
-| Plateforme | Paquet v0.4.0 | Installation |
+| Plateforme | Paquet v0.4.1 | Installation |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64.dmg) | Ouvrez l’image disque et glissez OriaTunnel dans Applications. |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.0/OriaTunnel_0.4.0_arm64-setup.exe) | Exécutez le programme d’installation et suivez les instructions. |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | Ouvrez l’image disque et glissez OriaTunnel dans Applications. |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | Exécutez le programme d’installation et suivez les instructions. |
 
 ### Historique des versions
 
-**v0.4.0** · Les terminaux locaux et SSH proposent la complétion, une bibliothèque de commandes partagée, la saisie multiligne et le repli des sorties longues. Recherchez les mises à jour dans **À propos**.
+**v0.4.1** · Regroupez les terminaux en volets par glisser-déposer. Leur redimensionnement est plus fluide et la reprise des transferts par lots volumineux est plus rapide. Recherchez les mises à jour dans **À propos**.
 
-[Notes de version (chinois)](../releases/v0.4.0.md) · [Toutes les versions](https://github.com/KrisLee1/OriaTunnel/releases)
+[Notes de version (chinois)](../releases/v0.4.1.md) · [Toutes les versions](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## Prise en main
 

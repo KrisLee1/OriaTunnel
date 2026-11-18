@@ -1,4 +1,10 @@
-import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { TabsContent } from "@/components/ui/tabs";
 import {
@@ -6,7 +12,13 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { paneKeys, type PaneTree, type TerminalGroup } from "./terminal-splits";
+import {
+  groupPreviewShare,
+  type PaneDrop,
+  paneKeys,
+  type PaneTree,
+  type TerminalGroup,
+} from "./terminal-splits";
 
 function PaneSlot({ host }: { host: HTMLElement }) {
   const attach = useCallback(
@@ -21,10 +33,12 @@ function PaneSlot({ host }: { host: HTMLElement }) {
 export function TerminalSplitPanels({
   groups,
   renderPane,
+  preview,
   label,
   resizeLabel,
 }: {
   groups: TerminalGroup[];
+  preview: { source: string; drop: PaneDrop } | null;
   renderPane: (key: string, group: TerminalGroup) => ReactNode;
   label: (key: string) => string;
   resizeLabel: (axis: "horizontal" | "vertical") => string;
@@ -64,13 +78,17 @@ export function TerminalSplitPanels({
           if (meta.isUserInteraction) layouts.current.set(tree.id, layout);
         }}
       >
-        <ResizablePanel id={tree.id + "-first"} defaultSize="50%" minSize="12%">
+        <ResizablePanel
+          id={tree.id + "-first"}
+          defaultSize={`${tree.firstSize ?? 50}%`}
+          minSize="12%"
+        >
           {renderTree(tree.first)}
         </ResizablePanel>
         <ResizableHandle aria-label={resizeLabel(tree.axis)} />
         <ResizablePanel
           id={tree.id + "-second"}
-          defaultSize="50%"
+          defaultSize={`${100 - (tree.firstSize ?? 50)}%`}
           minSize="12%"
         >
           {renderTree(tree.second)}
@@ -80,18 +98,41 @@ export function TerminalSplitPanels({
   }
   return (
     <>
-      {groups.map((group) => (
-        <TabsContent
-          className="terminal-group-panel"
-          data-split={typeof group.tree !== "string" || undefined}
-          keepMounted
-          value={group.tab}
-          key={group.tab}
-          aria-label={label(group.tab)}
-        >
-          {renderTree(group.tree)}
-        </TabsContent>
-      ))}
+      {groups.map((group) => {
+        const drop = preview?.drop;
+        const side =
+          drop &&
+          drop !== "tabs" &&
+          drop.scope === "group" &&
+          drop.target === group.tab
+            ? drop.side
+            : undefined;
+        const share =
+          side && preview
+            ? groupPreviewShare(group.tree, preview.source, side)
+            : null;
+        return (
+          <TabsContent
+            className="terminal-group-panel"
+            data-terminal-group={group.tab}
+            data-drop={share ? side : undefined}
+            style={
+              share
+                ? ({
+                    "--terminal-drop-size": `${share}%`,
+                  } as CSSProperties)
+                : undefined
+            }
+            data-split={typeof group.tree !== "string" || undefined}
+            keepMounted
+            value={group.tab}
+            key={group.tab}
+            aria-label={label(group.tab)}
+          >
+            {renderTree(group.tree)}
+          </TabsContent>
+        );
+      })}
       {panes.map(({ key, group }) =>
         createPortal(renderPane(key, group), hosts.current.get(key)!, key),
       )}
