@@ -71,14 +71,7 @@ fn expand(path: &str, home: &Path) -> PathBuf {
         PathBuf::from(path)
     }
 }
-fn load(
-    path: &Path,
-    home: &Path,
-    base: &Path,
-    patterns: &mut Vec<String>,
-    parsed: &mut ParseState,
-    stack: &mut Vec<PathBuf>,
-) {
+fn load(path: &Path, home: &Path, base: &Path, parsed: &mut ParseState, stack: &mut Vec<PathBuf>) {
     let canonical = match path.canonicalize() {
         Ok(p) => p,
         Err(e) => {
@@ -162,13 +155,12 @@ fn load(
         let key = parts[0].to_ascii_lowercase();
         let values = parts[1..].to_vec();
         if key == "host" {
-            *patterns = values;
-            for alias in patterns.iter().filter(|s| !s.contains(['*', '?', '!'])) {
+            for alias in values.iter().filter(|s| !s.contains(['*', '?', '!'])) {
                 parsed.aliases.insert(alias.clone());
             }
             parsed.entries.push(Entry {
                 key,
-                values: patterns.clone(),
+                values,
                 file: format!("{}:{}", path.display(), line_index + 1),
             });
         } else if key == "include" {
@@ -184,7 +176,14 @@ fn load(
                     Ok(paths) => {
                         for included in paths {
                             match included {
-                                Ok(p) => load(&p, home, base, patterns, parsed, stack),
+                                Ok(p) => {
+                                    parsed.entries.push(Entry {
+                                        key: "include-file".into(),
+                                        values: vec![],
+                                        file: String::new(),
+                                    });
+                                    load(&p, home, base, parsed, stack);
+                                }
                                 Err(e) => parse_error(parsed, e.to_string()),
                             }
                         }
@@ -255,22 +254,21 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             values: vec![],
             file: String::new(),
         });
-        load(
-            path,
-            home,
-            &base,
-            &mut vec!["*".into()],
-            &mut parsed,
-            &mut vec![],
-        );
+        load(path, home, &base, &mut parsed, &mut vec![]);
     }
     result.diagnostics = parsed.warnings;
     let mut global = true;
+    let mut include_scopes = Vec::new();
     for entry in &parsed.entries {
         match entry.key.as_str() {
-            "root" => global = true,
+            "root" if entry.file.is_empty() => global = true,
+            "include-start" if entry.file.is_empty() => include_scopes.push(global),
+            "include-file" if entry.file.is_empty() => global = *include_scopes.last().unwrap(),
+            "include-end" if entry.file.is_empty() => global = include_scopes.pop().unwrap(),
             "host" | "match" => global = false,
-            "parse-error" if global => result.diagnostics.extend(entry.values.clone()),
+            "parse-error" if global && entry.file.is_empty() => {
+                result.diagnostics.extend(entry.values.clone())
+            }
             _ => {}
         }
     }
@@ -342,24 +340,29 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
             for entry in &parsed.entries {
                 if skipped_include > 0 {
                     match entry.key.as_str() {
-                        "include-start" => skipped_include += 1,
-                        "include-end" => skipped_include -= 1,
+                        "include-start" if entry.file.is_empty() => skipped_include += 1,
+                        "include-end" if entry.file.is_empty() => skipped_include -= 1,
                         _ => {}
                     }
                     continue;
                 }
                 match entry.key.as_str() {
-                    "root" => {
+                    "root" if entry.file.is_empty() => {
                         active = true;
                         continue;
                     }
-                    "include-start" => {
+                    "include-start" if entry.file.is_empty() => {
                         if !active {
                             skipped_include = 1;
                         }
                         continue;
                     }
-                    "include-end" => continue,
+                    "include-file" | "include-end" if entry.file.is_empty() => {
+                        // Inactive includes are skipped above. Each matched file inherits
+                        // the active parent, including siblings after a Host or Match.
+                        active = true;
+                        continue;
+                    }
                     "host" => {
                         active = matches(&entry.values, &alias);
                         declared |= active && entry.values.iter().any(|p| p == &alias);
@@ -388,7 +391,7 @@ pub fn discover_files(files: &[PathBuf], home: &Path) -> Discovery {
                 if !active {
                     continue;
                 }
-                if entry.key == "parse-error" {
+                if entry.file.is_empty() && entry.key == "parse-error" {
                     diagnostics.extend(entry.values.clone());
                     continue;
                 }
@@ -809,6 +812,57 @@ mod tests {
             fields["connecttimeout"]
         );
     }
+    #[test]
+    fn unknown_directives_cannot_act_as_include_boundaries() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config");
+        std::fs::write(
+            &config,
+            "Host demo\n include-file value\n include-end value\n Port 2211",
+        )
+        .unwrap();
+        let found = discover_files(&[config], dir.path());
+        assert_eq!(found.hosts[0].port, 2211);
+        assert!(found.hosts[0]
+            .diagnostics
+            .iter()
+            .any(|s| s.contains("include-end")));
+    }
+
+    #[test]
+    fn include_restores_parent_match_for_siblings_nested_files_and_following_options() {
+        let dir = tempfile::tempdir().unwrap();
+        let ssh = dir.path().join(".ssh");
+        std::fs::create_dir(&ssh).unwrap();
+        let config = ssh.join("config");
+        std::fs::write(
+            &config,
+            "Host target\n Include *.part\n Port 2229\nHost excluded\n Port 2210",
+        )
+        .unwrap();
+        std::fs::write(
+            ssh.join("a.part"),
+            "Include nested\n User tester\nHost other",
+        )
+        .unwrap();
+        std::fs::write(ssh.join("nested"), "Host other").unwrap();
+        std::fs::write(
+            ssh.join("b.part"),
+            "HostName localhost\nMatch originalhost other",
+        )
+        .unwrap();
+        let found = discover_files(&[config], dir.path());
+        let host = found.hosts.iter().find(|h| h.name == "target").unwrap();
+        assert_eq!(
+            (&*host.address, &*host.user, host.port),
+            ("localhost", "tester", 2229)
+        );
+        assert!(host.diagnostics.is_empty());
+        let excluded = found.hosts.iter().find(|h| h.name == "excluded").unwrap();
+        assert_eq!(excluded.address, "excluded");
+        assert_eq!(excluded.port, 2210);
+    }
+
     #[test]
     fn static_match_final_conditional_include_and_unsupported_exec_are_scoped() {
         let dir = tempfile::tempdir().unwrap();

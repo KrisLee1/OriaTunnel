@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -78,6 +79,13 @@ export function WorkspacePanel({
     panel;
   const [present, setPresent] = useState(open);
   const reducedMotion = useReducedMotion();
+  const lastViewport = useRef(panel.viewport);
+  const viewportResized =
+    panel.viewport.width !== lastViewport.current.width ||
+    panel.viewport.height !== lastViewport.current.height;
+  useLayoutEffect(() => {
+    lastViewport.current = panel.viewport;
+  }, [panel.viewport]);
   const resizeStart = useRef<{
     pointer: number;
     size: number;
@@ -123,7 +131,7 @@ export function WorkspacePanel({
             : bounds.height + panel.viewport.gap,
       }}
       transition={
-        panel.resizing
+        panel.resizing || viewportResized
           ? { duration: 0 }
           : reducedMotion
             ? { duration: 0, opacity: { duration: 0.08 } }

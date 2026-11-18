@@ -60,6 +60,7 @@ export type Task = {
   conflictSource?: string | null;
   currentSource?: string | null;
   commitSource?: string | null;
+  commitTarget?: string | null;
   skippedSources?: string[];
   temp: string | null;
   started: number;
@@ -81,6 +82,11 @@ export type TextDocument = {
   size: number;
   modified: number;
 };
+export const canClearTransfer = (t: Task) =>
+  ["completed", "partial", "cancelled", "failed"].includes(t.phase) &&
+  !t.temp && !t.directPending && !t.commitSource && !t.commitTarget &&
+  t.error !== "commitUnknown" && t.error !== "directUnknown";
+
 export const active = (t: Task) =>
   ![
     "completed",

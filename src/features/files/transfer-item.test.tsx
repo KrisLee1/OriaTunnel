@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import "@/i18n";
+import i18n from "@/i18n";
 import { TransferItem } from "./transfer-item";
 import { TransferBatchDetails } from "./transfer-batch-details";
 import { TransferQueue } from "./transfer-queue";
@@ -29,6 +29,21 @@ const task: Task = {
   eta: null,
 };
 describe("transfer item information", () => {
+  it("keeps clear unavailable until recovery and remote process checks are settled", () => {
+    const label = (key: string) => 'aria-label="' + i18n.t(key, { ns: "files" }) + '"';
+    const row = (changes: Partial<Task>) => renderToStaticMarkup(
+      <TransferItem task={{ ...task, ...changes }} onAction={() => {}} />,
+    );
+    expect(row({ phase: "failed" })).toContain(label("clear"));
+    for (const pending of [
+      { directPending: true },
+      { commitTarget: "/dest" },
+      { error: "commitUnknown" },
+    ]) {
+      expect(row({ phase: "failed", ...pending })).not.toContain(label("clear"));
+    }
+    expect(row({ phase: "cancelled", directPending: true })).toContain(label("verifyDirect"));
+  });
   it("shares one source-to-target path row with single transfers and keeps the local source actionable", () => {
     const download = renderToStaticMarkup(
       <TransferItem task={task} onAction={() => {}} />,
@@ -132,6 +147,27 @@ describe("transfer item information", () => {
       html.indexOf('data-transfer-task="fixture"'),
     );
     expect((html.match(/files-transfer-group-heading/g) || []).length).toBe(2);
+  });
+  it("keeps a long queue windowed while counting every task and offering the next page", () => {
+    const tasks = Array.from({ length: 205 }, (_, i) => ({
+      ...task,
+      id: `history-${i}`,
+      started: i,
+    }));
+    const html = renderToStaticMarkup(
+      <TransferQueue
+        tasks={tasks}
+        expanded
+        onToggle={() => {}}
+        onAction={() => {}}
+        onClear={() => {}}
+      />,
+    );
+    expect(html).toContain('data-transfer-task="history-204"');
+    expect(html).toContain("<small>200</small>");
+    expect(html).toContain("205");
+    expect(html.match(/data-transfer-task=/g)!.length).toBeLessThan(20);
+    expect(html).toContain(i18n.t("loadMoreTasks", { ns: "files" }));
   });
   it("collapsing the queue removes records and display controls without hiding history cleanup", () => {
     const html = renderToStaticMarkup(

@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     fs,
+    io::Write,
     os::windows::ffi::{OsStrExt, OsStringExt},
     path::{Path, PathBuf},
     sync::Mutex,
@@ -12,7 +13,7 @@ use windows_sys::Win32::{
     UI::{
         HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi},
         WindowsAndMessaging::{
-            DestroyIcon, LoadImageW, SendMessageW, ICON_BIG, IMAGE_ICON, LR_LOADFROMFILE,
+            CreateIconFromResourceEx, DestroyIcon, SendMessageW, ICON_BIG, LR_DEFAULTCOLOR,
             SM_CXICON, SM_CYICON, WM_SETICON,
         },
     },
@@ -25,7 +26,7 @@ use windows::{
         Foundation::RPC_E_CHANGED_MODE,
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
-            COINIT_APARTMENTTHREADED, STGM_READWRITE,
+            COINIT_APARTMENTTHREADED, STGM_READ,
         },
         UI::Shell::{
             IShellLinkW, SHChangeNotify, ShellLink, SHCNE_UPDATEITEM, SHCNF_PATHW, SLGP_RAWPATH,
@@ -33,9 +34,12 @@ use windows::{
     },
 };
 
-const LIGHT_ICON: &[u8] = include_bytes!("../icons/windows-taskbar-light.png");
-const DARK_ICON: &[u8] = include_bytes!("../icons/windows-taskbar-dark.png");
-const MONO_ICON: &[u8] = include_bytes!("../icons/windows-taskbar-mono.png");
+// CreateIconFromResourceEx requires a DWORD-aligned resource buffer.
+#[repr(align(4))]
+struct IconResource<const N: usize>([u8; N]);
+const LIGHT_ICON: &[u8] = &IconResource(*include_bytes!("../icons/windows-taskbar-light.png")).0;
+const DARK_ICON: &[u8] = &IconResource(*include_bytes!("../icons/windows-taskbar-dark.png")).0;
+const MONO_ICON: &[u8] = &IconResource(*include_bytes!("../icons/windows-taskbar-mono.png")).0;
 const LIGHT_ICO: &[u8] = include_bytes!("../icons/windows-taskbar-light.ico");
 const DARK_ICO: &[u8] = include_bytes!("../icons/windows-taskbar-dark.ico");
 const MONO_ICO: &[u8] = include_bytes!("../icons/windows-taskbar-mono.ico");
@@ -104,47 +108,39 @@ pub async fn set<R: Runtime>(app: &AppHandle<R>, icon: ApplicationIcon) -> Resul
         return Err(crate::native_message::plain("iconMainWindow"));
     };
 
-    // Installed Windows apps can keep using the icon recorded in their Start
-    // Menu/taskbar shortcut even after WM_SETICON changes the live window. Keep
-    // that shortcut in sync, but only when it targets this exact executable so
-    // a development build never rewrites an installed copy of OriaTunnel.
-    let icon_path =
-        persist_icon(app, icon).map_err(|_| crate::native_message::plain("iconPersist"))?;
-    let shortcut_result = synchronize_installed_shortcut_icon(app, &icon_path).map_err(|error| {
-        eprintln!("Cannot synchronize the installed Windows shortcut icon: {error}");
-        crate::native_message::plain("iconPersist")
-    });
-
     app.manage(TaskbarIcons::default());
     let app_handle = app.clone();
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.run_on_main_thread(move || {
-        let result = (|| {
+        let result = (|| -> Result<(), String> {
             window.set_icon(image).map_err(window_icon_error)?;
             let hwnd = window.hwnd().map_err(window_icon_error)?;
             // Tauri 2.12's SetIcon dispatch only updates ICON_SMALL. Explorer
             // can keep using ICON_BIG, so explicitly update it on the UI thread.
-            set_large_icon(
-                hwnd.0 as _,
-                icon,
-                &icon_path,
-                &app_handle.state::<TaskbarIcons>(),
-            )
-            .map_err(window_icon_error)?;
-            shortcut_result
+            set_large_icon(hwnd.0 as _, icon, &app_handle.state::<TaskbarIcons>())
+                .map_err(window_icon_error)?;
+            Ok(())
         })();
         let _ = sender.send(result);
     })
     .map_err(window_icon_error)?;
     receiver
         .await
-        .map_err(|_| crate::native_message::plain("iconCancelled"))?
+        .map_err(|_| crate::native_message::plain("iconCancelled"))??;
+
+    // Explorer may use a persisted shortcut icon instead of the live window.
+    // A broken or read-only shortcut must not invalidate the window update.
+    if let Err(error) =
+        persist_icon(app, icon).and_then(|path| synchronize_installed_shortcut_icon(app, &path))
+    {
+        eprintln!("Cannot synchronize the Windows shortcut icon: {error}");
+    }
+    Ok(())
 }
 
 fn set_large_icon(
     hwnd: HWND,
     icon: ApplicationIcon,
-    path: &Path,
     cache: &TaskbarIcons,
 ) -> Result<isize, std::io::Error> {
     let dpi = unsafe { GetDpiForWindow(hwnd) }.max(96);
@@ -155,19 +151,16 @@ fn set_large_icon(
     let handle = match cache.entry((icon, dpi)) {
         std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
         std::collections::hash_map::Entry::Vacant(entry) => {
-            let path = path
-                .as_os_str()
-                .encode_wide()
-                .chain(Some(0))
-                .collect::<Vec<_>>();
+            let resource = icon.bytes();
             let handle = unsafe {
-                LoadImageW(
-                    std::ptr::null_mut(),
-                    path.as_ptr(),
-                    IMAGE_ICON,
+                CreateIconFromResourceEx(
+                    resource.as_ptr(),
+                    resource.len() as u32,
+                    1,
+                    0x00030000,
                     GetSystemMetricsForDpi(SM_CXICON, dpi),
                     GetSystemMetricsForDpi(SM_CYICON, dpi),
-                    LR_LOADFROMFILE,
+                    LR_DEFAULTCOLOR,
                 )
             };
             if handle.is_null() {
@@ -196,12 +189,18 @@ fn persist_icon<R: Runtime>(app: &AppHandle<R>, icon: ApplicationIcon) -> Result
     let directory = std::env::var_os("ORIATUNNEL_TEST_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or(directory);
-    let icon_dir = directory.join("taskbar-icons");
-    fs::create_dir_all(&icon_dir)
-        .map_err(|error| format!("Cannot create the taskbar icon directory: {error}"))?;
+    cache_shortcut_icon(&directory.join("taskbar-icons"), icon).map_err(|e| e.to_string())
+}
+
+fn cache_shortcut_icon(icon_dir: &Path, icon: ApplicationIcon) -> std::io::Result<PathBuf> {
+    fs::create_dir_all(icon_dir)?;
     let icon_path = icon_dir.join(format!("{}.ico", icon.file_stem()));
-    fs::write(&icon_path, icon.ico_bytes())
-        .map_err(|error| format!("Cannot persist the taskbar icon: {error}"))?;
+    if fs::read(&icon_path).is_ok_and(|bytes| bytes == icon.ico_bytes()) {
+        return Ok(icon_path);
+    }
+    let mut tmp = tempfile::NamedTempFile::new_in(icon_dir)?;
+    tmp.write_all(icon.ico_bytes())?;
+    tmp.persist(&icon_path)?;
     Ok(icon_path)
 }
 
@@ -212,19 +211,26 @@ fn synchronize_installed_shortcut_icon<R: Runtime>(
     let current_exe = std::env::current_exe()
         .map_err(|error| format!("Cannot resolve the running executable: {error}"))?;
 
-    let mut failure = None;
     let product_name = app.config().product_name.as_deref().unwrap_or("OriaTunnel");
-    for shortcut in installed_shortcut_candidates(product_name) {
+    synchronize_shortcuts(
+        installed_shortcut_candidates(product_name),
+        &current_exe,
+        icon_path,
+    );
+    Ok(())
+}
+
+fn synchronize_shortcuts(shortcuts: Vec<PathBuf>, current_exe: &Path, icon_path: &Path) {
+    for shortcut in shortcuts {
         if !shortcut.is_file() {
             continue;
         }
         if let Err(error) =
-            unsafe { update_shortcut_icon_if_target_matches(&shortcut, &current_exe, icon_path) }
+            unsafe { update_shortcut_icon_if_target_matches(&shortcut, current_exe, icon_path) }
         {
-            failure.get_or_insert_with(|| format!("Cannot update {}: {error}", shortcut.display()));
+            eprintln!("Skipping Windows shortcut {}: {error}", shortcut.display());
         }
     }
-    failure.map_or(Ok(()), Err)
 }
 
 fn installed_shortcut_candidates(product_name: &str) -> Vec<PathBuf> {
@@ -273,7 +279,7 @@ unsafe fn update_shortcut_icon_if_target_matches(
         let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
         let persist_file: IPersistFile = shell_link.cast()?;
         let shortcut_string = HSTRING::from(shortcut_path.to_string_lossy().as_ref());
-        persist_file.Load(&shortcut_string, STGM_READWRITE)?;
+        persist_file.Load(&shortcut_string, STGM_READ)?;
 
         let mut target_buffer = vec![0u16; 32_768];
         shell_link.GetPath(
@@ -288,6 +294,25 @@ unsafe fn update_shortcut_icon_if_target_matches(
         let target_path = PathBuf::from(OsString::from_wide(&target_buffer[..target_length]));
         if !paths_match(&target_path, current_exe) {
             return Ok(false);
+        }
+
+        let mut current_icon = vec![0u16; 32_768];
+        let mut index = 0;
+        if shell_link
+            .GetIconLocation(&mut current_icon, &mut index)
+            .is_ok()
+            && index == 0
+        {
+            let len = current_icon
+                .iter()
+                .position(|v| *v == 0)
+                .unwrap_or(current_icon.len());
+            if paths_match(
+                &PathBuf::from(OsString::from_wide(&current_icon[..len])),
+                icon_path,
+            ) {
+                return Ok(false);
+            }
         }
 
         let icon_string = HSTRING::from(icon_path.to_string_lossy().as_ref());
@@ -331,7 +356,6 @@ mod tests {
             CreateWindowExW, DestroyWindow, IsWindowVisible, ICON_SMALL, WM_GETICON,
             WS_OVERLAPPEDWINDOW,
         };
-        let directory = tempfile::tempdir().unwrap();
         let cache = TaskbarIcons::default();
         struct FixtureWindow(HWND);
         impl Drop for FixtureWindow {
@@ -368,9 +392,7 @@ mod tests {
                 ApplicationIcon::Dark,
                 ApplicationIcon::Mono,
             ] {
-                let path = directory.path().join(format!("{}.ico", icon.file_stem()));
-                fs::write(&path, icon.ico_bytes()).unwrap();
-                let handle = set_large_icon(window.0, icon, &path, &cache).unwrap();
+                let handle = set_large_icon(window.0, icon, &cache).unwrap();
                 assert_ne!(handle, 0);
                 assert_eq!(
                     unsafe { SendMessageW(window.0, WM_GETICON, ICON_BIG as usize, 0) },
@@ -380,6 +402,20 @@ mod tests {
             }
         }
         assert_eq!(cache.0.lock().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn shortcut_cache_reuses_a_read_only_current_icon() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = cache_shortcut_icon(directory.path(), ApplicationIcon::Dark).unwrap();
+        let original = fs::metadata(&path).unwrap().permissions();
+        let mut read_only = original.clone();
+        read_only.set_readonly(true);
+        fs::set_permissions(&path, read_only).unwrap();
+        let result = cache_shortcut_icon(directory.path(), ApplicationIcon::Dark);
+        fs::set_permissions(&path, original).unwrap();
+        assert_eq!(result.unwrap(), path);
+        assert_eq!(fs::read(path).unwrap(), DARK_ICO);
     }
 
     #[test]
@@ -472,18 +508,21 @@ mod tests {
                     &directory.path().join("other.exe"),
                     &selected_icon,
                 )?;
-                file.Load(&shortcut_string, STGM_READWRITE)?;
+                file.Load(&shortcut_string, STGM_READ)?;
                 let mut before = vec![0u16; 32_768];
                 let mut index = 0;
                 link.GetIconLocation(&mut before, &mut index)?;
-                let matching =
+                let broken = directory.path().join("unrelated.lnk");
+                fs::write(&broken, b"not a shell link").unwrap();
+                synchronize_shortcuts(vec![broken, shortcut.clone()], &executable, &selected_icon);
+                let unchanged =
                     update_shortcut_icon_if_target_matches(&shortcut, &executable, &selected_icon)?;
-                file.Load(&shortcut_string, STGM_READWRITE)?;
+                file.Load(&shortcut_string, STGM_READ)?;
                 let mut after = vec![0u16; 32_768];
                 link.GetIconLocation(&mut after, &mut index)?;
                 let mut arguments = vec![0u16; 1024];
                 link.GetArguments(&mut arguments)?;
-                Ok((wrong, matching, before, after, arguments))
+                Ok((wrong, unchanged, before, after, arguments))
             })();
             CoUninitialize();
             result.unwrap()
@@ -492,7 +531,7 @@ mod tests {
             String::from_utf16_lossy(&buffer[..buffer.iter().position(|v| *v == 0).unwrap()])
         };
         assert!(!observed.0);
-        assert!(observed.1);
+        assert!(!observed.1);
         assert!(paths_match(Path::new(&text(&observed.2)), &old_icon));
         assert!(paths_match(Path::new(&text(&observed.3)), &selected_icon));
         assert_eq!(text(&observed.4), "--fixture-only");

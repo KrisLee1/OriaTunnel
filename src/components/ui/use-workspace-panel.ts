@@ -82,12 +82,20 @@ export function useWorkspacePanel({
               .map((rect) => rect.bottom),
           )
         : 38;
-      setViewport({
+      const next = {
         width: window.innerWidth,
         height: window.innerHeight,
         headerBottom,
         gap: Number.isFinite(gap) ? gap : workspaceGap,
-      });
+      };
+      setViewport((prev) =>
+        prev.width === next.width &&
+        prev.height === next.height &&
+        prev.headerBottom === next.headerBottom &&
+        prev.gap === next.gap
+          ? prev
+          : next,
+      );
     };
     const observer = new ResizeObserver(update);
     if (header) {

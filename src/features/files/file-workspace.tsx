@@ -19,13 +19,7 @@ import { TransferQueue } from "./transfer-queue";
 import { TransferConflictDialog } from "./transfer-conflict-dialog";
 import { conflictKey, useTransferConflict } from "./use-transfer-conflict";
 import { useTransferQueue } from "./use-transfer-queue";
-import {
-  FileLayoutMenu,
-  FilePanelGrid,
-  useFilePanelLayout,
-} from "./file-panel-layout";
-import { WorkspacePanel } from "@/components/ui/workspace-panel";
-import { useWorkspacePanel } from "@/components/ui/use-workspace-panel";
+import { FileWorkspacePanel } from "./file-panel-layout";
 import {
   FileOptionsMenu,
   FileSortOptions,
@@ -208,12 +202,7 @@ export function FileWorkspaceProvider({
       warning: null,
     }),
     [refresh, setRefresh] = useState(0);
-  const panel = useWorkspacePanel({
-    open,
-    storageKey: "oria-tunnel.files-workspace.v1",
-    defaults: { dock: "bottom", sizes: { bottom: 480, left: 440, right: 440 } },
-    minimums: { bottom: 360, left: 360, right: 360 },
-  });
+  const panelRef = useRef<HTMLElement>(null);
   const [auth, setAuth] = useState<Session | null>(null),
     [secrets, setSecrets] = useState<Record<string, string>>({}),
     [remember, setRemember] = useState<string[]>([]),
@@ -224,16 +213,8 @@ export function FileWorkspaceProvider({
     [drag, setDrag] = useState<Drag | null>(null);
   const [dragTarget, setDragTarget] = useState<string>();
   const dragPreview = useRef<HTMLDivElement>(null);
-  const {
-    queue,
-    changeQueue,
-    panelRef: queuePanelRef,
-    onResize: resizeQueue,
-  } = useTransferQueue();
-  const fileLayout = useFilePanelLayout(
-    { width: panel.bounds.width - 16, height: panel.bounds.height - 40 },
-    queue,
-  );
+  const queueControl = useTransferQueue();
+  const { queue, changeQueue } = queueControl;
   const savedDirectories = useRef<Record<string, string>>({});
   const connectionGeneration = useRef({ local: 0, remote: 0 });
   const pendingRemote = useRef<number | null>(null);
@@ -399,7 +380,7 @@ export function FileWorkspaceProvider({
   useEffect(() => setRefresh((n) => n + 1), [completeCount]);
   const show = useCallback(
     (id?: string) => {
-      if (open) panel.ref.current?.focus();
+      if (open) panelRef.current?.focus();
       setOpen(true);
       if (!id && viewer) {
         if (
@@ -421,7 +402,7 @@ export function FileWorkspaceProvider({
         } else void connect(id);
       }
     },
-    [connect, preferredHost, host, open, panel.ref, viewer, sid, current],
+    [connect, preferredHost, host, open, viewer, sid, current],
   );
   const transfer = useCallback(
     async (ids: string[], target: string) => {
@@ -556,136 +537,128 @@ export function FileWorkspaceProvider({
           {children}
         </FileActivityContext.Provider>
       </FileTransferDetailsContext.Provider>
-      <WorkspacePanel
-        panel={panel}
-        title={t("title")}
+      <FileWorkspacePanel
+        open={open}
+        panelRef={panelRef}
         onClose={() => setOpen(false)}
-        className="files-workspace"
-        actions={<FileLayoutMenu layout={fileLayout} />}
+        queue={queueControl}
+        renderQueue={(orientation) => (
+          <TransferQueue
+            tasks={snapshot.tasks}
+            conflictIds={snapshot.conflictIds}
+            expanded={queue}
+            orientation={orientation}
+            onToggle={() => changeQueue(!queue)}
+            onAction={taskAction}
+            onClear={() => void perform(() => api.clearHistory())}
+          />
+        )}
       >
-        <p className="sr-only">{t("description")}</p>
-        <FilePanelGrid
-          layout={fileLayout}
-          queuePanelRef={queuePanelRef}
-          onQueueResize={resizeQueue}
-          queue={
-            <TransferQueue
-              tasks={snapshot.tasks}
-              conflictIds={snapshot.conflictIds}
-              expanded={queue}
-              orientation={fileLayout.orientation.outer}
-              onToggle={() => changeQueue(!queue)}
-              onAction={taskAction}
-              onClear={() => void perform(() => api.clearHistory())}
-            />
-          }
-        >
-          {(["local", "remote"] as const).map((side) => {
-            const left = side === "local";
-            const remote = !left || !!sourceHost;
-            const selectedHost = left ? sourceHost : host;
-            const session = left ? sourceSid : sid;
-            const status = left ? sourceCurrent : current;
-            const ready = !remote || (left ? sourceConnected : connected);
-            const otherRemote = left || !!sourceHost;
-            const otherReady = left
-              ? connected
-              : !sourceHost || sourceConnected;
-            const otherSide = left ? "remote" : "local";
-            const transferKind =
-              remote && otherRemote ? "relay" : remote ? "download" : "upload";
-            return (
-              <FilePane
-                key={
-                  session ||
-                  selectedHost ||
-                  (left ? "computer" : "disconnected")
-                }
-                side={side}
-                remote={remote}
-                transferKind={transferKind}
-                canTransfer={
-                  ready &&
-                  otherReady &&
-                  (!remote || !otherRemote || sourceHost !== host)
-                }
-                initialPath={
-                  savedDirectories.current[side + ":" + selectedHost] ||
-                  (!remote ? initialLocalDirectory : undefined)
-                }
-                refresh={refresh}
-                session={remote && ready ? session : null}
-                title={
-                  <FileEndpointTitle
-                    hosts={data.hosts.filter(
-                      (host) =>
-                        data.addedHostIds?.includes(host.id) ||
-                        host.source === "manual",
-                    )}
-                    host={selectedHost}
-                    allowLocal={left}
-                    excludeHost={left ? host : sourceHost}
-                    status={status}
-                    onChange={(id) => {
-                      if (viewer && id) {
-                        if (!left) onChooseHost?.(id);
-                        void connect(id, {}, [], side);
-                        return;
-                      }
-                      connectionGeneration.current[side]++;
-                      if (left) {
-                        setSourceHost(id);
-                        setSourceSid(null);
-                      } else {
-                        setHost(id);
-                        setSid(null);
-                      }
-                      dirs.current[side] = null;
-                    }}
-                    onConnect={() => void connect(selectedHost, {}, [], side)}
-                    onDisconnect={() =>
-                      session &&
-                      void perform(async () => {
-                        await api.disconnect(session);
-                        if (left) setSourceSid(null);
-                        else setSid(null);
-                        dirs.current[side] = null;
-                      })
+        {(["local", "remote"] as const).map((side) => {
+          const left = side === "local";
+          const remote = !left || !!sourceHost;
+          const selectedHost = left ? sourceHost : host;
+          const session = left ? sourceSid : sid;
+          const status = left ? sourceCurrent : current;
+          const ready = !remote || (left ? sourceConnected : connected);
+          const otherRemote = left || !!sourceHost;
+          const otherReady = left
+            ? connected
+            : !sourceHost || sourceConnected;
+          const otherSide = left ? "remote" : "local";
+          const transferKind =
+            remote && otherRemote ? "relay" : remote ? "download" : "upload";
+          return (
+            <FilePane
+              key={
+                session ||
+                selectedHost ||
+                (left ? "computer" : "disconnected")
+              }
+              side={side}
+              remote={remote}
+              transferKind={transferKind}
+              canTransfer={
+                ready &&
+                otherReady &&
+                (!remote || !otherRemote || sourceHost !== host)
+              }
+              initialPath={
+                savedDirectories.current[side + ":" + selectedHost] ||
+                (!remote ? initialLocalDirectory : undefined)
+              }
+              refresh={refresh}
+              session={remote && ready ? session : null}
+              title={
+                <FileEndpointTitle
+                  hosts={data.hosts.filter(
+                    (host) =>
+                      data.addedHostIds?.includes(host.id) ||
+                      host.source === "manual",
+                  )}
+                  host={selectedHost}
+                  allowLocal={left}
+                  excludeHost={left ? host : sourceHost}
+                  status={status}
+                  onChange={(id) => {
+                    if (viewer && id) {
+                      if (!left) onChooseHost?.(id);
+                      void connect(id, {}, [], side);
+                      return;
                     }
-                  />
-                }
-                status={status}
-                onDirectory={(directory) => {
-                  dirs.current[side] = directory;
-                  if (!remote) saveLocalDirectory(directory.path);
-                  savedDirectories.current[side + ":" + selectedHost] =
-                    directory.path;
-                }}
-                onPreview={setPreview}
-                onAction={edit}
-                onError={showError}
-                onTransfer={(ids, explicitTarget) => {
-                  const target =
-                    explicitTarget ||
-                    (otherReady ? dirs.current[otherSide]?.id : undefined);
-                  if (target) void transfer(ids, target);
-                  else showError("notConnected");
-                }}
-                onDrag={(value) => {
-                  dragRef.current = value;
-                  setDrag(value);
-                  setDragTarget(
-                    dropTarget(document.elementFromPoint(value.x, value.y), value.side),
-                  );
-                }}
-                dragTarget={dragTarget}
-                disabledDrop={!open || !!action || !!preview || !!auth}
-                onDrop={transfer}
-              />
-            );
-          })}
-        </FilePanelGrid>
-      </WorkspacePanel>
+                    connectionGeneration.current[side]++;
+                    if (left) {
+                      setSourceHost(id);
+                      setSourceSid(null);
+                    } else {
+                      setHost(id);
+                      setSid(null);
+                    }
+                    dirs.current[side] = null;
+                  }}
+                  onConnect={() => void connect(selectedHost, {}, [], side)}
+                  onDisconnect={() =>
+                    session &&
+                    void perform(async () => {
+                      await api.disconnect(session);
+                      if (left) setSourceSid(null);
+                      else setSid(null);
+                      dirs.current[side] = null;
+                    })
+                  }
+                />
+              }
+              status={status}
+              onDirectory={(directory) => {
+                dirs.current[side] = directory;
+                if (!remote) saveLocalDirectory(directory.path);
+                savedDirectories.current[side + ":" + selectedHost] =
+                  directory.path;
+              }}
+              onPreview={setPreview}
+              onAction={edit}
+              onError={showError}
+              onTransfer={(ids, explicitTarget) => {
+                const target =
+                  explicitTarget ||
+                  (otherReady ? dirs.current[otherSide]?.id : undefined);
+                if (target) void transfer(ids, target);
+                else showError("notConnected");
+              }}
+              onDrag={(value) => {
+                dragRef.current = value;
+                setDrag(value);
+                setDragTarget(
+                  dropTarget(document.elementFromPoint(value.x, value.y), value.side),
+                );
+              }}
+              dragTarget={dragTarget}
+              disabledDrop={!open || !!action || !!preview || !!auth}
+              onDrop={transfer}
+            />
+          );
+        })}
+      </FileWorkspacePanel>
       {conflict.task &&
         !auth &&
         !action &&
@@ -1026,8 +999,11 @@ export function FilePane(p: PaneProps) {
   useEffect(() => {
     setSelected([]);
   }, [query, hidden]);
-  const items = sorted(dir?.entries || [], query, hidden, sort, descending),
-    ordered = items.map((e) => e.id);
+  const items = useMemo(
+    () => sorted(dir?.entries ?? [], query, hidden, sort, descending),
+    [dir?.entries, query, hidden, sort, descending],
+  );
+  const ordered = useMemo(() => items.map((item) => item.id), [items]);
   const rowHeight = view === "list" ? 40 : 100;
   const gapY = view === "list" ? 4 : 8;
   const gapX = view === "list" ? 0 : 8;

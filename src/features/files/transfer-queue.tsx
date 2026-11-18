@@ -5,17 +5,13 @@ import {
   ArrowRightLeft,
   BrushCleaning,
   Check,
-  Download,
-  HardDrive,
   HardDriveDownload,
   HardDriveUpload,
   Layers,
   ListTree,
-  Server,
-  Upload,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -31,8 +27,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Task, TransferFolder } from "./api";
-import { TransferItem } from "./transfer-item";
+import { canClearTransfer, type Task, type TransferFolder } from "./api";
+import { TransferTaskList } from "./transfer-task-list";
 import {
   groupTransfers,
   matchesTransfer,
@@ -96,11 +92,7 @@ export function TransferQueue({
     () => groupTransfers(filtered.slice(0, limit), preferences.grouping),
     [filtered, limit, preferences.grouping],
   );
-  const canClear = tasks.some(
-    (task) =>
-      !task.temp &&
-      ["completed", "partial", "failed", "cancelled"].includes(task.phase),
-  );
+  const canClear = tasks.some(canClearTransfer);
   if (!expanded && orientation === "horizontal")
     return (
       <section className="files-queue themed-surface workspace-pane-card collapsed files-queue-rail">
@@ -268,60 +260,12 @@ export function TransferQueue({
         </div>
       </div>
       {expanded && (
-        <ScrollArea
-          className="min-h-0 flex-1"
-          viewportClassName="files-task-list scroll-fade"
-          contentClassName="px-2 pb-2"
+        <TransferTaskList
+          groups={groups}
+          grouped={preferences.grouping !== "none"}
+          conflictIds={conflictIds}
+          onAction={onAction}
         >
-          {filtered.length === 0 && (
-            <p className="files-empty">{t("noTransfers")}</p>
-          )}
-          {groups.map((group) => {
-            const label = group.host
-              ? group.host.name || t(group.host.remote ? "remote" : "local")
-              : t(
-                  group.direction === "relay"
-                    ? "remoteTransfer"
-                    : group.direction || "transfers",
-                );
-            return (
-              <section
-                key={group.id}
-                className="files-transfer-group"
-                aria-label={preferences.grouping === "none" ? undefined : label}
-              >
-                {preferences.grouping !== "none" && (
-                  <h3 className="files-transfer-group-heading">
-                    {group.host ? (
-                      group.host.remote ? (
-                        <Server />
-                      ) : (
-                        <HardDrive />
-                      )
-                    ) : group.direction === "upload" ? (
-                      <Upload />
-                    ) : group.direction === "download" ? (
-                      <Download />
-                    ) : (
-                      <ArrowRightLeft />
-                    )}
-                    <span title={label}>{label}</span>
-                    <small>{group.tasks.length}</small>
-                  </h3>
-                )}
-                {group.tasks.map((task) => (
-                  <TransferItem
-                    key={task.id}
-                    task={task}
-                    canResolve={!conflictIds || conflictIds.includes(task.id)}
-                    onAction={(action, folder) =>
-                      onAction(task, action, folder)
-                    }
-                  />
-                ))}
-              </section>
-            );
-          })}
           {filtered.length > limit && (
             <Button
               variant="ghost"
@@ -331,7 +275,7 @@ export function TransferQueue({
               {t("loadMoreTasks")}
             </Button>
           )}
-        </ScrollArea>
+        </TransferTaskList>
       )}
     </section>
   );

@@ -672,6 +672,17 @@
   font-size: 12px;
   font-weight: 500;
 }
+.files-queue-entry {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flow-root;
+}
+.files-queue-entry .files-transfer-row {
+  margin-block: 0 6px;
+}
+.files-queue-entry[data-index="0"]:not(:has(.files-transfer-group-heading)) {
+  padding-top: 6px;
+}
 .files-transfer-group-heading > svg {
   width: 14px;
   height: 14px;

@@ -193,8 +193,9 @@ export default function TerminalView({
     // insertText dispatches the native input event, preserving textarea undo and selection.
     document.execCommand("insertText", false, value);
   };
-  const current = useRef({ session, onError, t });
-  current.current = { session, onError, t };
+  const current = useRef({ session, onError, t, visible });
+  current.current = { session, onError, t, visible };
+  const requestFit = useRef<() => void>(null);
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const lastMatch = useRef({ query: "", index: -1 });
@@ -255,6 +256,7 @@ export default function TerminalView({
   }, [shell.blocks, shell.running]);
   const liveCommandFolded =
     !!shell.running && shell.foldedCommands.get(shell.running.id);
+  const screenHidden = shell.editing || (liveCommandFolded && !fullScreen);
   const liveCommand =
     !fullScreen && !liveCommandFolded && shell.running?.command
       ? shell.running
@@ -262,6 +264,12 @@ export default function TerminalView({
   const liveFolded =
     !!liveCommand && !!shell.limitedOutputs.get(liveCommand.id);
   const [ready, setReady] = useState(false);
+  useLayoutEffect(() => {
+    // The integrated editor and transcript expose their own accessible text.
+    // xterm measures every accessible row on resize, even under visibility:hidden.
+    if (terminal.current)
+      terminal.current.options.screenReaderMode = visible && !screenHidden;
+  }, [ready, visible, screenHidden]);
   useLayoutEffect(() => {
     const term = terminal.current,
       screen = container.current,
@@ -543,6 +551,7 @@ export default function TerminalView({
   };
   useEffect(() => {
     if (!visible) setMenuOpen(false);
+    else requestFit.current?.();
   }, [visible]);
   useEffect(() => {
     const element = container.current;
@@ -554,8 +563,7 @@ export default function TerminalView({
       let pendingBytes = 0,
         inputSequence = 0,
         lastFrame = 0,
-        failedInput = false,
-        resizing = 0;
+        failedInput = false;
       let queue = Promise.resolve();
       const reduced = matchMedia("(prefers-reduced-motion: reduce)");
       Terminal.strings.promptLabel = current.current.t("input");
@@ -825,22 +833,56 @@ export default function TerminalView({
         term.options.cursorBlink = !reduced.matches;
       };
       reduced.addEventListener("change", onReduced);
+      let ptyCols = session.cols;
+      let ptyRows = session.rows;
+      let sendingSize = false;
+      const syncPty = async () => {
+        const { cols, rows } = term;
+        if (
+          sendingSize ||
+          current.current.session.finishedAt !== null ||
+          (cols === ptyCols && rows === ptyRows)
+        )
+          return;
+        sendingSize = true;
+        try {
+          await bridge.resizeTerminal(session.id, clientId, cols, rows);
+          ptyCols = cols;
+          ptyRows = rows;
+        } catch {
+          // The session may have ended. A later fit can retry a live PTY.
+        } finally {
+          sendingSize = false;
+          if (!disposed && (cols !== term.cols || rows !== term.rows))
+            void syncPty();
+        }
+      };
+      // Resizing xterm reflows its scrollback and can trigger a full ConPTY redraw.
+      // Let the pane track the pointer at display speed and sample its latest grid.
+      let fitTimer: number | undefined;
+      let nextFit = 0;
       const resize = () => {
-        if (disposed) return;
-        cancelAnimationFrame(resizing);
-        resizing = requestAnimationFrame(() => {
-          if (disposed || !element.clientWidth || !element.clientHeight) return;
+        if (disposed || !current.current.visible || fitTimer !== undefined)
+          return;
+        fitTimer = window.setTimeout(() => {
+          fitTimer = undefined;
+          if (
+            !current.current.visible ||
+            !element.clientWidth ||
+            !element.clientHeight
+          )
+            return;
           const proposed = fit.proposeDimensions();
           if (!proposed) return;
           const cols = Math.max(2, Math.min(500, proposed.cols)),
             rows = Math.max(1, Math.min(300, proposed.rows));
-          if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows);
-          if (current.current.session.finishedAt === null)
-            void bridge
-              .resizeTerminal(session.id, clientId, cols, rows)
-              .catch(() => {});
-        });
+          nextFit = performance.now() + 80;
+          if (term.cols !== cols || term.rows !== rows)
+            term.resize(cols, rows);
+          void syncPty();
+        }, Math.max(0, nextFit - performance.now()));
       };
+      requestFit.current = resize;
       const sizes = new ResizeObserver(resize);
       sizes.observe(element);
       void document.fonts.ready.then(resize);
@@ -869,7 +911,8 @@ export default function TerminalView({
           if (!disposed) current.current.onError(String(error));
         });
       cleanup = () => {
-        cancelAnimationFrame(resizing);
+        requestFit.current = null;
+        clearTimeout(fitTimer);
         sizes.disconnect();
         themes.disconnect();
         reduced.removeEventListener("change", onReduced);
@@ -1298,9 +1341,7 @@ export default function TerminalView({
                     ref={container}
                     className={
                       "ssh-terminal-screen" +
-                      (shell.editing || (liveCommandFolded && !fullScreen)
-                        ? " shell-screen-hidden"
-                        : "")
+                      (screenHidden ? " shell-screen-hidden" : "")
                     }
                   />
                 </div>

@@ -10,7 +10,7 @@ import {
   TriangleAlert,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   active,
+  canClearTransfer,
   size,
   displayPath,
   type Task,
@@ -46,19 +47,27 @@ export function TransferItem({
   task,
   canResolve = true,
   onAction,
+  onBatchOpenChange,
 }: {
   task: Task;
   canResolve?: boolean;
   onAction: (action: string, folder?: TransferFolder) => void;
+  onBatchOpenChange?: (id: string, open: boolean) => void;
 }) {
   const { t, i18n } = useTranslation("files");
   const [batchOpen, setBatchOpen] = useState(false);
+  useLayoutEffect(() => {
+    if (!batchOpen || !onBatchOpenChange) return;
+    onBatchOpenChange(task.id, true);
+    return () => onBatchOpenChange(task.id, false);
+  }, [batchOpen, onBatchOpenChange, task.id]);
   const batch = task.sources.length > 1;
   const started = new Date(task.started);
   const running = active(task),
     finished = ["completed", "partial", "cancelled", "failed"].includes(
       task.phase,
     );
+  const needsVerification = task.directPending || task.error === "commitUnknown";
   const upload = task.direction === "upload",
     relay = task.direction === "relay";
   const endpoints = transferHosts(task);
@@ -234,12 +243,12 @@ export function TransferItem({
             </>
           ) : (
             <>
-              {(!finished || task.phase === "failed") &&
+              {(!finished || task.phase === "failed" || needsVerification) &&
                 (task.phase !== "conflict" || canResolve) &&
                 iconAction(
                   task.phase === "conflict"
                     ? "resolveConflict"
-                    : task.directPending || task.error === "commitUnknown"
+                    : needsVerification
                       ? "verify"
                       : "resume",
                   task.phase === "conflict" ? <TriangleAlert /> : <Play />,
@@ -251,11 +260,10 @@ export function TransferItem({
                         ? "verifyCommit"
                         : "resume",
                 )}
-              {!finished && iconAction("cancel", <X />)}
-              {finished && !task.temp && iconAction("clear", <Trash2 />)}
+              {!finished && !needsVerification && iconAction("cancel", <X />)}
+              {canClearTransfer(task) && iconAction("clear", <Trash2 />)}
               {task.temp &&
-                !task.directPending &&
-                task.error !== "commitUnknown" &&
+                !needsVerification &&
                 iconAction("cleanup", <BrushCleaning />)}
             </>
           )}

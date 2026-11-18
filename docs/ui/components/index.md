@@ -9,7 +9,7 @@
 | 多行输入 | `src/components/ui/textarea.tsx` | shadcn Textarea；共用控件材质与 Tab 焦点规则，文件编辑组合 CodeBlock 使用，业务通过样式限制尺寸 |
 | 折叠内容 | `src/components/ui/collapsible.tsx` | 官方 shadcn/Base UI Root / Trigger / Panel；业务控制展开状态，面板使用原语高度变量和减少动态效果规则；传输批次由文件图标触发展开，收起卸载明细 |
 | 搜索输入 | `src/components/ui/search-input.tsx` | SearchInput 组合 Input 与内置 Search；统一图标定位和文字留白，可用 embedded 与弹层共用外框，业务容器仅调整布局；供主机、服务、日志、文件、模板、图标选择与终端搜索复用 |
-| 悬浮工作面板 | `src/components/ui/workspace-panel.tsx`、`use-workspace-panel.ts`、`workspace-layout.ts` | WorkspacePanel / useWorkspacePanel；文件与终端共用非模态停靠、尺寸、顶栏和动画，业务内容保持挂载，独立保存布局，活动面板置前 |
+| 悬浮工作面板 | `src/components/ui/workspace-panel.tsx`、`use-workspace-panel.ts`、`workspace-layout.ts` | WorkspacePanel / useWorkspacePanel；文件与终端共用非模态停靠、尺寸、顶栏和动画，业务内容保持挂载，独立保存布局，活动面板置前。拖动面板边缘或缩放窗口时直接更新边界。 |
 | 文件浏览与传输 | `src/features/files/file-workspace.tsx`、`api.ts`、`transfer-queue.tsx`、`transfer-item.tsx`、`transfer-paths.tsx`、`file-panel-layout.tsx` | OpenFilesButton / FileWorkspaceProvider；可选本机/SSH 的文件卡片、自动/手动三面板布局、Breadcrumb、原生拖入和跨栏复制、远端间优先直传/中转、右键操作、预览、Rust 后台队列；队列支持时间排序、主机/类型分组与可展开的批次明细；单项和明细共用源→目标路径行与两行记录；开闭面板不控制任务生命周期 |
 | 可调整分栏 | `src/components/ui/resizable.tsx` | shadcn 封装 react-resizable-panels 4：Group/Panel/Separator；支持键盘、最小尺寸与原生 collapsible；布局状态和业务开闭状态分开，不能因状态回写打断拖动 |
 | 面包屑 | `src/components/ui/breadcrumb.tsx` | 语义 nav/ol/li 及 Lucide 分隔符；业务方提供可点击路径和当前项，不在组件内解析本机/远端路径 |

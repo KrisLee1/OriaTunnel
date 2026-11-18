@@ -3,7 +3,6 @@ use crate::files::{
     self,
     fs::{err, Fs, Remote},
 };
-use russh_sftp::client::RawSftpSession;
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Connect {
@@ -184,23 +183,13 @@ pub async fn file_connect(
             }) {
                 return Err("routeChanged".into());
             }
-            let channel = connection.open_session().await.map_err(err)?;
-            channel.request_subsystem(true, "sftp").await.map_err(err)?;
-            let raw = RawSftpSession::new(channel.into_stream());
-            raw.set_timeout(15);
-            let version = raw.init().await.map_err(|_| "sftpUnavailable".to_owned())?;
+            let deadline = std::time::Duration::from_secs(host.connection.connect_timeout_secs);
+            let remote = Remote::open(connection, &cancel, deadline, 15).await?;
             let mut remotes = task_state.files.remotes.lock().unwrap();
             if cancel.is_cancelled() {
                 return Err("cancelled".into());
             }
-            remotes.insert(
-                sid.clone(),
-                Fs::Remote(Arc::new(Remote {
-                    raw,
-                    extensions: version.extensions,
-                    _connection: connection,
-                })),
-            );
+            remotes.insert(sid.clone(), Fs::Remote(Arc::new(remote)));
             Ok::<_, String>(())
         }
         .await;
@@ -270,6 +259,17 @@ pub async fn file_submit(
     bind(state.inner(), &app);
     state.files.submit(request_id, sources, target).await
 }
+async fn reserve_file_control<'a>(
+    state: &'a AppState,
+    id: &str,
+    authorize: impl FnOnce() -> Result<(), String>,
+) -> Result<files::PendingControl<'a>, String> {
+    let _launch = state.workers.lock().await;
+    state.allow_launch()?;
+    authorize()?;
+    state.files.reserve_control(id)
+}
+
 #[tauri::command]
 pub async fn file_control(
     state: tauri::State<'_, Arc<AppState>>,
@@ -280,16 +280,17 @@ pub async fn file_control(
     source_session: Option<String>,
 ) -> Result<(), String> {
     let scope = crate::workspace::scope(&window)?;
-    let _launch = state.workers.lock().await;
-    state.allow_launch()?;
-    scope.check_optional(session.as_deref())?;
-    scope.check_optional(source_session.as_deref())?;
-    if ["skip", "keep", "replace"].contains(&action.as_str()) {
-        check_conflict(&state, &window, &scope, &id)?;
-    }
-    state
-        .files
-        .control_between(&id, &action, session, source_session)
+    let operation = reserve_file_control(&state, &id, || {
+        scope.check_optional(session.as_deref())?;
+        scope.check_optional(source_session.as_deref())?;
+        if ["skip", "keep", "replace"].contains(&action.as_str()) {
+            check_conflict(&state, &window, &scope, &id)?;
+        }
+        Ok(())
+    })
+    .await?;
+    operation
+        .apply(&action, session, source_session, true)
         .await
 }
 #[tauri::command]
@@ -303,17 +304,18 @@ pub async fn file_resolve_conflict(
     source_session: Option<String>,
 ) -> Result<(), String> {
     let scope = crate::workspace::scope(&window)?;
-    let _launch = state.workers.lock().await;
-    state.allow_launch()?;
-    scope.check_optional(session.as_deref())?;
-    scope.check_optional(source_session.as_deref())?;
-    check_conflict(&state, &window, &scope, &id)?;
-    if !["skip", "keep", "replace"].contains(&policy.as_str()) {
-        return Err("invalidRequest".into());
-    }
-    state
-        .files
-        .control_scoped(&id, &policy, session, source_session, apply_all)
+    let operation = reserve_file_control(&state, &id, || {
+        scope.check_optional(session.as_deref())?;
+        scope.check_optional(source_session.as_deref())?;
+        check_conflict(&state, &window, &scope, &id)?;
+        if !["skip", "keep", "replace"].contains(&policy.as_str()) {
+            return Err("invalidRequest".into());
+        }
+        Ok(())
+    })
+    .await?;
+    operation
+        .apply(&policy, session, source_session, apply_all)
         .await
 }
 fn check_conflict(
@@ -579,6 +581,118 @@ pub async fn file_preview(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn verifying_through_launch_gate_leaves_unrelated_work_available() {
+        use crate::files::tests::{manager, settled};
+        use std::time::Duration;
+        let local = tempfile::tempdir().unwrap();
+        let remote = tempfile::tempdir().unwrap();
+        let (files, server) =
+            manager(remote.path().into(), local.path().join("journal.json")).await;
+        let mut state = AppState::isolated(local.path().join("config.json"));
+        state.files = files;
+        let source = local.path().join("abc");
+        std::fs::write(&source, b"payload").unwrap();
+        let sources = state
+            .files
+            .ref_paths(vec![source.to_str().unwrap().into()])
+            .await
+            .unwrap();
+        let target = state
+            .files
+            .directory(Some("session".into()), "/".into())
+            .await
+            .unwrap();
+        let id = state
+            .files
+            .submit(uuid::Uuid::new_v4().to_string(), sources, target.id)
+            .await
+            .unwrap();
+        assert_eq!(settled(&state.files, &id).await.phase, "completed");
+        state.files.change(&id, |task| {
+            task.phase = "failed".into();
+            task.error = Some("commitUnknown".into());
+            task.commit_target = Some("/abc".into());
+            task.commit_source = Some(
+                std::fs::canonicalize(&source)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .into(),
+            );
+            task.completed.clear();
+        });
+        std::fs::write(remote.path().join(".pause-verification"), []).unwrap();
+        let operation = reserve_file_control(&state, &id, || Ok(())).await.unwrap();
+        let verify = operation.apply("verify", None, None, true);
+        tokio::pin!(verify);
+        let observe = async {
+            while !remote.path().join(".verification-reading").exists() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            // Terminal launch and host deletion both enter through this same mutex.
+            let gate = state
+                .workers
+                .try_lock()
+                .expect("verification held the launch gate");
+            state.allow_launch().unwrap();
+            drop(gate);
+            assert_eq!(
+                reserve_file_control(&state, &id, || Ok(()))
+                    .await
+                    .err()
+                    .as_deref(),
+                Some("taskBusy")
+            );
+            assert!(state.files.host_activity("fixture").1.contains(&id));
+            assert!(state
+                .active_work_ids()
+                .await
+                .contains(&format!("files:{id}")));
+            let listing = state
+                .files
+                .directory(None, local.path().to_str().unwrap().into())
+                .await
+                .unwrap();
+            let entry = listing
+                .entries
+                .iter()
+                .find(|entry| entry.name == "abc")
+                .unwrap();
+            assert_eq!(
+                state.files.read_text(&entry.id).await.err().as_deref(),
+                Some("pathBusy")
+            );
+            state.files.clear_history();
+        };
+        tokio::select! {
+            _ = &mut verify => panic!("hash verification finished before the fixture released it"),
+            result = tokio::time::timeout(Duration::from_secs(3), observe) => result.unwrap(),
+        }
+        let release_read = async {
+            while !state
+                .files
+                .closing
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                tokio::task::yield_now().await;
+            }
+            std::fs::remove_file(remote.path().join(".pause-verification")).unwrap();
+        };
+        let (verified, (), ()) = tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::join!(verify, state.files.shutdown(), release_read)
+        })
+        .await
+        .unwrap();
+        assert_eq!(verified.unwrap_err(), "cancelled");
+        assert!(state.files.active_ids().is_empty());
+        let recovered = state.files.snapshot().tasks.pop().unwrap();
+        assert_eq!(recovered.error.as_deref(), Some("commitUnknown"));
+        assert_eq!(recovered.commit_target.as_deref(), Some("/abc"));
+        assert!(remote.path().join(".verification-closed").is_file());
+        server.abort();
+    }
+
     // This fixture tests AppState ownership with real local I/O. Encrypted SFTP is
     // tested independently by files::tests; no server success is inferred here.
     #[tokio::test]

@@ -421,22 +421,24 @@ export function CommandEditor({
     }
   };
   const [width, setWidth] = useState(0);
+  const autoHeight =
+    typeof CSS !== "undefined" && CSS.supports("field-sizing", "content");
   useLayoutEffect(() => {
     const el = inputRef.current;
-    if (!el) return;
+    if (!el || (autoHeight && !mode)) return;
     const resize = new ResizeObserver(([entry]) =>
       setWidth(entry.contentRect.width),
     );
     resize.observe(el);
     return () => resize.disconnect();
-  }, [inputRef]);
+  }, [inputRef, autoHeight, mode]);
   useLayoutEffect(() => {
     if (restore.current !== null) {
       inputRef.current?.setSelectionRange(restore.current, restore.current);
       restore.current = null;
     }
     const el = inputRef.current;
-    if (el) {
+    if (el && !autoHeight) {
       el.style.height = "0px";
       el.style.height = el.scrollHeight + "px";
     }
@@ -458,7 +460,7 @@ export function CommandEditor({
         up,
       });
     }
-  }, [line, cursor, mode, width, inputRef]);
+  }, [line, cursor, mode, width, inputRef, autoHeight]);
   useEffect(() => {
     const focused = document.activeElement;
     const pane = inputRef.current?.closest(".terminal-session-panel");

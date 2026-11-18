@@ -3,11 +3,13 @@ mod text;
 pub use text::{TextDocument, TextSaveError};
 pub mod fs;
 #[cfg(test)]
-mod tests;
+mod resume_scale_test;
+#[cfg(test)]
+pub(crate) mod tests;
 use fs::{err, Fs, Meta, Result};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -135,6 +137,53 @@ struct ConflictChoice {
     kept: Option<String>,
 }
 impl Task {
+    fn restore_after_restart(&mut self) {
+        let unknown_commit = self.error.as_deref() == Some("commitUnknown");
+        if self.phase == "committing" || unknown_commit {
+            // Earlier writers cleared all three paths together with appending to
+            // completed after rename succeeded. The oldest omitted current_source.
+            let recorded = !self.direct_pending
+                && self.temp.is_none()
+                && self.commit_source.is_none()
+                && self.commit_target.is_none()
+                && !self.completed.is_empty()
+                && self
+                    .current_source
+                    .as_ref()
+                    .is_none_or(|p| self.completed.contains(p));
+            self.error = (!recorded).then(|| "commitUnknown".into());
+        }
+        if self.active() || (self.phase == "interrupted" && unknown_commit) {
+            self.phase = "interrupted".into();
+            self.finished = None;
+            self.speed = None;
+            self.eta = None;
+            if self.direct_pending {
+                self.error = Some("directUnknown".into());
+            } else if !matches!(
+                self.error.as_deref(),
+                Some("commitUnknown" | "directUnknown")
+            ) {
+                self.error = Some("interrupted".into());
+            }
+        }
+    }
+    fn needs_recovery(&self) -> bool {
+        self.temp.is_some()
+            || self.direct_pending
+            || self.commit_source.is_some()
+            || self.commit_target.is_some()
+            || matches!(
+                self.error.as_deref(),
+                Some("commitUnknown" | "directUnknown")
+            )
+    }
+    fn clearable_history(&self) -> bool {
+        matches!(
+            self.phase.as_str(),
+            "completed" | "partial" | "failed" | "cancelled"
+        ) && !self.needs_recovery()
+    }
     pub fn active(&self) -> bool {
         !matches!(
             self.phase.as_str(),
@@ -161,6 +210,47 @@ struct Control {
     cancel: CancellationToken,
     pause: AtomicBool,
 }
+// Registered while the app launch gate is held. Slow filesystem work runs after
+// releasing that gate, but shutdown and host removal can still cancel and join it.
+pub(crate) struct PendingControl<'a> {
+    manager: &'a Arc<Manager>,
+    id: String,
+    cancel: CancellationToken,
+}
+impl PendingControl<'_> {
+    pub(crate) async fn apply(
+        self,
+        action: &str,
+        session: Option<String>,
+        source_session: Option<String>,
+        apply_all: bool,
+    ) -> Result<()> {
+        self.manager
+            .apply_control(
+                &self.id,
+                action,
+                session,
+                source_session,
+                apply_all,
+                &self.cancel,
+            )
+            .await
+    }
+}
+impl Drop for PendingControl<'_> {
+    fn drop(&mut self) {
+        self.manager
+            .leases
+            .lock()
+            .unwrap()
+            .remove(&format!("recovery:{}", self.id));
+        self.manager
+            .pending_controls
+            .lock()
+            .unwrap()
+            .remove(&self.id);
+    }
+}
 type Changed = Arc<dyn Fn(Snapshot) + Send + Sync>;
 pub struct Manager {
     pub preview_slots: Arc<Semaphore>,
@@ -174,6 +264,7 @@ pub struct Manager {
     ref_order: Mutex<std::collections::VecDeque<String>>,
     tasks: Mutex<BTreeMap<String, Task>>,
     controls: Mutex<HashMap<String, Arc<Control>>>,
+    pending_controls: Mutex<HashMap<String, CancellationToken>>,
     jobs: Mutex<Vec<tokio::task::JoinHandle<()>>>,
     changed: Mutex<Option<Changed>>,
     journal: PathBuf,
@@ -194,20 +285,7 @@ impl Manager {
             {
                 Some(items) => {
                     for mut t in items {
-                        if !matches!(t.phase.as_str(), "completed" | "partial" | "cancelled") {
-                            if t.direct_pending {
-                                t.error = Some("directUnknown".into());
-                            } else if t.phase == "committing" {
-                                t.error = Some("commitUnknown".into());
-                            }
-                            t.phase = "interrupted".into();
-                            if !matches!(
-                                t.error.as_deref(),
-                                Some("commitUnknown" | "directUnknown")
-                            ) {
-                                t.error = Some("interrupted".into());
-                            }
-                        }
+                        t.restore_after_restart();
                         tasks.insert(t.id.clone(), t);
                     }
                 }
@@ -226,6 +304,7 @@ impl Manager {
             ref_order: Default::default(),
             tasks: Mutex::new(tasks),
             controls: Default::default(),
+            pending_controls: Default::default(),
             jobs: Default::default(),
             changed: Default::default(),
             journal,
@@ -255,10 +334,13 @@ impl Manager {
         }
     }
     pub fn clear_history(&self) {
-        self.tasks.lock().unwrap().retain(|_, t| {
-            t.temp.is_some()
-                || !["completed", "partial", "failed", "cancelled"].contains(&t.phase.as_str())
-        });
+        {
+            let pending = self.pending_controls.lock().unwrap();
+            self.tasks
+                .lock()
+                .unwrap()
+                .retain(|id, t| pending.contains_key(id) || !t.clearable_history());
+        }
         self.save();
         self.publish();
     }
@@ -334,11 +416,14 @@ impl Manager {
             return;
         }
         let list: Vec<_> = {
+            let pending = self.pending_controls.lock().unwrap();
             let mut tasks = self.tasks.lock().unwrap();
             let now = crate::model::timestamp();
             let mut history: Vec<_> = tasks
                 .values()
-                .filter(|t| t.finished.is_some() && t.temp.is_none())
+                .filter(|t| {
+                    t.finished.is_some() && t.clearable_history() && !pending.contains_key(&t.id)
+                })
                 .map(|t| (t.finished.unwrap(), t.id.clone()))
                 .collect();
             history.sort();
@@ -361,9 +446,10 @@ impl Manager {
                 use std::os::unix::fs::OpenOptionsExt;
                 options.mode(0o600);
             }
-            let mut f = options.open(&tmp)?;
-            f.write_all(&serde_json::to_vec(&list)?)?;
-            f.sync_all()?;
+            let mut f = std::io::BufWriter::new(options.open(&tmp)?);
+            serde_json::to_writer(&mut f, &list)?;
+            f.flush()?;
+            f.get_ref().sync_all()?;
             std::fs::rename(tmp, &self.journal)
         })();
         if outcome.is_err() {
@@ -549,13 +635,14 @@ impl Manager {
             .map(|s| s.id.clone())
             .collect();
         drop(sessions);
+        let pending = self.pending_controls.lock().unwrap();
         let tasks = self
             .tasks
             .lock()
             .unwrap()
             .values()
             .filter(|t| {
-                (t.active() || t.direct_pending)
+                (t.active() || t.direct_pending || pending.contains_key(&t.id))
                     && (t.host_id == id
                         || [&t.source_remote, &t.target_remote]
                             .into_iter()
@@ -582,6 +669,10 @@ impl Manager {
                     return Ok(());
                 }
                 for id in tasks {
+                    if let Some(op) = self.pending_controls.lock().unwrap().get(&id) {
+                        op.cancel();
+                        continue;
+                    }
                     if let Some(control) = self.controls.lock().unwrap().get(&id) {
                         control.pause.store(false, Ordering::SeqCst);
                         control.cancel.cancel();
@@ -603,12 +694,13 @@ impl Manager {
             .map_err(|_| "hostUsedByFiles".to_owned())?
     }
     pub fn active_ids(&self) -> Vec<String> {
+        let pending = self.pending_controls.lock().unwrap();
         let mut ids: Vec<String> = self
             .tasks
             .lock()
             .unwrap()
             .values()
-            .filter(|t| t.active() || t.direct_pending)
+            .filter(|t| t.active() || t.direct_pending || pending.contains_key(&t.id))
             .map(|t| format!("files:{}", t.id))
             .collect();
         ids.extend(
@@ -691,11 +783,21 @@ impl Manager {
                 )
             })
             .collect();
+        self.lease_paths(id, paths)
+    }
+    fn lease_paths(&self, id: &str, mut paths: Vec<(String, String)>) -> Result<()> {
+        // SFTP gives no guarantee that differing case identifies distinct files.
+        // Fold only the lease keys; submitted names and requests retain their spelling.
+        for (route, path) in &mut paths {
+            if route != "local" {
+                *path = path.to_uppercase();
+            }
+        }
         let mut leases = self.leases.lock().unwrap();
         for occupied in leases.values() {
             for (a, p) in occupied {
                 for (b, q) in &paths {
-                    if a == b && overlap(p, q) {
+                    if a == b && overlap(p, q, a == "local") {
                         return Err("pathBusy".into());
                     }
                 }
@@ -730,10 +832,9 @@ impl Manager {
             if e.session == target.session || e.meta.kind == "link" || e.meta.kind == "other" {
                 return Err("unsupportedTransfer".into());
             }
-            if sources
-                .iter()
-                .any(|s: &Entry| s.session == e.session && overlap(&s.path, &e.path))
-            {
+            if sources.iter().any(|s: &Entry| {
+                s.session == e.session && overlap(&s.path, &e.path, e.session.is_none())
+            }) {
                 continue;
             }
             sources.push(e);
@@ -832,12 +933,6 @@ impl Manager {
                 .cloned()
                 .unwrap_or_default(),
         };
-        self.tasks.lock().unwrap().retain(|_, t| {
-            t.active()
-                || t.finished.is_none_or(|f| {
-                    crate::model::timestamp().saturating_sub(f) < 7 * 24 * 60 * 60 * 1000
-                })
-        });
         self.tasks.lock().unwrap().insert(request.clone(), task);
         self.save();
         self.spawn(request.clone(), sources, target);
@@ -1089,6 +1184,35 @@ impl Manager {
                 }
             }
         });
+        let (mut completed, host_slots) = {
+            let tasks = self.tasks.lock().unwrap();
+            let task = &tasks[id];
+            let mut host_ids = vec![&task.host_id];
+            if let Some(source) = &task.source_remote {
+                host_ids.push(&source.host_id);
+            }
+            host_ids.sort();
+            host_ids.dedup();
+            let mut hosts = self.hosts.lock().unwrap();
+            let slots: Vec<_> = host_ids
+                .into_iter()
+                .map(|host| {
+                    hosts
+                        .entry(host.clone())
+                        .or_insert_with(|| Arc::new(Semaphore::new(2)))
+                        .clone()
+                })
+                .collect();
+            (
+                task.completed.iter().cloned().collect::<HashSet<_>>(),
+                slots,
+            )
+        };
+        // Previously completed files are already durable. Account for them in one snapshot.
+        let resumed_bytes = exclude_completed(&mut files, &completed);
+        if resumed_bytes != 0 {
+            self.change(id, |t| t.bytes += resumed_bytes);
+        }
         let direct_paths = files
             .iter()
             .all(|(source, dest)| direct::safe_path(&source.path) && direct::safe_path(dest));
@@ -1096,11 +1220,7 @@ impl Manager {
         let mut direct_checked = false;
         for (source, mut dest) in files {
             check(c)?;
-            let task = self.tasks.lock().unwrap()[id].clone();
-            if task.skipped_sources.contains(&source.path) {
-                continue;
-            }
-            if task.completed.contains(&source.path) {
+            if completed.contains(&source.path) {
                 self.change(id, |t| t.bytes += source.meta.size);
                 continue;
             }
@@ -1135,29 +1255,11 @@ impl Manager {
                 self.record_conflict(id, &source.path, &dest);
                 return Err("replaceUnsupported".into());
             }
-            let mut host_ids = vec![task.host_id.clone()];
-            if let Some(source) = &task.source_remote {
-                host_ids.push(source.host_id.clone());
-            }
-            host_ids.sort();
-            host_ids.dedup();
-            let host_slots: Vec<_> = {
-                let mut hosts = self.hosts.lock().unwrap();
-                host_ids
-                    .into_iter()
-                    .map(|host| {
-                        hosts
-                            .entry(host)
-                            .or_insert_with(|| Arc::new(Semaphore::new(2)))
-                            .clone()
-                    })
-                    .collect()
-            };
             let _global = tokio::select! {_=c.cancel.cancelled()=>return Err("cancelled".into()),p=self.slots.clone().acquire_owned()=>p.map_err(err)?};
             // A stable order prevents opposite-direction relays from deadlocking.
             let mut _host_permits = Vec::new();
-            for slot in host_slots {
-                _host_permits.push(tokio::select! {_=c.cancel.cancelled()=>return Err("cancelled".into()),p=slot.acquire_owned()=>p.map_err(err)?});
+            for slot in &host_slots {
+                _host_permits.push(tokio::select! {_=c.cancel.cancelled()=>return Err("cancelled".into()),p=slot.clone().acquire_owned()=>p.map_err(err)?});
             }
             check(c)?;
             if !direct_checked {
@@ -1296,14 +1398,24 @@ impl Manager {
                     t.commit_source = Some(source.path.clone());
                 });
                 self.save();
-                target
-                    .fs
-                    .rename(&temp, &dest, replace)
-                    .await
-                    .map_err(|_| "commitUnknown".to_owned())?;
+                if let Err(error) = target.fs.rename(&temp, &dest, replace).await {
+                    if !matches!(target.fs, Fs::Local) || error == "commitUnknown" {
+                        return Err("commitUnknown".into());
+                    }
+                    self.change(id, |t| {
+                        t.phase = "transferring".into();
+                        t.commit_target = None;
+                        t.commit_source = None;
+                    });
+                    if error == "conflict" {
+                        self.record_conflict(id, &source.path, &dest);
+                    }
+                    return Err(error);
+                }
                 self.change(id, |t| {
                     t.bytes += offset - reported;
                     t.completed.push(source.path.clone());
+                    t.phase = "transferring".into();
                     t.temp = None;
                     t.commit_source = None;
                     t.commit_target = None;
@@ -1324,6 +1436,7 @@ impl Manager {
                 }
             }
             result?;
+            completed.insert(source.path);
             self.save();
         }
         if conflicts {
@@ -1370,6 +1483,38 @@ impl Manager {
         source_session: Option<String>,
         apply_all: bool,
     ) -> Result<()> {
+        self.reserve_control(id)?
+            .apply(action, session, source_session, apply_all)
+            .await
+    }
+    pub(crate) fn reserve_control(self: &Arc<Self>, id: &str) -> Result<PendingControl<'_>> {
+        let mut pending = self.pending_controls.lock().unwrap();
+        if self.closing.load(Ordering::SeqCst) {
+            return Err("cancelled".into());
+        }
+        if pending.contains_key(id) {
+            return Err("taskBusy".into());
+        }
+        let cancel = CancellationToken::new();
+        pending.insert(id.into(), cancel.clone());
+        Ok(PendingControl {
+            manager: self,
+            id: id.into(),
+            cancel,
+        })
+    }
+    async fn apply_control(
+        self: &Arc<Self>,
+        id: &str,
+        action: &str,
+        session: Option<String>,
+        source_session: Option<String>,
+        apply_all: bool,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        if cancel.is_cancelled() {
+            return Err("cancelled".into());
+        }
         if let Some(c) = self.controls.lock().unwrap().get(id) {
             match action {
                 "pause" => {
@@ -1390,7 +1535,7 @@ impl Manager {
             if t.get(id).is_some_and(Task::active) {
                 return Err("taskBusy".into());
             }
-            if t.get(id).is_some_and(|t| t.temp.is_some()) {
+            if t.get(id).is_some_and(Task::needs_recovery) {
                 return Err("cleanupFailed".into());
             }
             t.remove(id);
@@ -1400,14 +1545,13 @@ impl Manager {
             return Ok(());
         }
         if action == "cancel" {
-            if self
-                .tasks
-                .lock()
-                .unwrap()
-                .get(id)
-                .is_some_and(|task| task.direct_pending)
-            {
-                return Err("directUnknown".into());
+            if let Some(task) = self.tasks.lock().unwrap().get(id) {
+                if task.direct_pending {
+                    return Err("directUnknown".into());
+                }
+                if task.error.as_deref() == Some("commitUnknown") {
+                    return Err("commitUnknown".into());
+                }
             }
             self.change(id, |t| t.phase = "cancelled".into());
             self.save();
@@ -1463,6 +1607,22 @@ impl Manager {
                 return Err("invalidRequest".into());
             }
         }
+        if matches!(action, "verify" | "cleanup") {
+            let mut paths = Vec::new();
+            for (endpoint, path) in [
+                (&task.target_remote, &task.temp),
+                (&task.target_remote, &task.commit_target),
+                (&task.source_remote, &task.commit_source),
+            ] {
+                if let Some(path) = path {
+                    let key = endpoint
+                        .as_ref()
+                        .map_or("local", |remote| &remote.route_key);
+                    paths.push((key.into(), path.clone()));
+                }
+            }
+            self.lease_paths(&format!("recovery:{id}"), paths)?;
+        }
         let dst_fs = self.resolve_endpoint(&mut task.target_remote, session.as_deref())?;
         if action == "cleanup" {
             if let Some(temp) = &task.temp {
@@ -1472,7 +1632,7 @@ impl Manager {
                     .and_then(|n| n.strip_suffix(".part"))
                     .ok_or("invalidPath")?;
                 uuid::Uuid::parse_str(uuid).map_err(err)?;
-                if let Some(meta) = dst_fs.meta(temp).await? {
+                if let Some(meta) = cancellable(cancel, dst_fs.meta(temp)).await? {
                     if meta.kind != "file" {
                         return Err("cleanupFailed".into());
                     }
@@ -1494,8 +1654,12 @@ impl Manager {
         if action == "verify" && task.direct_pending {
             let temp = task.temp.as_deref().ok_or("directUnknown")?;
             let executor = if task.direct_pull { &dst_fs } else { &src_fs };
-            direct::confirm_stopped(executor, task.direct_pid, temp).await?;
-            if let Some(meta) = dst_fs.meta(temp).await? {
+            cancellable(
+                cancel,
+                direct::confirm_stopped(executor, task.direct_pid, temp),
+            )
+            .await?;
+            if let Some(meta) = cancellable(cancel, dst_fs.meta(temp)).await? {
                 if meta.kind != "file" {
                     return Err("cleanupFailed".into());
                 }
@@ -1515,14 +1679,17 @@ impl Manager {
         if action == "verify" {
             let source = task.commit_source.as_deref().ok_or("invalidRequest")?;
             let dest = task.commit_target.as_deref().ok_or("invalidRequest")?;
-            let before = src_fs.meta(source).await?.ok_or("missing")?;
-            let dest_meta = dst_fs.meta(dest).await?;
+            let before = cancellable(cancel, src_fs.meta(source))
+                .await?
+                .ok_or("missing")?;
+            let dest_meta = cancellable(cancel, dst_fs.meta(dest)).await?;
             if let Some(meta) = dest_meta {
                 if meta.kind != "file"
                     || before.kind != "file"
                     || meta.size != before.size
-                    || hash(&src_fs, source).await? != hash(&dst_fs, dest).await?
-                    || src_fs.meta(source).await?.as_ref() != Some(&before)
+                    || hash(&src_fs, source, cancel).await? != hash(&dst_fs, dest, cancel).await?
+                    || cancellable(cancel, src_fs.meta(source)).await?.as_ref() != Some(&before)
+                    || cancellable(cancel, dst_fs.meta(dest)).await?.as_ref() != Some(&meta)
                 {
                     return Err("targetChanged".into());
                 }
@@ -1531,7 +1698,7 @@ impl Manager {
                 }
             }
             if let Some(temp) = &task.temp {
-                if dst_fs.meta(temp).await?.is_some() {
+                if cancellable(cancel, dst_fs.meta(temp)).await?.is_some() {
                     dst_fs.remove(temp, false).await?;
                 }
             }
@@ -1552,7 +1719,9 @@ impl Manager {
                 mutable: false,
                 fs: src_fs.clone(),
                 path: path.clone(),
-                meta: src_fs.meta(path).await?.ok_or("missing")?,
+                meta: cancellable(cancel, src_fs.meta(path))
+                    .await?
+                    .ok_or("missing")?,
                 session: task
                     .source_remote
                     .as_ref()
@@ -1563,7 +1732,9 @@ impl Manager {
             mutable: false,
             fs: dst_fs.clone(),
             path: task.target.clone(),
-            meta: dst_fs.meta(&task.target).await?.ok_or("missing")?,
+            meta: cancellable(cancel, dst_fs.meta(&task.target))
+                .await?
+                .ok_or("missing")?,
             session: task
                 .target_remote
                 .as_ref()
@@ -1571,7 +1742,6 @@ impl Manager {
         };
         let mut locked = sources.clone();
         locked.push(target.clone());
-        self.lease(id, &locked)?;
         if ["skip", "keep", "replace"].contains(&action) {
             let target = task.conflict.clone().ok_or("staleEntry")?;
             task.policy = if apply_all { action } else { "ask" }.into();
@@ -1598,6 +1768,8 @@ impl Manager {
             .ok_or("notConnected")?
             .session_id
             .clone();
+        task.finished = None;
+        self.lease(id, &locked)?;
         task.phase = "queued".into();
         task.revision += 1;
         self.tasks.lock().unwrap().insert(id.into(), task);
@@ -1605,10 +1777,16 @@ impl Manager {
         Ok(())
     }
     pub async fn shutdown(&self) {
+        self.closing.store(true, Ordering::SeqCst);
         for c in self.session_cancels.lock().unwrap().values() {
             c.cancel();
         }
-        self.closing.store(true, Ordering::SeqCst);
+        for op in self.pending_controls.lock().unwrap().values() {
+            op.cancel();
+        }
+        while !self.pending_controls.lock().unwrap().is_empty() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
         for c in self.controls.lock().unwrap().values() {
             c.cancel.cancel();
         }
@@ -1759,6 +1937,19 @@ fn local_parent(path: &str) -> Result<String> {
         .map(str::to_owned)
         .ok_or("invalidPath".into())
 }
+fn exclude_completed(files: &mut Vec<(Entry, String)>, completed: &HashSet<String>) -> u64 {
+    let mut bytes = 0;
+    files.retain(|(entry, _)| {
+        if completed.contains(&entry.path) {
+            bytes += entry.meta.size;
+            false
+        } else {
+            true
+        }
+    });
+    bytes
+}
+
 fn check(c: &Control) -> Result<()> {
     if c.cancel.is_cancelled() {
         Err("cancelled".into())
@@ -1768,14 +1959,29 @@ fn check(c: &Control) -> Result<()> {
         Ok(())
     }
 }
-async fn hash(fs: &Fs, path: &str) -> Result<Vec<u8>> {
+async fn cancellable<T>(
+    cancel: &CancellationToken,
+    operation: impl std::future::Future<Output = Result<T>>,
+) -> Result<T> {
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => Err("cancelled".into()),
+        result = operation => result,
+    }
+}
+
+async fn hash(fs: &Fs, path: &str, cancel: &CancellationToken) -> Result<Vec<u8>> {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
+    if cancel.is_cancelled() {
+        return Err("cancelled".into());
+    }
+    // Await OPEN and CLOSE even on cancellation; only the reads may be abandoned.
     let mut r = fs.reader(path).await?;
     let mut offset = 0;
     let result: Result<()> = async {
         loop {
-            let bytes = r.read(offset).await?;
+            let bytes = cancellable(cancel, r.read(offset)).await?;
             if bytes.is_empty() {
                 break;
             }
@@ -1785,9 +1991,8 @@ async fn hash(fs: &Fs, path: &str) -> Result<Vec<u8>> {
         Ok(())
     }
     .await;
-    let closed = r.close().await;
+    r.close().await?;
     result?;
-    closed?;
     Ok(h.finalize().to_vec())
 }
 fn numbered_name(name: &str, n: usize, kind: &str) -> String {
@@ -1815,13 +2020,14 @@ async fn available_name(fs: &Fs, path: &str, kind: &str) -> Result<String> {
     }
     Err("conflict".into())
 }
-fn overlap(a: &str, b: &str) -> bool {
+fn overlap(a: &str, b: &str, local: bool) -> bool {
     let normalize = |s: &str| {
-        let s = s.trim_end_matches(['/', '\\']).replace('\\', "/");
-        if cfg!(windows) {
-            s.to_lowercase()
+        if local && cfg!(windows) {
+            s.trim_end_matches(['/', '\\'])
+                .replace('\\', "/")
+                .to_lowercase()
         } else {
-            s
+            s.trim_end_matches('/').to_owned()
         }
     };
     let a = normalize(a);

@@ -106,6 +106,8 @@ try {
       "[...document.querySelectorAll('.shell-output-text')].at(-1)?.textContent || ''",
     );
   await until(() => exists(edit), "integrated PowerShell prompt");
+  const accessibleTree = q(".xterm-accessibility-tree");
+  assert.ok(await evaluate(accessibleTree + " === null"));
   assert.equal(await evaluate(q(".shell-edit > span") + ".textContent"), ">");
   await setDraft("Write-Output 'Oria prior");
   await until(
@@ -353,6 +355,10 @@ try {
   await until(
     async () => (await screen()).includes("QA_INPUT"),
     "raw interactive input",
+  );
+  await until(
+    () => evaluate(accessibleTree + "?.textContent.includes('QA_INPUT')"),
+    "foreground output is exposed to screen readers",
   );
   assert.equal(
     await evaluate(q(".shell-current-block .shell-command") + ".textContent"),

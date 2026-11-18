@@ -7,11 +7,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence } from "motion/react";
@@ -87,6 +90,22 @@ interface WorkspaceApi {
 }
 const Context = createContext<WorkspaceApi | null>(null);
 export const useTerminalWorkspace = () => useContext(Context);
+
+// Keep pointer-driven bounds updates in the panel. Its tabs and session portals
+// can keep the same React children throughout a drag.
+function TerminalPanel({
+  open,
+  panelRef,
+  ...props
+}: Omit<ComponentProps<typeof WorkspacePanel>, "panel"> & {
+  open: boolean;
+  panelRef: RefObject<HTMLElement | null>;
+}) {
+  const panel = useWorkspacePanel({ open, storageKey: workspaceLayoutKey });
+  useImperativeHandle(panelRef, () => panel.ref.current!, [panel.ref]);
+  return <WorkspacePanel {...props} panel={panel} />;
+}
+
 export function OpenTerminalButton({
   hostId,
   disabled,
@@ -147,10 +166,7 @@ export function TerminalWorkspaceProvider({
   const [commandTabs, setCommandTabs] = useState<string[]>([]);
   const [selected, setSelected] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const panel = useWorkspacePanel({
-    open: expanded,
-    storageKey: workspaceLayoutKey,
-  });
+  const panelRef = useRef<HTMLElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
   const [tabEdges, setTabEdges] = useState({ left: false, right: false });
   const [error, setError] = useState("");
@@ -244,7 +260,7 @@ export function TerminalWorkspaceProvider({
     [acceptCommand],
   );
   const openHost = (hostId?: string) => {
-    if (expanded) panel.ref.current?.focus();
+    if (expanded) panelRef.current?.focus();
     setExpanded(true);
     setError("");
     if (hostId) {
@@ -471,7 +487,7 @@ export function TerminalWorkspaceProvider({
       )
     )
       return;
-    const pane = panel.ref.current?.querySelector<HTMLElement>(
+    const pane = panelRef.current?.querySelector<HTMLElement>(
       '.terminal-session-panel[data-active="true"]',
     );
     if (!pane || (expectedKey && pane.dataset.terminalPane !== expectedKey))
@@ -625,8 +641,9 @@ export function TerminalWorkspaceProvider({
   const workspace = (
     <Context.Provider value={workspaceApi}>
       {children}
-      <WorkspacePanel
-        panel={panel}
+      <TerminalPanel
+        open={expanded}
+        panelRef={panelRef}
         title={t("workspace")}
         onClose={() => setExpanded(false)}
         className="terminal-workspace"
@@ -909,7 +926,7 @@ export function TerminalWorkspaceProvider({
         ) : (
           <TerminalTargets hosts={targets} choose={chooseTarget} busy={busy} />
         )}
-      </WorkspacePanel>
+      </TerminalPanel>
       <AnimatePresence onExitComplete={() => focusActiveTerminal()}>
         {draft && (
           <Modal

@@ -8,6 +8,8 @@ use std::{path::PathBuf, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 #[path = "direct_tests.rs"]
 mod direct_tests;
+#[path = "recovery_tests.rs"]
+mod recovery_tests;
 #[derive(Clone)]
 struct Server {
     root: PathBuf,
@@ -100,6 +102,14 @@ impl server::Handler for Server {
         reply: server::ChannelOpenHandle,
         _: &mut SshSession,
     ) -> std::result::Result<(), Self::Error> {
+        if self.root.join(".stall-channel").exists() {
+            std::fs::write(self.root.join(".channel-requested"), []).unwrap();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                drop((c, reply));
+            });
+            return Ok(());
+        }
         self.channels.lock().unwrap().insert(c.id(), c);
         reply.accept().await;
         Ok(())
@@ -125,6 +135,7 @@ impl server::Handler for Server {
                     .map(|fixture| fixture.app_reads.clone())
             },
             delayed: false,
+            verification_reader: None,
             root: self.root.clone(),
             files: HashMap::new(),
             dirs: HashMap::new(),
@@ -140,6 +151,7 @@ impl server::Handler for Server {
 struct Sftp {
     app_reads: Option<Arc<std::sync::atomic::AtomicUsize>>,
     delayed: bool,
+    verification_reader: Option<String>,
     root: PathBuf,
     files: HashMap<String, tokio::fs::File>,
     dirs: HashMap<String, Option<String>>,
@@ -328,6 +340,18 @@ impl russh_sftp::server::Handler for Sftp {
         offset: u64,
         len: u32,
     ) -> std::result::Result<Data, Self::Error> {
+        let pause = self.root.join(".pause-verification");
+        if pause.exists() {
+            self.verification_reader = Some(handle.clone());
+            std::fs::write(self.root.join(".verification-reading"), []).unwrap();
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while pause.exists() {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .map_err(|_| StatusCode::Failure)?;
+        }
         if let Some(reads) = &self.app_reads {
             reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }
@@ -358,7 +382,12 @@ impl russh_sftp::server::Handler for Sftp {
         Ok(status(id))
     }
     async fn close(&mut self, id: u32, handle: String) -> std::result::Result<Status, Self::Error> {
-        self.files.remove(&handle);
+        if self.files.remove(&handle).is_some()
+            && self.verification_reader.as_ref() == Some(&handle)
+        {
+            self.verification_reader = None;
+            std::fs::write(self.root.join(".verification-closed"), []).unwrap();
+        }
         self.dirs.remove(&handle);
         Ok(status(id))
     }
@@ -528,8 +557,21 @@ async fn connect_fixture(
     port: u16,
     job: tokio::task::JoinHandle<()>,
 ) -> (Fs, tokio::task::JoinHandle<()>) {
+    let connection = fixture_connection(port).await;
+    let remote = fs::Remote::open(
+        connection,
+        &CancellationToken::new(),
+        Duration::from_secs(15),
+        2,
+    )
+    .await
+    .unwrap();
+    (Fs::Remote(Arc::new(remote)), job)
+}
+
+async fn fixture_connection(port: u16) -> crate::tunnel::Connection {
     let notify: crate::tunnel::Notify = Arc::new(|_| {});
-    let connection = crate::tunnel::connect(
+    crate::tunnel::connect(
         vec![crate::tunnel::HopRequest {
             host: crate::model::Host {
                 id: "fixture".into(),
@@ -555,22 +597,55 @@ async fn connect_fixture(
     .await
     .map_err(|e| format!("{:?}", e.kind))
     .unwrap()
-    .unwrap();
-    let channel = connection.open_session().await.unwrap();
-    channel.request_subsystem(true, "sftp").await.unwrap();
-    let raw = russh_sftp::client::RawSftpSession::new(channel.into_stream());
-    raw.set_timeout(2);
-    let version = raw.init().await.unwrap();
-    (
-        Fs::Remote(Arc::new(fs::Remote {
-            raw,
-            extensions: version.extensions,
-            _connection: connection,
-        })),
-        job,
-    )
+    .unwrap()
 }
-async fn manager(root: PathBuf, journal: PathBuf) -> (Arc<Manager>, tokio::task::JoinHandle<()>) {
+
+#[tokio::test]
+async fn a_stalled_sftp_channel_obeys_disconnect_and_setup_deadline() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join(".stall-channel"), []).unwrap();
+    let (port, job) = start_fixture(root.path().into(), false, None).await;
+    let token = CancellationToken::new();
+    let connection = fixture_connection(port).await;
+    let open = fs::Remote::open(connection, &token, Duration::from_secs(5), 2);
+    tokio::pin!(open);
+    let received = async {
+        while !root.path().join(".channel-requested").exists() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    };
+    tokio::select! {
+        _ = &mut open => panic!("channel should still be pending"),
+        observed = tokio::time::timeout(Duration::from_secs(2), received) => observed.unwrap(),
+    }
+    token.cancel();
+    assert_eq!(
+        tokio::time::timeout(Duration::from_millis(500), open)
+            .await
+            .unwrap()
+            .err()
+            .as_deref(),
+        Some("cancelled")
+    );
+    let second = fixture_connection(port).await;
+    assert_eq!(
+        fs::Remote::open(
+            second,
+            &CancellationToken::new(),
+            Duration::from_millis(100),
+            2
+        )
+        .await
+        .err()
+        .as_deref(),
+        Some("connectionTimeout")
+    );
+    job.abort();
+}
+pub(crate) async fn manager(
+    root: PathBuf,
+    journal: PathBuf,
+) -> (Arc<Manager>, tokio::task::JoinHandle<()>) {
     let (fs, job) = setup(root, false).await;
     let m = Arc::new(Manager::new(journal));
     m.remotes.lock().unwrap().insert("session".into(), fs);
@@ -593,7 +668,7 @@ async fn manager(root: PathBuf, journal: PathBuf) -> (Arc<Manager>, tokio::task:
         .insert("session".into(), "frozen-fixture".into());
     (m, job)
 }
-async fn settled(m: &Manager, id: &str) -> Task {
+pub(crate) async fn settled(m: &Manager, id: &str) -> Task {
     tokio::time::timeout(Duration::from_secs(20), async {
         loop {
             let task = m.tasks.lock().unwrap().get(id).cloned().unwrap();
@@ -1060,6 +1135,147 @@ async fn cancelled_work_is_joined_and_no_partial_final_file() {
     assert_eq!(std::fs::read_dir(remote.path()).unwrap().count(), 0);
     j.abort();
 }
+fn journal_record(id: &str, phase: &str) -> Task {
+    serde_json::from_value(serde_json::json!({
+        "id": id, "phase": phase, "hostId": "fixture", "hostName": "fixture",
+        "sessionId": "session", "routeKey": "frozen-fixture", "direction": "upload",
+        "sources": ["/source"], "target": "/target", "bytes": 0, "total": 0,
+        "count": 0, "completed": [], "skipped": 0, "revision": 4, "policy": "ask",
+        "started": 1, "finished": 2
+    }))
+    .unwrap()
+}
+
+#[test]
+fn reload_preserves_settled_errors_and_only_interrupts_live_phases() {
+    let dir = tempfile::tempdir().unwrap();
+    let journal = dir.path().join("queue.json");
+    let phases = ["failed", "paused", "conflict", "transferring", "committing"];
+    let mut rows: Vec<_> = phases
+        .iter()
+        .map(|phase| {
+            let mut task = journal_record(phase, phase);
+            task.error = Some("sourceChanged".into());
+            task
+        })
+        .collect();
+    let mut recorded = journal_record("saved-after-rename", "committing");
+    recorded.current_source = Some("/source".into());
+    recorded.completed.push("/source".into());
+    rows.push(recorded);
+    std::fs::write(&journal, serde_json::to_vec(&rows).unwrap()).unwrap();
+    let manager = Manager::new(journal);
+    let tasks = manager.tasks.lock().unwrap();
+    for phase in ["failed", "paused", "conflict"] {
+        assert_eq!(tasks[phase].phase, phase);
+        assert_eq!(tasks[phase].error.as_deref(), Some("sourceChanged"));
+    }
+    for (phase, error) in [
+        ("transferring", "interrupted"),
+        ("committing", "commitUnknown"),
+        ("saved-after-rename", "interrupted"),
+    ] {
+        assert_eq!(tasks[phase].phase, "interrupted");
+        assert_eq!(tasks[phase].error.as_deref(), Some(error));
+    }
+}
+
+#[tokio::test]
+async fn submitting_and_pruning_keep_recovery_records_across_restart() {
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    let journal = local.path().join("history.json");
+    let (m, job) = manager(remote.path().into(), journal.clone()).await;
+    let source = local.path().join("upload.txt");
+    std::fs::write(&source, b"test").unwrap();
+    let ids = m
+        .ref_paths(vec![source.to_str().unwrap().to_owned()])
+        .await
+        .unwrap();
+    let target = m
+        .directory(Some("session".into()), "/".into())
+        .await
+        .unwrap();
+    for id in ["old", "temp", "direct", "commit"] {
+        let mut task = journal_record(id, "failed");
+        match id {
+            "temp" => task.temp = Some("/temp".into()),
+            "direct" => task.direct_pending = true,
+            "commit" => task.error = Some("commitUnknown".into()),
+            _ => {}
+        }
+        m.tasks.lock().unwrap().insert(id.into(), task);
+    }
+    let id = m
+        .submit(uuid::Uuid::new_v4().to_string(), ids, target.id)
+        .await
+        .unwrap();
+    assert_eq!(settled(&m, &id).await.phase, "completed");
+    m.clear_history();
+    for id in ["temp", "direct", "commit"] {
+        assert!(m.control(id, "clear", None).await.is_err());
+    }
+    m.shutdown().await;
+    let restored = Manager::new(journal);
+    assert_eq!(
+        restored
+            .tasks
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        ["commit", "direct", "temp"]
+    );
+    assert!(restored.unresolved_direct());
+    job.abort();
+}
+
+#[tokio::test]
+async fn remote_case_variants_remain_distinct_sources_and_target_conflicts_are_visible() {
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    let (m, job) = manager(remote.path().into(), local.path().join("history.json")).await;
+    // Register the exact names returned by a case-sensitive server, even when this
+    // test's backing volume cannot create both spellings as separate files.
+    let remote_fs = m.remotes.lock().unwrap()["session"].clone();
+    let mut sources = vec![];
+    for name in ["Report.csv", "report.csv"] {
+        std::fs::write(remote.path().join(name), b"source").unwrap();
+        std::fs::write(local.path().join(name), b"keep").unwrap();
+        let path = format!("/{name}");
+        sources.push(
+            m.register(Entry {
+                fs: remote_fs.clone(),
+                meta: remote_fs.meta(&path).await.unwrap().unwrap(),
+                path,
+                session: Some("session".into()),
+                mutable: true,
+            })
+            .unwrap(),
+        );
+    }
+    let target = m
+        .directory(None, local.path().to_str().unwrap().into())
+        .await
+        .unwrap();
+    let id = m
+        .submit(uuid::Uuid::new_v4().to_string(), sources, target.id)
+        .await
+        .unwrap();
+    let task = settled(&m, &id).await;
+    assert_eq!(task.sources, ["/Report.csv", "/report.csv"]);
+    assert_eq!(task.phase, "conflict");
+    m.control(&id, "skip", None).await.unwrap();
+    assert_eq!(settled(&m, &id).await.skipped, 2);
+    assert_eq!(
+        std::fs::read(local.path().join("Report.csv")).unwrap(),
+        b"keep"
+    );
+    m.shutdown().await;
+    job.abort();
+}
+
 #[test]
 fn corrupt_journal_is_preserved() {
     let d = tempfile::tempdir().unwrap();
@@ -1140,7 +1356,7 @@ async fn pause_resume_recovery_and_route_binding() {
     assert!(m.tasks.lock().unwrap().contains_key(&id));
     assert!(!remote.path().join("paused").exists());
     let restored = Manager::new(journal);
-    assert_eq!(restored.snapshot().tasks[0].phase, "interrupted");
+    assert_eq!(restored.snapshot().tasks[0].phase, "paused");
     assert!(restored.snapshot().sessions.is_empty());
     m.route_keys
         .lock()

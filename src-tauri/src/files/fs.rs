@@ -10,6 +10,55 @@ pub type Result<T> = std::result::Result<T, String>;
 pub fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
+// Both names are in the destination directory. Never fall back to a copy or overwrite.
+#[cfg(windows)]
+fn move_exclusive(old: &str, new: &str) -> std::io::Result<()> {
+    use windows_sys::Win32::Storage::FileSystem::MoveFileExW;
+    if old.contains('\0') || new.contains('\0') {
+        return Err(std::io::ErrorKind::InvalidInput.into());
+    }
+    let old: Vec<_> = old.encode_utf16().chain(Some(0)).collect();
+    let new: Vec<_> = new.encode_utf16().chain(Some(0)).collect();
+    if unsafe { MoveFileExW(old.as_ptr(), new.as_ptr(), 0) } == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn move_exclusive(old: &str, new: &str) -> std::io::Result<()> {
+    let old = std::ffi::CString::new(old)?;
+    let new = std::ffi::CString::new(new)?;
+    if unsafe { libc::renamex_np(old.as_ptr(), new.as_ptr(), libc::RENAME_EXCL) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn move_exclusive(old: &str, new: &str) -> std::io::Result<()> {
+    let mut temp = tempfile::TempPath::try_from_path(old)?;
+    temp.disable_cleanup(true);
+    temp.persist_noclobber(new).map_err(|e| e.error)
+}
+
+fn local_rename_error(error: std::io::Error) -> String {
+    use std::io::ErrorKind;
+    match error.kind() {
+        ErrorKind::AlreadyExists => "conflict".into(),
+        ErrorKind::PermissionDenied
+        | ErrorKind::InvalidInput
+        | ErrorKind::NotFound
+        | ErrorKind::Unsupported
+        | ErrorKind::ReadOnlyFilesystem
+        | ErrorKind::StorageFull => err(error),
+        // Local paths can name network shares. A lost reply requires verification.
+        _ => "commitUnknown".into(),
+    }
+}
+
 pub fn display_path(path: &str) -> String {
     if let Some(path) = path.strip_prefix("\\\\?\\UNC\\") {
         return format!("\\\\{path}");
@@ -72,6 +121,34 @@ pub struct Remote {
     pub extensions: std::collections::HashMap<String, String>,
     pub(crate) _connection: crate::tunnel::Connection,
 }
+impl Remote {
+    pub(crate) async fn open(
+        connection: crate::tunnel::Connection,
+        cancel: &tokio_util::sync::CancellationToken,
+        deadline: std::time::Duration,
+        request_timeout_secs: u64,
+    ) -> Result<Self> {
+        let initialize = async move {
+            let channel = connection.open_session().await.map_err(err)?;
+            channel.request_subsystem(true, "sftp").await.map_err(err)?;
+            let raw = RawSftpSession::new(channel.into_stream());
+            raw.set_timeout(request_timeout_secs);
+            let version = raw.init().await.map_err(|_| "sftpUnavailable".to_owned())?;
+            Ok(Self {
+                raw,
+                extensions: version.extensions,
+                _connection: connection,
+            })
+        };
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => Err("cancelled".into()),
+            result = tokio::time::timeout(deadline, initialize) =>
+                result.map_err(|_| "connectionTimeout".to_owned())?,
+        }
+    }
+}
+
 pub fn name_ok(s: &str) -> bool {
     !s.is_empty() && s != "." && s != ".." && !s.contains(['/', '\\', '\0'])
 }
@@ -277,10 +354,15 @@ impl Fs {
         match self {
             Self::Local => {
                 if replace {
-                    tokio::fs::rename(old, new).await.map_err(err)
+                    tokio::fs::rename(old, new)
+                        .await
+                        .map_err(local_rename_error)
                 } else {
-                    tokio::fs::hard_link(old, new).await.map_err(err)?;
-                    tokio::fs::remove_file(old).await.map_err(err)
+                    let (old, new) = (old.to_owned(), new.to_owned());
+                    tokio::task::spawn_blocking(move || move_exclusive(&old, &new))
+                        .await
+                        .map_err(|_| "commitUnknown".to_owned())?
+                        .map_err(local_rename_error)
                 }
             }
             Self::Remote(r) => {
@@ -597,13 +679,27 @@ mod tests {
     }
     #[tokio::test]
     async fn exclusive_publish_does_not_replace() {
+        assert_eq!(
+            local_rename_error(std::io::ErrorKind::TimedOut.into()),
+            "commitUnknown"
+        );
         let t = tempfile::tempdir().unwrap();
         let fs = Fs::Local;
         let a = t.path().join("a").to_str().unwrap().to_owned();
         let b = t.path().join("b").to_str().unwrap().to_owned();
         tokio::fs::write(&a, b"new").await.unwrap();
         tokio::fs::write(&b, b"original").await.unwrap();
-        assert!(fs.rename(&a, &b, false).await.is_err());
+        assert_eq!(fs.rename(&a, &b, false).await.unwrap_err(), "conflict");
+        let fresh = t.path().join("published");
+        // A malformed persisted path must never be truncated at a native API boundary.
+        assert!(fs
+            .rename(&format!("{a}\0suffix"), fresh.to_str().unwrap(), false)
+            .await
+            .is_err());
+        assert!(!fresh.exists());
+        fs.rename(&a, fresh.to_str().unwrap(), false).await.unwrap();
+        assert!(!Path::new(&a).exists());
+        assert_eq!(tokio::fs::read(fresh).await.unwrap(), b"new");
         assert_eq!(tokio::fs::read(&b).await.unwrap(), b"original");
     }
 }

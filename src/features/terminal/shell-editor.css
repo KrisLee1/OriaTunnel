@@ -124,6 +124,7 @@
 }
 .shell-edit textarea {
   display: block;
+  field-sizing: content;
   background: transparent;
   color: inherit;
   resize: none;

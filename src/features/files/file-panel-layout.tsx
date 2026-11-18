@@ -1,4 +1,16 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { WorkspacePanel } from "@/components/ui/workspace-panel";
+import { useWorkspacePanel } from "@/components/ui/use-workspace-panel";
+import type { useTransferQueue } from "./use-transfer-queue";
 import type {
   GroupImperativeHandle,
   GroupProps,
@@ -132,6 +144,58 @@ export function useFilePanelLayout(
   };
 }
 type FileLayoutState = ReturnType<typeof useFilePanelLayout>;
+
+export function FileWorkspacePanel({
+  open,
+  onClose,
+  panelRef,
+  queue,
+  renderQueue,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  panelRef: RefObject<HTMLElement | null>;
+  queue: ReturnType<typeof useTransferQueue>;
+  renderQueue: (orientation: "horizontal" | "vertical") => ReactNode;
+  children: ReactNode[];
+}) {
+  const { t } = useTranslation("files");
+  const panel = useWorkspacePanel({
+    open,
+    storageKey: "oria-tunnel.files-workspace.v1",
+    defaults: { dock: "bottom", sizes: { bottom: 480, left: 440, right: 440 } },
+    minimums: { bottom: 360, left: 360, right: 360 },
+  });
+  useImperativeHandle(panelRef, () => panel.ref.current!, [panel.ref]);
+  const layout = useFilePanelLayout(
+    { width: panel.bounds.width - 16, height: panel.bounds.height - 40 },
+    queue.queue,
+  );
+  const queueContent = useMemo(
+    () => renderQueue(layout.orientation.outer),
+    [renderQueue, layout.orientation.outer],
+  );
+  return (
+    <WorkspacePanel
+      panel={panel}
+      title={t("title")}
+      onClose={onClose}
+      className="files-workspace"
+      actions={<FileLayoutMenu layout={layout} />}
+    >
+      <p className="sr-only">{t("description")}</p>
+      <FilePanelGrid
+        layout={layout}
+        queuePanelRef={queue.panelRef}
+        onQueueResize={queue.onResize}
+        queue={queueContent}
+      >
+        {children}
+      </FilePanelGrid>
+    </WorkspacePanel>
+  );
+}
 
 export function FileLayoutMenu({ layout }: { layout: FileLayoutState }) {
   const { t } = useTranslation("files");

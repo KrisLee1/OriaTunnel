@@ -486,19 +486,40 @@ mod tests {
     const SIGNATURE: &str = include_str!("../tests/fixtures/updater/payload.sig");
     const PAYLOAD: &[u8] = include_bytes!("../tests/fixtures/updater/payload.txt");
 
-    async fn serve(status: &str, body: Vec<u8>) -> (String, tokio::task::JoinHandle<()>) {
+    async fn serve(
+        status: &str,
+        body: Vec<u8>,
+    ) -> (String, tokio::task::JoinHandle<std::io::Result<()>>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/fixture", listener.local_addr().unwrap());
         let header = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n", body.len());
+        let endpoint = url.clone();
         let task = tokio::spawn(async move {
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let mut request = [0; 4096];
-            let count = stream.read(&mut request).await.unwrap();
-            assert!(count > 0);
-            stream.write_all(header.as_bytes()).await.unwrap();
-            stream.write_all(&body).await.unwrap();
+            tokio::time::timeout(std::time::Duration::from_secs(8), async {
+                let (mut stream, _) = listener.accept().await?;
+                let mut request = [0; 4096];
+                if stream.read(&mut request).await? == 0 {
+                    return Err(std::io::ErrorKind::UnexpectedEof.into());
+                }
+                stream.write_all(header.as_bytes()).await?;
+                stream.write_all(&body).await
+            })
+            .await
+            .map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!("Updater fixture timed out waiting for HTTP exchange at {endpoint}"),
+                )
+            })?
         });
         (url, task)
+    }
+    #[tokio::test(start_paused = true)]
+    async fn missing_update_request_reports_fixture_endpoint() {
+        let (endpoint, server) = serve("200 OK", vec![]).await;
+        let error = server.await.unwrap().unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+        assert!(error.to_string().contains(&endpoint));
     }
     fn test_app(endpoint: &str) -> tauri::App<tauri::test::MockRuntime> {
         let mut context = tauri::test::mock_context(tauri::test::noop_assets());
@@ -540,7 +561,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let state = test_state(app.handle(), directory.path().into());
         state.check(app.handle(), false).await.unwrap();
-        server.await.unwrap();
+        server.await.unwrap().unwrap();
         (app, state, directory)
     }
     #[tokio::test]
@@ -564,7 +585,7 @@ mod tests {
                     None
                 }
             );
-            server.await.unwrap();
+            server.await.unwrap().unwrap();
         }
         for version in ["0.1.0", "0.0.9", "0.2.0-beta.1"] {
             let (_app, state, _directory) = announced_update(version).await;
@@ -586,7 +607,7 @@ mod tests {
             .unwrap()
             .download_url = url.parse().unwrap();
         let failed = state.download(app.handle(), "0.2.0").await.unwrap();
-        server.await.unwrap();
+        server.await.unwrap().unwrap();
         assert_eq!(failed.error, Some(Failure::Download));
         assert!(!failed.can_install);
         assert!(failed.can_download);
@@ -600,7 +621,7 @@ mod tests {
             .unwrap()
             .download_url = url.parse().unwrap();
         let ready = state.download(app.handle(), "0.2.0").await.unwrap();
-        server.await.unwrap();
+        server.await.unwrap().unwrap();
         assert_eq!(ready.phase, Phase::Ready);
         assert!(ready.can_install);
         assert!(!ready.can_download);
@@ -643,7 +664,7 @@ mod tests {
             let directory = tempfile::tempdir().unwrap();
             let state = test_state(app.handle(), directory.path().into());
             let snapshot = state.check(app.handle(), false).await.unwrap();
-            server.await.unwrap();
+            server.await.unwrap().unwrap();
             if include_current {
                 assert_eq!(snapshot.phase, Phase::Available);
                 assert_eq!(
