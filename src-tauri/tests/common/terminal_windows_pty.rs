@@ -86,7 +86,13 @@ pub async fn spawn_shell(
     // Absolute system path and no profile: never execute user PowerShell setup.
     let system = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap());
     let powershell = system.join(r"System32\WindowsPowerShell\v1.0");
-    let mut process = CommandBuilder::new(powershell.join("powershell.exe"));
+    let cmd = editor_shell == Some("cmd");
+    let executable = if cmd {
+        system.join(r"System32\cmd.exe")
+    } else {
+        powershell.join("powershell.exe")
+    };
+    let mut process = CommandBuilder::new(executable);
     process.env_clear();
     // Preserve only OS metadata needed by the Windows/.NET module loader, never
     // the runner's user PATH, profile, PowerShell modules, or authentication.
@@ -113,41 +119,40 @@ pub async fn spawn_shell(
         "PSModuleAnalysisCachePath",
         directory.path().join("module-cache"),
     );
-    process.args(["-NoLogo", "-NoProfile"]);
-    if command.is_none() {
-        process.arg("-NoExit");
-    } else {
-        process.arg("-NonInteractive");
-    }
-    process.arg("-Command");
-    let command = command.unwrap_or_else(||
-        "function global:PSConsoleHostReadLine { [Console]::ReadLine() }; function global:prompt { 'oria-e2> ' }".into());
-    // Keep child PowerShell profiles and history isolated as well as the outer shell.
-    let command = if let Some(shell) = editor_shell {
+    // Start the configured shell directly in ConPTY, as the SSH service does.
+    // Keep all PowerShell profiles and history outside the runner's user directories.
+    let command = if editor_shell.is_some() {
         process.env("ORIATUNNEL_TEST_DATA_DIR", directory.path());
-        let command = command.replace("-NoLogo -NoExit ", "-NoLogo -NoProfile -NoExit ");
-        // Win32-OpenSSH builds the PTY command line as shell + switch + raw SSH
-        // command. Batch files and PowerShell argument arrays have different quoting.
-        let (executable, args) = if shell == "cmd" {
-            (system.join(r"System32\cmd.exe"), format!("/d /c {command}"))
-        } else {
-            (
-                powershell.join("powershell.exe"),
-                format!("-NoLogo -NoProfile -Command {command}"),
-            )
-        };
-        process.env("ORIA_FIXTURE_SHELL", executable);
-        process.env("ORIA_FIXTURE_ARGUMENTS", args);
-        "$info = New-Object Diagnostics.ProcessStartInfo; $info.FileName = $env:ORIA_FIXTURE_SHELL; \
-         $info.Arguments = $env:ORIA_FIXTURE_ARGUMENTS; $info.UseShellExecute = $false; \
-         $child = [Diagnostics.Process]::Start($info); $child.WaitForExit(); exit $child.ExitCode".into()
+        command.map(|command| command.replace("-NoLogo -NoExit ", "-NoLogo -NoProfile -NoExit "))
     } else {
         command
     };
-    let utility =
-        powershell.join("Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1");
-    let utility = utility.to_string_lossy().replace('\'', "''");
-    process.arg(format!("[Console]::InputEncoding = [Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $OutputEncoding = [Console]::OutputEncoding; [Console]::WriteLine('fixture-shell-ready'); Import-Module '{utility}' -ErrorAction Stop; [Console]::WriteLine('fixture-modules-ready'); {command}"));
+    if cmd {
+        process.arg("/d");
+        if let Some(command) = command {
+            // Let cmd parse the SSH command without re-quoting it as a Windows argv element.
+            std::fs::write(
+                directory.path().join("fixture-ssh.cmd"),
+                format!("@echo off\r\n{command}\r\n"),
+            )
+            .unwrap();
+            process.args(["/c", "fixture-ssh.cmd"]);
+        }
+    } else {
+        process.args(["-NoLogo", "-NoProfile"]);
+        let command = if let Some(command) = command {
+            process.arg("-NonInteractive");
+            command
+        } else {
+            process.arg("-NoExit");
+            "function global:PSConsoleHostReadLine { [Console]::ReadLine() }; function global:prompt { 'oria-e2> ' }".into()
+        };
+        let utility = powershell
+            .join("Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1");
+        let utility = utility.to_string_lossy().replace('\'', "''");
+        process.arg("-Command");
+        process.arg(format!("[Console]::InputEncoding = [Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $OutputEncoding = [Console]::OutputEncoding; [Console]::WriteLine('fixture-shell-ready'); Import-Module '{utility}' -ErrorAction Stop; [Console]::WriteLine('fixture-modules-ready'); {command}"));
+    }
     process.cwd(directory.path());
     process.env("HOME", directory.path());
     process.env("USERPROFILE", directory.path());
