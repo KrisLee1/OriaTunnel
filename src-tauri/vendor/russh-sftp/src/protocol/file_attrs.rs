@@ -443,8 +443,9 @@ impl<'de> Deserialize<'de> for FileAttributes {
                     let count = seq.next_element::<u32>()?.unwrap_or(0);
                     for _ in 0..count {
                         for _ in 0..2 {
-                            seq.next_element::<serde_bytes::ByteBuf>()?
-                                .ok_or_else(|| serde::de::Error::custom("missing extended attribute"))?;
+                            seq.next_element::<serde_bytes::ByteBuf>()?.ok_or_else(|| {
+                                serde::de::Error::custom("missing extended attribute")
+                            })?;
                         }
                     }
                 }

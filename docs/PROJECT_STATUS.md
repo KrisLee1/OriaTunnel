@@ -2,9 +2,9 @@
 
 当前正式版为 [v0.4.0](https://github.com/KrisLee1/OriaTunnel/releases/tag/v0.4.0)，于 2026-11-17 公开并设为 Latest。[本版更新说明](releases/v0.4.0.md)
 
-## 0.4.1 发布准备
+## 0.5.0 发布准备
 
-源码版本与四平台安装入口已同步至 0.4.1。[更新日志](releases/v0.4.1.md) 同时用于 GitHub Release 和应用内更新。
+源码版本与四平台安装入口已同步至 0.5.0。[更新日志](releases/v0.5.0.md) 同时用于 GitHub Release 和应用内更新。
 
 ## 文件时间排序与分组（未发布）
 

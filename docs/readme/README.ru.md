@@ -45,16 +45,16 @@
 
 ## Скачивание и установка
 
-| Платформа | Установщик v0.4.1 | Установка |
+| Платформа | Установщик v0.5.0 | Установка |
 | --- | --- | --- |
-| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64.dmg) | Откройте образ диска и перетащите OriaTunnel в папку «Программы». |
-| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.4.1/OriaTunnel_0.4.1_arm64-setup.exe) | Запустите установщик и следуйте инструкциям. |
+| macOS | [Apple Silicon](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.5.0/OriaTunnel_0.5.0_aarch64.dmg) · [Intel](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.5.0/OriaTunnel_0.5.0_x64.dmg) | Откройте образ диска и перетащите OriaTunnel в папку «Программы». |
+| Windows | [x64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.5.0/OriaTunnel_0.5.0_x64-setup.exe) · [ARM64](https://github.com/KrisLee1/OriaTunnel/releases/download/v0.5.0/OriaTunnel_0.5.0_arm64-setup.exe) | Запустите установщик и следуйте инструкциям. |
 
 ### История версий
 
-**v0.4.1** · Терминалы можно объединять в разделённые панели перетаскиванием. Изменение размера стало плавнее, а возобновление передачи больших пакетов файлов — быстрее. Проверить обновления можно в разделе «О программе».
+**v0.5.0** · Терминалы можно объединять в панели перетаскиванием, а на SSH-хостах Windows доступно интеллектуальное редактирование команд PowerShell. Улучшены передача больших папок, возобновление после разрыва соединения и отзывчивость панелей. Проверить обновления можно в разделе «О программе».
 
-[Примечания к выпуску (на китайском)](../releases/v0.4.1.md) · [Все версии](https://github.com/KrisLee1/OriaTunnel/releases)
+[Примечания к выпуску (на китайском)](../releases/v0.5.0.md) · [Все версии](https://github.com/KrisLee1/OriaTunnel/releases)
 
 ## Быстрый старт
 

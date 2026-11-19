@@ -265,7 +265,7 @@ pnpm test src/features/commands
 
 ## 文件传输开发
 
-0.2.0 的原生入口为 `src-tauri/src/app_files.rs`，队列、SFTP、本机文件系统、直传与文本保存分别位于 `src-tauri/src/files/`；前端在 `src/features/files/`，通过该目录的 `api.ts` 调用专用 IPC，并订阅 `files://snapshot`。任务状态、字节进度和提交结果均来自 Rust，不能用前端定时器模拟成功。
+文件传输的原生入口为 `src-tauri/src/app_files.rs`，队列、SFTP、本机文件系统、直传与文本保存分别位于 `src-tauri/src/files/`；前端在 `src/features/files/`，通过该目录的 `api.ts` 调用专用 IPC，并订阅 `files://snapshot`。任务状态、字节进度和提交结果均来自 Rust，不能用前端定时器模拟成功。
 
 Windows 在项目根目录执行以下命令，在隔离的 WebView2 中复测本地 PowerShell。测试从终端面板打开真实 ConPTY，检查回环 ping 在缩放窗口时的输出间距、主动输出的空行与缩进、盘符切换、命令补全、命令库、前台输入与退出。每轮使用独立应用数据、WebView 配置和空 SSH 配置，结果写入 `outputs/terminal-windows/run-*/result.json`。可通过 `ORIA_QA_EXE` 指定待测的可执行文件。
 

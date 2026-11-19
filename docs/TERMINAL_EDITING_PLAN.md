@@ -1,6 +1,6 @@
 # 本地与 SSH 终端交互方案
 
-2026-11-17 · 已在当前工作区实施。主窗口和 VNC 窗口共用终端视图，各会话独立工作。
+v0.5.0 实现说明。主窗口和 VNC 窗口共用终端视图，各会话独立工作。日常操作见[使用指南](USAGE.md#本地与-ssh-交互终端)。
 
 ## 打开与关闭会话
 
@@ -8,11 +8,13 @@
 
 本地终端从用户主目录启动。Unix 的 Bash、Zsh 和 Windows 本地 PowerShell 共用下述编辑器。Windows 在标准 `ComSpec` 指向 cmd 时默认启动系统自带的 Windows PowerShell，通过 ConPTY 执行命令。使用显式指定的其他命令解释器时保留原生输入。PowerShell 在文件系统目录支持盘符、UNC 路径和 PowerShell 引用语法。键入前缀会提示历史和命令名，按 ↑ 可浏览匹配历史。启用原生 PSReadLine 历史集成时，打开终端会恢复最近至多 200 条记录，提交的新命令遵循 PSReadLine 的历史过滤及保存设置。
 
+Windows SSH 会话按远端默认 Shell 选择 PowerShell 入口，使用与本地 PowerShell 相同的编辑器。分屏与重排复用原终端会话。
+
 在提示符、命令已结束或仅有后台作业时，点标签上的 × 直接关闭。在前台命令、全屏程序或运行中的服务终端上点 × 会弹出确认；取消后可继续操作原程序。前台状态来自命令编辑器、终端协议标记、备用屏幕，以及本地 Unix PTY 的前台进程组。对没有命令状态标记的原始 SSH 会话，只能识别备用屏幕等可观察状态。
 
 ## 每条命令的布局与折叠
 
-每条命令独占一组。主机名显示在面板左上角。命令块首行显示活动环境和路径，最右侧是「更多操作」按钮。环境名取自当前 shell，支持 Python venv、Conda、显式设置的 pyenv 版本和 Nix shell，默认环境名 `base` 隐藏。第二行在 Windows 本地 PowerShell 中以 `>` 引导命令，Bash 和 Zsh 使用 `$`。
+每条命令独占一组。主机名显示在面板左上角。命令块首行显示活动环境和路径，最右侧是「更多操作」按钮。环境名取自当前 shell，支持 Python venv、Conda、显式设置的 pyenv 版本和 Nix shell，默认环境名 `base` 隐藏。第二行在本地和远程 PowerShell 中以 `>` 引导命令，Bash 和 Zsh 使用 `$`。
 
 ```text
 (analysis) [ 📁 ~/Downloads ]                      ⋯
