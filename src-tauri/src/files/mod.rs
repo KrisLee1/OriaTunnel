@@ -3,8 +3,10 @@ use completion::CompletionArchive;
 mod direct;
 mod manifest;
 mod preparation;
+mod scan_cache;
 use manifest::Manifest;
 mod text;
+mod timing;
 pub use text::{TextDocument, TextSaveError};
 pub mod fs;
 #[cfg(test)]
@@ -82,6 +84,7 @@ struct PlannedEntry {
     path: String,
     destination: String,
     meta: Meta,
+    cached: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -134,6 +137,8 @@ pub struct Task {
     pub completed: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_archive: Option<CompletionArchive>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scan_cache: Option<scan_cache::ScanCache>,
     pub skipped: usize,
     pub revision: u64,
     pub error: Option<String>,
@@ -1001,6 +1006,7 @@ impl Manager {
             scan: None,
             completed: vec![],
             completed_archive: None,
+            scan_cache: None,
             skipped: 0,
             revision: 1,
             error: None,
@@ -1121,7 +1127,7 @@ impl Manager {
         let start = std::time::Instant::now();
         let prior_ms = self.tasks.lock().unwrap()[id].elapsed_ms.unwrap_or(0);
         let elapsed_ms = || prior_ms.saturating_add(start.elapsed().as_millis() as u64);
-        let mut prior_sample: Option<(u64, u64)> = None;
+        let mut timing = timing::TransferTiming::default();
         let mut tick = tokio::time::interval(std::time::Duration::from_millis(500));
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let work = self.copy(id, sources, target, c);
@@ -1132,6 +1138,7 @@ impl Manager {
                     self.change(id, |t| {
                         t.elapsed_ms = Some(elapsed_ms());
                         if result.is_ok() {
+                            t.scan_cache = None;
                             t.phase = if t.skipped > 0 { "partial" } else { "completed" }.into();
                             t.finished = Some(crate::model::timestamp());
                             t.speed = None;
@@ -1146,17 +1153,9 @@ impl Manager {
                     let ms = elapsed_ms();
                     t.elapsed_ms = Some(ms);
                     if matches!(t.phase.as_str(), "transferring" | "committing") {
-                        if let Some((bytes, when)) = prior_sample {
-                            let seconds = (ms - when) as f64 / 1000.0;
-                            if seconds > 0.0 {
-                                let speed = (t.bytes.saturating_sub(bytes) as f64 / seconds).round() as u64;
-                                t.speed = Some(speed);
-                                t.eta = (speed > 0).then(|| t.total.saturating_sub(t.bytes).div_ceil(speed));
-                            }
-                        }
-                        prior_sample = Some((t.bytes, ms));
+                        (t.speed, t.eta) = timing.sample(ms, t.bytes, t.total);
                     } else {
-                        prior_sample = None;
+                        timing = timing::TransferTiming::default();
                     }
                 }),
             }
@@ -1195,7 +1194,7 @@ impl Manager {
         let mut last_transfer_report = None;
         while let Some(item) = files.next()? {
             let mut dest = item.destination;
-            let source = Entry {
+            let mut source = Entry {
                 path: item.path,
                 meta: item.meta,
                 ..sources[item.root].clone()
@@ -1204,6 +1203,33 @@ impl Manager {
             if completed.contains(&source.path) {
                 self.change(id, |t| t.bytes += source.meta.size);
                 continue;
+            }
+            if item.cached {
+                let current = cancellable(&c.cancel, source.fs.meta(&source.path)).await?;
+                let Some(meta) = current.filter(|m| m.kind == "file") else {
+                    self.update(id, |task| task.scan_cache = None);
+                    return Err("sourceChanged".into());
+                };
+                if meta.size != source.meta.size {
+                    let old = source.meta.size;
+                    let total = self.tasks.lock().unwrap()[id]
+                        .total
+                        .checked_sub(old)
+                        .and_then(|n| n.checked_add(meta.size))
+                        .ok_or("transferScanLimit")?;
+                    self.update(id, |task| {
+                        // A subsequent pause must account for the committed size.
+                        task.scan_cache = None;
+                        task.total = total;
+                        if let Some(detail) = task.source_details.get_mut(&sources[item.root].path)
+                        {
+                            detail.size = detail
+                                .size
+                                .and_then(|n| n.checked_sub(old)?.checked_add(meta.size));
+                        }
+                    });
+                }
+                source.meta = meta;
             }
             let before = target.fs.meta(&dest).await?;
             let mut replace = false;

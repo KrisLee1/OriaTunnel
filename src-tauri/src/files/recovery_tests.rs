@@ -1,5 +1,400 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug)]
+enum FolderStop {
+    Pause,
+    Shutdown,
+    ChannelLoss,
+}
+
+#[tokio::test]
+async fn interrupted_directory_scan_keeps_complete_listings_and_recovers_a_damaged_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let journal = dir.path().join("queue.json");
+    let mut entries = vec![];
+    for name in ["first", "second"] {
+        let folder = dir.path().join(name);
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("child"), b"payload").unwrap();
+        let path = folder.to_str().unwrap().to_owned();
+        entries.push(Entry {
+            mutable: false,
+            fs: Fs::Local,
+            meta: Fs::Local.meta(&path).await.unwrap().unwrap(),
+            path,
+            session: None,
+        });
+    }
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let manager = Manager::new(journal.clone());
+    manager
+        .tasks
+        .lock()
+        .unwrap()
+        .insert("scan".into(), journal_record("scan", "paused"));
+    let control = Control {
+        cancel: CancellationToken::new(),
+        pause: true.into(),
+    };
+    let mut listings = scan_cache::Listings::open(&manager, None, &control, true)
+        .await
+        .unwrap();
+    listings
+        .visit(&entries[0], &control, |_, _, cached| {
+            assert!(!cached);
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let error = listings
+        .visit(&entries[1], &control, |_, _, _| {
+            control.cancel.cancel();
+            check(&control)
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(error, "cancelled");
+    listings.finish(&manager, "scan", false);
+    manager.save();
+    drop(manager);
+
+    let manager = Manager::new(journal);
+    let control = Control {
+        cancel: CancellationToken::new(),
+        pause: false.into(),
+    };
+    let snapshot = || manager.tasks.lock().unwrap()["scan"].scan_cache.clone();
+    let mut listings = scan_cache::Listings::open(&manager, snapshot(), &control, true)
+        .await
+        .unwrap();
+    for (i, entry) in entries.iter().enumerate() {
+        let mut seen = 0;
+        listings
+            .visit(entry, &control, |name, _, cached| {
+                assert_eq!(name, "child");
+                assert_eq!(cached, i == 0);
+                seen += 1;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        assert_eq!(seen, 1);
+    }
+    listings.finish(&manager, "scan", true);
+    let path = manager.archive_path(&snapshot().unwrap().key).unwrap();
+    std::fs::write(path, b"truncated").unwrap();
+    let mut listings = scan_cache::Listings::open(&manager, snapshot(), &control, true)
+        .await
+        .unwrap();
+    assert!(!listings.replaying());
+    listings
+        .visit(&entries[0], &control, |name, _, cached| {
+            assert_eq!(name, "child");
+            assert!(!cached);
+            Ok(())
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn large_folder_resume_lists_only_changed_directories_after_restart() {
+    const FILES: usize = 1024;
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    let journal = local.path().join("queue.json");
+    let root = remote.path().join("batch");
+    let stable = root.join("stable");
+    let changed = root.join("changed");
+    std::fs::create_dir_all(&stable).unwrap();
+    std::fs::create_dir(&changed).unwrap();
+    for i in 0..FILES {
+        std::fs::write(stable.join(i.to_string()), i.to_le_bytes()).unwrap();
+    }
+    std::fs::write(changed.join("old"), b"old").unwrap();
+    let audit = remote.path().join(".opendir-log");
+    std::fs::write(&audit, []).unwrap();
+    // The server reports whole seconds. These directories predate the scan.
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let (m, server) = manager(remote.path().into(), journal.clone()).await;
+    let src = m
+        .directory(Some("session".into()), "/".into())
+        .await
+        .unwrap();
+    let dst = m
+        .directory(None, local.path().to_str().unwrap().into())
+        .await
+        .unwrap();
+    let id = uuid::Uuid::new_v4().to_string();
+    let weak = Arc::downgrade(&m);
+    let stop_id = id.clone();
+    m.set_changed(Arc::new(move |snapshot| {
+        if snapshot
+            .tasks
+            .iter()
+            .any(|t| t.id == stop_id && t.phase == "preparing" && t.count == FILES + 1)
+        {
+            let m = weak.upgrade().unwrap();
+            let controls = m.controls.lock().unwrap();
+            let control = &controls[&stop_id];
+            control.pause.store(true, Ordering::SeqCst);
+            control.cancel.cancel();
+        }
+    }));
+    let folder = src.entries.iter().find(|e| e.name == "batch").unwrap();
+    m.submit(id.clone(), vec![folder.id.clone()], dst.id)
+        .await
+        .unwrap();
+    let paused = settled(&m, &id).await;
+    assert_eq!(paused.phase, "paused");
+    let cache = m.archive_path(&paused.scan_cache.unwrap().key).unwrap();
+    assert!(cache.exists());
+    assert_eq!(
+        std::fs::read_to_string(&audit)
+            .unwrap()
+            .lines()
+            .filter(|p| p.starts_with("/batch"))
+            .count(),
+        3
+    );
+    std::fs::write(&audit, []).unwrap();
+    m.control(&id, "resume", None).await.unwrap();
+    let unchanged = settled(&m, &id).await;
+    assert_eq!(unchanged.phase, "paused");
+    assert_eq!(
+        m.archive_path(&unchanged.scan_cache.unwrap().key).unwrap(),
+        cache
+    );
+    assert!(std::fs::read(&audit).unwrap().is_empty());
+    m.shutdown().await;
+    drop(m);
+    server.abort();
+    // A new child needs enumeration only in its own directory. A content
+    // edit in a cached listing must still transfer the new length and bytes.
+    std::fs::write(changed.join("new"), b"new").unwrap();
+    std::fs::write(stable.join("0"), b"changed size and content").unwrap();
+    std::fs::write(&audit, []).unwrap();
+    let (m, server) = manager(remote.path().into(), journal).await;
+    m.control(&id, "resume", None).await.unwrap();
+    let done = settled_within(&m, &id, Duration::from_secs(120)).await;
+    assert_eq!(done.phase, "completed", "{:?}", done.error);
+    assert_eq!(
+        std::fs::read_to_string(&audit)
+            .unwrap()
+            .lines()
+            .collect::<Vec<_>>(),
+        ["/batch/changed"]
+    );
+    let dest = local.path().join("batch");
+    for i in 1..FILES {
+        assert_eq!(
+            std::fs::read(dest.join("stable").join(i.to_string())).unwrap(),
+            i.to_le_bytes()
+        );
+    }
+    assert_eq!(
+        std::fs::read(dest.join("stable/0")).unwrap(),
+        b"changed size and content"
+    );
+    assert_eq!(std::fs::read(dest.join("changed/new")).unwrap(), b"new");
+    assert_eq!(std::fs::read(dest.join("changed/old")).unwrap(), b"old");
+    assert_eq!(done.count, FILES + 2);
+    assert_eq!(
+        done.bytes,
+        ((FILES - 1) * std::mem::size_of::<usize>() + 24 + 6) as u64
+    );
+    assert_eq!(done.total, done.bytes);
+    m.shutdown().await;
+    assert!(!cache.exists());
+    server.abort();
+}
+
+async fn check_nested_resume(
+    upload: bool,
+    stop: FolderStop,
+    native_server: Option<&std::path::Path>,
+) {
+    const SIZE: usize = 1024 * 1024;
+    let local = tempfile::tempdir().unwrap();
+    let remote = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let journal = history.path().join("queue.json");
+    let (source, target) = if upload {
+        (local.path(), remote.path())
+    } else {
+        (remote.path(), local.path())
+    };
+    // Identical basenames in different subdirectories must have independent checkpoints.
+    let files = [
+        "batch/甲/deep/data.bin",
+        "batch/乙/deep/data.bin",
+        "batch/丙/deep/data.bin",
+    ];
+    for (i, path) in files.iter().enumerate() {
+        let file = source.join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, vec![i as u8; SIZE]).unwrap();
+    }
+    let connect = || async {
+        match native_server {
+            Some(exe) => {
+                native_download_manager(remote.path().into(), journal.clone(), exe.into()).await
+            }
+            None => manager(remote.path().into(), journal.clone()).await,
+        }
+    };
+    let (mut m, mut server) = connect().await;
+    let remote_dir = m
+        .directory(Some("session".into()), ".".into())
+        .await
+        .unwrap();
+    let local_dir = m
+        .directory(None, local.path().to_str().unwrap().into())
+        .await
+        .unwrap();
+    let (src, dst) = if upload {
+        (local_dir, remote_dir)
+    } else {
+        (remote_dir, local_dir)
+    };
+    let folder = src
+        .entries
+        .iter()
+        .find(|entry| entry.name == "batch")
+        .unwrap();
+    let id = m
+        .submit(
+            uuid::Uuid::new_v4().to_string(),
+            vec![folder.id.clone()],
+            dst.id,
+        )
+        .await
+        .unwrap();
+    let partial = tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let task = m.tasks.lock().unwrap()[&id].clone();
+            assert!(
+                task.active(),
+                "stopped before interruption: {:?}",
+                task.error
+            );
+            if !task.completed.is_empty() {
+                if let Some(temp) = task.temp {
+                    let path = if upload {
+                        remote.path().join(temp.trim_start_matches('/'))
+                    } else {
+                        PathBuf::from(temp)
+                    };
+                    if let Ok(meta) = path.metadata() {
+                        if (1..SIZE as u64).contains(&meta.len()) {
+                            break meta.len();
+                        }
+                    }
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .expect("one committed child and one partially written sibling");
+    match stop {
+        FolderStop::Pause => m.control(&id, "pause", None).await.unwrap(),
+        FolderStop::Shutdown => m.shutdown().await,
+        FolderStop::ChannelLoss => {
+            let Fs::Remote(fs) = m.remotes.lock().unwrap()["session"].clone() else {
+                unreachable!()
+            };
+            fs.raw.close_session().unwrap();
+        }
+    }
+    let stopped = settled(&m, &id).await;
+    assert_eq!(
+        stopped.phase,
+        match stop {
+            FolderStop::Pause => "paused",
+            FolderStop::Shutdown => "interrupted",
+            FolderStop::ChannelLoss => "failed",
+        },
+        "{:?}",
+        stopped.error
+    );
+    let delivered = files.map(|p| target.join(p).is_file());
+    assert_eq!(delivered.iter().filter(|&&yes| yes).count(), 1);
+    assert_eq!(stopped.completed.len(), 1);
+    // Change every source byte. The delivered file must keep its original contents,
+    // and both the partial and pending children must contain only the new bytes.
+    for (i, path) in files.iter().enumerate() {
+        std::fs::write(source.join(path), vec![i as u8 + 10; SIZE]).unwrap();
+    }
+    if !matches!(stop, FolderStop::Pause) {
+        m.shutdown().await;
+        drop(m);
+        server.abort();
+        (m, server) = connect().await;
+    }
+    if upload && matches!(stop, FolderStop::ChannelLoss) {
+        assert!(stopped.temp.is_some());
+        assert_eq!(
+            m.control(&id, "resume", None).await.unwrap_err(),
+            "cleanupFailed"
+        );
+        m.control(&id, "cleanup", None).await.unwrap();
+    }
+    m.control(&id, "resume", None).await.unwrap();
+    let done = settled_within(&m, &id, Duration::from_secs(45)).await;
+    assert_eq!(done.phase, "completed", "{:?}", done.error);
+    assert_eq!(
+        (done.count, done.bytes, done.total),
+        (
+            files.len(),
+            (files.len() * SIZE) as u64,
+            (files.len() * SIZE) as u64
+        )
+    );
+    assert_eq!(m.completed_paths(&done).unwrap().len(), files.len());
+    for (i, path) in files.iter().enumerate() {
+        let file = target.join(path);
+        let expected = i as u8 + if delivered[i] { 0 } else { 10 };
+        let bytes = std::fs::read(&file).unwrap();
+        assert_eq!(bytes.len(), SIZE);
+        assert!(bytes.iter().all(|&b| b == expected), "{path}");
+        assert_eq!(
+            std::fs::read_dir(file.parent().unwrap()).unwrap().count(),
+            1
+        );
+    }
+    eprintln!("{stop:?}, upload={upload}: one child preserved, two copied; interrupted after {partial}/{SIZE} bytes");
+    m.shutdown().await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn nested_folder_resume_over_loopback_sftp() {
+    for upload in [true, false] {
+        for stop in [
+            FolderStop::Pause,
+            FolderStop::Shutdown,
+            FolderStop::ChannelLoss,
+        ] {
+            check_nested_resume(upload, stop, None).await;
+        }
+    }
+}
+
+#[cfg(windows)]
+#[tokio::test]
+#[ignore = "uses the read-only Microsoft Win32-OpenSSH sftp-server specified by ORIA_QA_SFTP_SERVER"]
+async fn nested_folder_resume_from_windows_openssh() {
+    let exe = PathBuf::from(std::env::var_os("ORIA_QA_SFTP_SERVER").unwrap());
+    for stop in [
+        FolderStop::Pause,
+        FolderStop::Shutdown,
+        FolderStop::ChannelLoss,
+    ] {
+        check_nested_resume(false, stop, Some(&exe)).await;
+    }
+}
+
 #[tokio::test]
 async fn resumes_download_after_the_original_sftp_channel_closes() {
     for shutdown in [false, true] {

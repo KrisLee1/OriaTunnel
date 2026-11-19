@@ -16,7 +16,31 @@ impl Manager {
         c: &Control,
     ) -> Result<Prepared> {
         self.archive_completed(id)?;
+        let saved = self.tasks.lock().unwrap()[id].scan_cache.clone();
+        let mut listings = scan_cache::Listings::open(
+            self,
+            saved,
+            c,
+            sources.iter().any(|s| s.meta.kind == "directory"),
+        )
+        .await?;
+        let prepared = self
+            .prepare_entries(id, sources, target, c, &mut listings)
+            .await;
+        listings.finish(self, id, prepared.is_ok());
+        prepared
+    }
+
+    async fn prepare_entries(
+        &self,
+        id: &str,
+        sources: &[Entry],
+        target: &Entry,
+        c: &Control,
+        listings: &mut scan_cache::Listings,
+    ) -> Result<Prepared> {
         let mut root_sizes = vec![Some(0u64); sources.len()];
+        let replaying = listings.replaying();
         self.change(id, |t| {
             t.phase = "preparing".into();
             t.source_kinds = sources
@@ -26,7 +50,7 @@ impl Manager {
             t.bytes = 0;
             t.total = 0;
             t.count = 0;
-            t.scan = Some(ScanProgress::default());
+            t.scan = (!replaying).then(ScanProgress::default);
             for source in sources {
                 if source.meta.kind == "directory" {
                     if let Some(detail) = t.source_details.get_mut(&source.path) {
@@ -48,14 +72,19 @@ impl Manager {
         let mut files = Manifest::new();
         let mut progress = ScanProgress::default();
         let mut last_report = std::time::Instant::now();
+        let mut visited = 0;
         // Keep a finite work budget for a misbehaving remote that never reaches EOF.
         // Neither directory width nor the number of files determines resident plan size.
-        let mut report_scan = |entry: Option<&Meta>, directory: &str| -> Result<()> {
+        let mut report_scan = |entry: Option<&Meta>, directory: &str, cached: bool| -> Result<()> {
             if let Some(meta) = entry {
-                progress.items += 1;
-                if progress.items > 10_000_000 {
+                visited += 1;
+                if visited > 10_000_000 {
                     return Err("transferScanLimit".into());
                 }
+                if cached {
+                    return Ok(());
+                }
+                progress.items += 1;
                 if meta.kind == "file" {
                     progress.bytes = progress.bytes.saturating_add(meta.size);
                 }
@@ -76,12 +105,13 @@ impl Manager {
                 .rsplit(['/', '\\'])
                 .next()
                 .unwrap_or("");
-            report_scan(Some(&source.meta), &source.path)?;
+            report_scan(Some(&source.meta), &source.path, replaying)?;
             pending.push(PlannedEntry {
                 root,
                 path: source.path.clone(),
                 destination: target.fs.join(&target.path, name)?,
                 meta: source.meta.clone(),
+                cached: false,
             })?;
         }
         let mut conflict = None;
@@ -114,11 +144,19 @@ impl Manager {
             }
             Ok(())
         };
-        while let Some(item) = pending.next()? {
+        while let Some(mut item) = pending.next()? {
             check(c)?;
             let root_index = item.root;
             let selected = &sources[root_index];
             let root = &selected.path;
+            // Never descend through a directory that became a link while paused.
+            if item.cached {
+                let Some(meta) = cancellable(&c.cancel, selected.fs.meta(&item.path)).await? else {
+                    continue;
+                };
+                item.meta = meta;
+                item.cached = false;
+            }
             if item.path == *root
                 && !self.tasks.lock().unwrap()[id]
                     .source_details
@@ -151,7 +189,9 @@ impl Manager {
             }
             let mut dest = item.destination;
             if source.meta.kind == "directory" {
-                report_scan(None, &source.path)?;
+                if !listings.replaying() {
+                    report_scan(None, &source.path, false)?;
+                }
                 if source.fs.is_windows_directory_link(&source.path).await? {
                     self.mark_skipped(id, &source.path);
                     continue;
@@ -212,27 +252,23 @@ impl Manager {
                         }
                     });
                 }
-                source
-                    .fs
-                    .visit_directory(
-                        &source.path,
-                        &c.cancel,
-                        |fs::DirectoryChild { name, meta, .. }| {
-                            check(c)?;
-                            report_scan(Some(&meta), &source.path)?;
-                            let child = PlannedEntry {
-                                root: root_index,
-                                path: source.fs.join(&source.path, &name)?,
-                                destination: target.fs.join(&dest, &name)?,
-                                meta,
-                            };
-                            if child.meta.kind == "file" {
-                                plan_file(child, &mut root_sizes[root_index])
-                            } else {
-                                pending.push(child)
-                            }
-                        },
-                    )
+                listings
+                    .visit(&source, c, |name, meta, cached| {
+                        check(c)?;
+                        report_scan(Some(&meta), &source.path, cached)?;
+                        let child = PlannedEntry {
+                            root: root_index,
+                            path: source.fs.join(&source.path, &name)?,
+                            destination: target.fs.join(&dest, &name)?,
+                            meta,
+                            cached,
+                        };
+                        if child.meta.kind == "file" {
+                            plan_file(child, &mut root_sizes[root_index])
+                        } else {
+                            pending.push(child)
+                        }
+                    })
                     .await?;
             } else {
                 self.mark_skipped(id, &source.path);

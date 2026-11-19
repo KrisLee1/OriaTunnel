@@ -11,7 +11,7 @@ pub struct CompletionArchive {
 }
 
 impl Manager {
-    fn archive_path(&self, key: &str) -> Result<PathBuf> {
+    pub(super) fn archive_path(&self, key: &str) -> Result<PathBuf> {
         let key = uuid::Uuid::parse_str(key).map_err(|_| "journalDamaged")?;
         Ok(self
             .journal
@@ -123,7 +123,14 @@ impl Manager {
         }
         let live: HashSet<_> = retained
             .iter()
-            .filter_map(|task| task.completed_archive.as_ref().map(|a| &a.key))
+            .flat_map(|task| {
+                [
+                    task.completed_archive.as_ref().map(|a| &a.key),
+                    task.scan_cache.as_ref().map(|a| &a.key),
+                ]
+                .into_iter()
+                .flatten()
+            })
             .collect();
         keys.retain(|key| {
             if live.contains(key) {
@@ -135,5 +142,8 @@ impl Manager {
                     Err(e) => e.kind() != std::io::ErrorKind::NotFound,
                 })
         });
+        if keys.is_empty() {
+            let _ = std::fs::remove_dir(self.journal.with_extension("completed"));
+        }
     }
 }

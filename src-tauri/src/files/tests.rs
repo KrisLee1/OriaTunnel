@@ -309,6 +309,13 @@ impl russh_sftp::server::Handler for Sftp {
         Ok(Attrs { id, attrs: a })
     }
     async fn opendir(&mut self, id: u32, path: String) -> std::result::Result<Handle, Self::Error> {
+        if let Ok(mut audit) = std::fs::OpenOptions::new()
+            .append(true)
+            .open(self.root.join(".opendir-log"))
+        {
+            use std::io::Write;
+            writeln!(audit, "{path}").unwrap();
+        }
         if !self.path(&path)?.is_dir() {
             return Err(StatusCode::NoSuchFile);
         }
